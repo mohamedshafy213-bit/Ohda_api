@@ -59,7 +59,9 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
             Username = user.Username,
             Email = user.Email,
             Role = user.Role,
-            PersonName = user.PersonName
+            PersonName = user.PersonName,
+            UserGroupId = user.UserGroupId,
+            UserGroupName = user.UserGroup?.Name
         };
 
         var authResponse = new AuthResponseDto
@@ -104,7 +106,8 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
             Email = registerDto.Email,
             PasswordHash = hashedPassword,
             Role = registerDto.Role,
-            PersonName = registerDto.PersonName
+            PersonName = registerDto.PersonName,
+            UserGroupId = registerDto.UserGroupId
         };
 
         await _repositoryWrapper.Users.Create(new UserCreateDto
@@ -113,7 +116,8 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
             Email = user.Email,
             Password = user.PasswordHash,
             Role = user.Role,
-            PersonName = user.PersonName
+            PersonName = user.PersonName,
+            UserGroupId = user.UserGroupId
         });
 
         return Ok(new SingleObjectResponseModel

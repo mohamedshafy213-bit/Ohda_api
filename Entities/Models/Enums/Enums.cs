@@ -37,3 +37,12 @@ public enum NotificationType
     StockAlert = 4,
     EntryRequest = 5
 }
+
+public enum ProductItemStatus
+{
+    InStock = 1,
+    Exited = 2,
+    Damaged = 3,
+    InMaintenance = 4
+}
+

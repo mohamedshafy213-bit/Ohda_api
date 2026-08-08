@@ -28,6 +28,9 @@ public class ProductExitRequestDto : BaseDto
 
     public string? RejectionReason { get; set; }
     public DateTime? InsertDate { get; set; }
+
+    public List<int> SelectedProductItemIds { get; set; } = new();
+    public List<string> SelectedSerials { get; set; } = new();
 }
 
 public class ProductExitCreateDto : BaseCreateDto
@@ -38,6 +41,7 @@ public class ProductExitCreateDto : BaseCreateDto
     public string? RecipientDepartment { get; set; }
     public string? Purpose { get; set; }
     public int RequestedByUserId { get; set; }
+    public List<int> SelectedProductItemIds { get; set; } = new();
 }
 
 public class ProductExitUpdateDto : BaseUpdateDto
@@ -52,7 +56,9 @@ public class ProductExitUpdateDto : BaseUpdateDto
     public int? ManagerId { get; set; }
     public int? SupervisorId { get; set; }
     public string? RejectionReason { get; set; }
+    public List<int> SelectedProductItemIds { get; set; } = new();
 }
+
 
 public class RejectRequestDto
 {

@@ -10,6 +10,8 @@ public class UserDto : BaseDto
     public string Email { get; set; } = string.Empty;
     public UserRole Role { get; set; }
     public string? PersonName { get; set; }
+    public int? UserGroupId { get; set; }
+    public string? UserGroupName { get; set; }
 }
 
 public class UserCreateDto : BaseCreateDto
@@ -19,6 +21,7 @@ public class UserCreateDto : BaseCreateDto
     public string Password { get; set; } = string.Empty;
     public UserRole Role { get; set; } = UserRole.Employee;
     public string? PersonName { get; set; }
+    public int? UserGroupId { get; set; }
 }
 
 public class UserUpdateDto : BaseUpdateDto
@@ -28,6 +31,7 @@ public class UserUpdateDto : BaseUpdateDto
     public string? Password { get; set; }
     public UserRole Role { get; set; }
     public string? PersonName { get; set; }
+    public int? UserGroupId { get; set; }
 }
 
 public class LoginDto

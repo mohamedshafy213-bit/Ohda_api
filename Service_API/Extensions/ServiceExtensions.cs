@@ -25,6 +25,10 @@ public static class ServiceExtensions
             .NewConfig()
             .Map(dest => dest.PasswordHash, src => src.Password);
 
+        TypeAdapterConfig<Entities.Models.Tables.User, Contracts.DTOs.User.UserDto>
+            .NewConfig()
+            .Map(dest => dest.UserGroupName, src => src.UserGroup != null ? src.UserGroup.Name : null);
+
         services.AddMapster();
     }
 

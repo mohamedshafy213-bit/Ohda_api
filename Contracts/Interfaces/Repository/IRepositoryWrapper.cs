@@ -16,6 +16,11 @@ public interface IRepositoryWrapper
     IPageRepository Pages { get; }
     IUserPagePermissionRepository UserPagePermissions { get; }
     INotificationRepository Notifications { get; }
+    IUserGroupRepository UserGroups { get; }
+    IGroupPagePermissionRepository GroupPagePermissions { get; }
+    IProductItemRepository ProductItems { get; }
+    ICompassRepository Compasses { get; }
+
 
     void Save();
     Task SaveAsync();

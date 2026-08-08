@@ -1,4 +1,4 @@
-using Contracts.DTOs.Page;
+using Contracts.DTOs.UserGroup;
 using Contracts.interfaces.Repository;
 using Entities.Models.Tables;
 using Microsoft.AspNetCore.Authorization;
@@ -10,29 +10,27 @@ namespace Service_API.Controllers;
 [Authorize]
 [ApiController]
 [Route("api/[controller]")]
-public class PageController : BaseController<Page, PageDto, PageCreateDto, PageUpdateDto>
+public class UserGroupController : BaseController<UserGroup, UserGroupDto, UserGroupCreateDto, UserGroupUpdateDto>
 {
     private readonly IRepositoryWrapper _repositoryWrapper;
 
-    public PageController(IRepositoryWrapper repositoryWrapper)
+    public UserGroupController(IRepositoryWrapper repositoryWrapper)
     {
         _repositoryWrapper = repositoryWrapper;
-        _repository = repositoryWrapper.Pages;
+        _repository = repositoryWrapper.UserGroups;
     }
 
     [HttpPost]
     [Authorize(Roles = "Admin")]
-    public override async Task<IActionResult> Create([FromBody] PageCreateDto createDto)
+    public override async Task<IActionResult> Create([FromBody] UserGroupCreateDto createDto)
     {
         return await base.Create(createDto);
     }
 
     [HttpPut("{id}")]
     [Authorize(Roles = "Admin")]
-    public override async Task<IActionResult> Update([FromRoute] string id, [FromBody] PageUpdateDto updateDto)
+    public override async Task<IActionResult> Update([FromRoute] string id, [FromBody] UserGroupUpdateDto updateDto)
     {
-
-        updateDto.Id = Convert.ToInt32(id); // Ensure the ID from the route is set in the DTO
         return await base.Update(id, updateDto);
     }
 

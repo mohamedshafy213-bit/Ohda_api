@@ -8,5 +8,4 @@ public class Page : BaseTable
     public string Path { get; set; } = string.Empty;
     public string? Icon { get; set; }
     public int SortOrder { get; set; }
-    public string AllowedRoles { get; set; } = string.Empty;
 }

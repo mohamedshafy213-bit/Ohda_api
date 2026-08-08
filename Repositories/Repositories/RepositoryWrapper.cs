@@ -27,6 +27,11 @@ public class RepositoryWrapper : IRepositoryWrapper
     private IPageRepository? _pages;
     private IUserPagePermissionRepository? _userPagePermissions;
     private INotificationRepository? _notifications;
+    private IUserGroupRepository? _userGroups;
+    private IGroupPagePermissionRepository? _groupPagePermissions;
+    private IProductItemRepository? _productItems;
+    private ICompassRepository? _compasses;
+
 
     public RepositoryWrapper(
         RepositoryContext repositoryContext,
@@ -75,6 +80,19 @@ public class RepositoryWrapper : IRepositoryWrapper
 
     public INotificationRepository Notifications =>
         _notifications ??= new NotificationRepository(_logger, _repoContext, _httpContextAccessor, _mapper);
+
+    public IUserGroupRepository UserGroups =>
+        _userGroups ??= new UserGroupRepository(_logger, _repoContext, _httpContextAccessor, _mapper);
+
+    public IGroupPagePermissionRepository GroupPagePermissions =>
+        _groupPagePermissions ??= new GroupPagePermissionRepository(_logger, _repoContext, _httpContextAccessor, _mapper);
+
+    public IProductItemRepository ProductItems =>
+        _productItems ??= new ProductItemRepository(_logger, _repoContext, _httpContextAccessor, _mapper);
+
+    public ICompassRepository Compasses =>
+        _compasses ??= new CompassRepository(_logger, _repoContext, _httpContextAccessor, _mapper);
+
 
     public void Save()
     {

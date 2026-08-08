@@ -8,4 +8,6 @@ public interface IProductRepository : IRepositoryBase<Product, ProductDto, Produ
 {
     Task<Product?> GetByBarcodeAsync(string barcode);
     Task<Product?> GetBySKUAsync(string sku);
+    Task<Product?> GetByNameAsync(string name);
 }
+

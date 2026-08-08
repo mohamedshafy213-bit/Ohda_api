@@ -22,6 +22,11 @@ public class RepositoryContext : DbContext
     public virtual DbSet<Page> Pages { get; set; } = null!;
     public virtual DbSet<UserPagePermission> UserPagePermissions { get; set; } = null!;
     public virtual DbSet<Notification> Notifications { get; set; } = null!;
+    public virtual DbSet<UserGroup> UserGroups { get; set; } = null!;
+    public virtual DbSet<GroupPagePermission> GroupPagePermissions { get; set; } = null!;
+    public virtual DbSet<ProductItem> ProductItems { get; set; } = null!;
+    public virtual DbSet<Compass> Compasses { get; set; } = null!;
+
 
     protected readonly IConfiguration _configuration;
     protected readonly IHttpContextAccessor _httpContextAccessor;

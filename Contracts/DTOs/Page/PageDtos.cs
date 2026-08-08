@@ -8,7 +8,7 @@ public class PageDto : BaseDto
     public string Path { get; set; } = string.Empty;
     public string? Icon { get; set; }
     public int SortOrder { get; set; }
-    public string AllowedRoles { get; set; } = string.Empty;
+  
 }
 
 public class PageCreateDto : BaseCreateDto
@@ -17,7 +17,7 @@ public class PageCreateDto : BaseCreateDto
     public string Path { get; set; } = string.Empty;
     public string? Icon { get; set; }
     public int SortOrder { get; set; }
-    public string AllowedRoles { get; set; } = string.Empty;
+    
 }
 
 public class PageUpdateDto : BaseUpdateDto
@@ -26,5 +26,5 @@ public class PageUpdateDto : BaseUpdateDto
     public string Path { get; set; } = string.Empty;
     public string? Icon { get; set; }
     public int SortOrder { get; set; }
-    public string AllowedRoles { get; set; } = string.Empty;
+
 }

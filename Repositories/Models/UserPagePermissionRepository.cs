@@ -26,7 +26,10 @@ public class UserPagePermissionRepository
     public async Task<List<PageDto>> GetAllowedPagesForUserAsync(int userId)
     {
         var user = await RepositoryContext.Users.FindAsync(userId);
-        if (user != null && user.Role == Entities.Models.Enums.UserRole.Admin)
+        if (user == null)
+            return new List<PageDto>();
+
+        if (user.Role == Entities.Models.Enums.UserRole.Admin)
         {
             // Admin automatically gets access to all active pages
             return await RepositoryContext.Pages
@@ -39,8 +42,24 @@ public class UserPagePermissionRepository
                     Title = p.Title,
                     Path = p.Path,
                     Icon = p.Icon,
-                    SortOrder = p.SortOrder,
-                    AllowedRoles = "Admin"
+                    SortOrder = p.SortOrder
+                })
+                .ToListAsync();
+        }
+
+        if (user.UserGroupId.HasValue)
+        {
+            return await RepositoryContext.GroupPagePermissions
+                .AsNoTracking()
+                .Where(p => p.UserGroupId == user.UserGroupId.Value && !p.IsDeleted && p.Page != null && !p.Page.IsDeleted)
+                .OrderBy(p => p.Page!.SortOrder)
+                .Select(p => new PageDto
+                {
+                    Id = p.Page!.Id,
+                    Title = p.Page.Title,
+                    Path = p.Page.Path,
+                    Icon = p.Page.Icon,
+                    SortOrder = p.Page.SortOrder
                 })
                 .ToListAsync();
         }
@@ -55,14 +74,21 @@ public class UserPagePermissionRepository
                 Title = p.Page.Title,
                 Path = p.Page.Path,
                 Icon = p.Page.Icon,
-                SortOrder = p.Page.SortOrder,
-                AllowedRoles = "Granted"
+                SortOrder = p.Page.SortOrder
             })
             .ToListAsync();
     }
 
     public async Task<bool> GrantPermissionAsync(int userId, int pageId, int grantedByUserId)
     {
+        var userExists = await RepositoryContext.Users.AnyAsync(u => u.Id == userId && !u.IsDeleted);
+        if (!userExists)
+            return false;
+
+        var pageExists = await RepositoryContext.Pages.AnyAsync(p => p.Id == pageId && !p.IsDeleted);
+        if (!pageExists)
+            return false;
+
         var existing = await RepositoryContext.UserPagePermissions
             .FirstOrDefaultAsync(p => p.UserId == userId && p.PageId == pageId && !p.IsDeleted);
 

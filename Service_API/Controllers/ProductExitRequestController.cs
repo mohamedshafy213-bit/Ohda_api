@@ -1,6 +1,8 @@
 using Contracts.DTOs.Inventory;
 using Contracts.DTOs.Notification;
 using Contracts.DTOs.ProductExitRequest;
+using Contracts.DTOs.ProductItem;
+using Contracts.DTOs.Compass;
 using Contracts.interfaces.Repository;
 using Contracts.Responses;
 using Entities.Models.Enums;
@@ -9,6 +11,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Service_API.BaseControllers;
 using System.Security.Claims;
+
 
 namespace Service_API.Controllers;
 
@@ -51,18 +54,38 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
             });
         }
 
-        var response = await _repositoryWrapper.ProductExitRequests.Create(new ProductExitCreateDto
-        {
-            ProductId = requestDto.ProductId,
-            RequestedQuantity = requestDto.RequestedQuantity,
-            RecipientName = requestDto.RecipientName,
-            RecipientDepartment = requestDto.RecipientDepartment,
-            Purpose = requestDto.Purpose,
-            RequestedByUserId = userId
-        });
+        requestDto.RequestedByUserId = userId;
+        var response = await _repositoryWrapper.ProductExitRequests.Create(requestDto);
 
         if (response.IsDone)
         {
+            var createdDto = (response as SingleObjectResponseModel<ProductExitRequestDto>)?.SingleObject;
+            if (createdDto != null && requestDto.SelectedProductItemIds != null && requestDto.SelectedProductItemIds.Any())
+            {
+                foreach (var itemId in requestDto.SelectedProductItemIds)
+                {
+                    var item = await _repositoryWrapper.ProductItems.GetByIdAsync(itemId);
+                    if (item != null)
+                    {
+                        var updateDto = new ProductItemUpdateDto
+                        {
+                            Id = item.Id,
+                            ProductId = item.ProductId,
+                            SerialNumber = item.SerialNumber,
+                            QRCode = item.QRCode,
+                            Status = item.Status,
+                            ProductExitRequestId = createdDto.Id,
+                            RecipientName = requestDto.RecipientName,
+                            Place = requestDto.RecipientDepartment,
+                            Notes = requestDto.Purpose
+                        };
+                        await _repositoryWrapper.ProductItems.Update(item.Id.ToString(), updateDto);
+                    }
+
+                }
+                await _repositoryWrapper.SaveAsync();
+            }
+
             // Step 1: Notify Managers about new exit request pending Manager approval
             await _repositoryWrapper.Notifications.Create(new NotificationCreateDto
             {
@@ -76,6 +99,7 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
 
         return HandleResponse(response);
     }
+
 
     [HttpPut("{id}/manager-approve")]
     [Authorize(Roles = "Manager, Admin")]
@@ -184,6 +208,38 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
             MaxStock = inventory.MaxStock
         });
 
+        // Mark associated product items as Exited and create Compass entries
+        var productItems = await _repositoryWrapper.ProductItems.GetByExitRequestIdAsync(id);
+        foreach (var item in productItems)
+        {
+            var itemUpdate = new ProductItemUpdateDto
+            {
+                Id = item.Id,
+                ProductId = item.ProductId,
+                SerialNumber = item.SerialNumber,
+                QRCode = item.QRCode,
+                Status = ProductItemStatus.Exited,
+                ProductExitRequestId = item.ProductExitRequestId,
+                RecipientName = request.RecipientName,
+                Place = request.RecipientDepartment,
+                ExitDate = DateTime.UtcNow,
+                Notes = request.Purpose
+            };
+            await _repositoryWrapper.ProductItems.Update(item.Id.ToString(), itemUpdate);
+
+            var compassCreate = new CompassCreateDto
+            {
+                SerialNumber = item.SerialNumber,
+                ProductName = request.Product?.Name ?? item.Product?.Name ?? "Unknown Product",
+                RecipientName = request.RecipientName,
+                Place = request.RecipientDepartment ?? "N/A",
+                ExitDate = DateTime.UtcNow,
+                ProductExitRequestId = request.Id,
+                Notes = request.Purpose
+            };
+            await _repositoryWrapper.Compasses.Create(compassCreate);
+        }
+
         request.Status = RequestStatus.SupervisorApproved;
         request.SupervisorId = supervisorId;
         request.LastUpdate = DateTime.UtcNow;
@@ -221,6 +277,7 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
 
         return HandleResponse(response);
     }
+
 
     [HttpPut("{id}/reject")]
     [Authorize(Roles = "Supervisor, Manager, Admin")]
@@ -274,6 +331,69 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
         return HandleResponse(response);
     }
 
+    [HttpGet]
+    public override async Task<IActionResult> GetAll()
+    {
+        var response = await _repositoryWrapper.ProductExitRequests.FindAll();
+        var dtos = (response as ListOfObjectsResponseModel<ProductExitRequestDto>)?.Objects;
+        if (dtos != null)
+        {
+            foreach (var dto in dtos)
+            {
+                var items = await _repositoryWrapper.ProductItems.GetByExitRequestIdAsync(dto.Id);
+                dto.SelectedProductItemIds = items.Select(i => i.Id).ToList();
+                dto.SelectedSerials = items.Select(i => i.SerialNumber).ToList();
+            }
+        }
+        return HandleResponse(response);
+    }
+
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetById([FromRoute] int id)
+    {
+        var request = await _repositoryWrapper.ProductExitRequests.GetByIdAsync(id);
+        if (request == null)
+        {
+            return Ok(new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = $"Product exit request with ID {id} not found."
+            });
+        }
+
+        var dto = new ProductExitRequestDto
+        {
+            Id = request.Id,
+            ProductId = request.ProductId,
+            ProductName = request.Product?.Name,
+            ProductSKU = request.Product?.SKU,
+            RequestedQuantity = request.RequestedQuantity,
+            Status = request.Status,
+            RecipientName = request.RecipientName,
+            RecipientDepartment = request.RecipientDepartment,
+            Purpose = request.Purpose,
+            RequestedByUserId = request.RequestedByUserId,
+            RequestedByUsername = request.RequestedByUser?.Username,
+            ManagerId = request.ManagerId,
+            ManagerUsername = request.Manager?.Username,
+            SupervisorId = request.SupervisorId,
+            SupervisorUsername = request.Supervisor?.Username,
+            RejectionReason = request.RejectionReason,
+            InsertDate = request.InsertDate
+        };
+
+        var items = await _repositoryWrapper.ProductItems.GetByExitRequestIdAsync(id);
+        dto.SelectedProductItemIds = items.Select(i => i.Id).ToList();
+        dto.SelectedSerials = items.Select(i => i.SerialNumber).ToList();
+
+        return Ok(new SingleObjectResponseModel<ProductExitRequestDto>
+        {
+            IsDone = true,
+            ReturnMessage = "Request retrieved successfully.",
+            SingleObject = dto
+        });
+    }
+
     private int GetCurrentUserId()
     {
         var claim = User.FindFirst(ClaimTypes.NameIdentifier)
@@ -289,3 +409,4 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
         return 1;
     }
 }
+

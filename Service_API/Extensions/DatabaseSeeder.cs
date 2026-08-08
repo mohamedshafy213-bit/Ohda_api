@@ -10,17 +10,37 @@ public static class DatabaseSeeder
 {
     public static async Task SeedAsync(RepositoryContext context)
     {
+        // 0. Seed UserGroups if none exist
+        if (!await context.UserGroups.AnyAsync())
+        {
+            var groups = new List<UserGroup>
+            {
+                new UserGroup { Name = "Admins", Description = "Full system administration group" },
+                new UserGroup { Name = "Managers", Description = "Inventory managers group" },
+                new UserGroup { Name = "Supervisors", Description = "Warehouse supervisors group" },
+                new UserGroup { Name = "Employees", Description = "Regular employee staff group" }
+            };
+
+            await context.UserGroups.AddRangeAsync(groups);
+            await context.SaveChangesAsync();
+        }
+
         // 1. Seed Users if none exist
         if (!await context.Users.AnyAsync())
         {
             var hasher = new PasswordHasher<User>();
+            var adminGroup = await context.UserGroups.FirstOrDefaultAsync(g => g.Name == "Admins");
+            var managerGroup = await context.UserGroups.FirstOrDefaultAsync(g => g.Name == "Managers");
+            var supervisorGroup = await context.UserGroups.FirstOrDefaultAsync(g => g.Name == "Supervisors");
+            var employeeGroup = await context.UserGroups.FirstOrDefaultAsync(g => g.Name == "Employees");
 
             var admin = new User
             {
                 Username = "admin",
                 Email = "admin@ohda.com",
                 Role = UserRole.Admin,
-                PersonName = "System Admin"
+                PersonName = "System Admin",
+                UserGroupId = adminGroup?.Id
             };
             admin.PasswordHash = hasher.HashPassword(admin, "Admin@123");
 
@@ -29,7 +49,8 @@ public static class DatabaseSeeder
                 Username = "employee",
                 Email = "employee@ohda.com",
                 Role = UserRole.Employee,
-                PersonName = "John Employee"
+                PersonName = "John Employee",
+                UserGroupId = employeeGroup?.Id
             };
             employee.PasswordHash = hasher.HashPassword(employee, "Employee@123");
 
@@ -38,7 +59,8 @@ public static class DatabaseSeeder
                 Username = "supervisor",
                 Email = "supervisor@ohda.com",
                 Role = UserRole.Supervisor,
-                PersonName = "Sarah Supervisor"
+                PersonName = "Sarah Supervisor",
+                UserGroupId = supervisorGroup?.Id
             };
             supervisor.PasswordHash = hasher.HashPassword(supervisor, "Supervisor@123");
 
@@ -47,7 +69,8 @@ public static class DatabaseSeeder
                 Username = "manager",
                 Email = "manager@ohda.com",
                 Role = UserRole.Manager,
-                PersonName = "Mike Manager"
+                PersonName = "Mike Manager",
+                UserGroupId = managerGroup?.Id
             };
             manager.PasswordHash = hasher.HashPassword(manager, "Manager@123");
 
@@ -208,39 +231,93 @@ public static class DatabaseSeeder
             }
         }
 
-        // 7. Seed UserPagePermissions for default users if none exist
-        if (!await context.UserPagePermissions.AnyAsync())
+        // 6.5. Seed Pages if none exist
+        if (!await context.Pages.AnyAsync())
         {
-            var users = await context.Users.ToListAsync();
-            var pages = await context.Pages.ToListAsync();
-            var adminUser = users.FirstOrDefault(u => u.Role == UserRole.Admin);
-
-            if (adminUser != null && pages.Any())
+            var defaultPages = new List<Page>
             {
-                var permissions = new List<UserPagePermission>();
+                new Page { Id = 1, Title = "Dashboard", Path = "/dashboard", Icon = "LayoutDashboard", SortOrder = 1 },
+                new Page { Id = 2, Title = "Products", Path = "/products", Icon = "Package", SortOrder = 2 },
+                new Page { Id = 3, Title = "Inventory", Path = "/inventory", Icon = "Boxes", SortOrder = 3 },
+                new Page { Id = 4, Title = "Exit Requests", Path = "/exit-requests", Icon = "ArrowUpRight", SortOrder = 4 },
+                new Page { Id = 5, Title = "Entry Requests", Path = "/entry-requests", Icon = "ArrowDownLeft", SortOrder = 5 },
+                new Page { Id = 6, Title = "Barcode Scan", Path = "/scan", Icon = "QrCode", SortOrder = 6 },
+                new Page { Id = 7, Title = "Categories", Path = "/categories", Icon = "Tags", SortOrder = 7 },
+                new Page { Id = 8, Title = "Suppliers", Path = "/suppliers", Icon = "Truck", SortOrder = 8 },
+                new Page { Id = 9, Title = "Users & Permissions", Path = "/users", Icon = "Users", SortOrder = 9 },
+                new Page { Id = 11, Title = "Compass Log", Path = "/compass", Icon = "explore", SortOrder = 10 }
+            };
 
-                foreach (var user in users)
+            await context.Pages.AddRangeAsync(defaultPages);
+            await context.SaveChangesAsync();
+        }
+        else
+        {
+             var hasCompassPage = await context.Pages.AnyAsync(p => p.Id == 11 || p.Path == "/compass");
+             if (!hasCompassPage)
+             {
+                 var compassPage = new Page { Id = 11, Title = "Compass Log", Path = "/compass", Icon = "explore", SortOrder = 10 };
+                 await context.Pages.AddAsync(compassPage);
+                 await context.SaveChangesAsync();
+
+                 var groups = await context.UserGroups.ToListAsync();
+                 var adminUser = await context.Users.FirstOrDefaultAsync(u => u.Role == UserRole.Admin);
+                 if (adminUser != null)
+                 {
+                     foreach (var group in groups)
+                     {
+                         var hasPerm = await context.GroupPagePermissions.AnyAsync(gpp => gpp.UserGroupId == group.Id && gpp.PageId == 11);
+                         if (!hasPerm)
+                         {
+                             await context.GroupPagePermissions.AddAsync(new GroupPagePermission
+                             {
+                                 UserGroupId = group.Id,
+                                 PageId = 11,
+                                 GrantedByUserId = adminUser.Id
+                             });
+                         }
+                     }
+                     await context.SaveChangesAsync();
+                 }
+             }
+        }
+
+
+        // 7. Seed GroupPagePermissions if none exist
+        if (!await context.GroupPagePermissions.AnyAsync())
+        {
+            var groups = await context.UserGroups.ToListAsync();
+            var pages = await context.Pages.ToListAsync();
+            var adminUser = await context.Users.FirstOrDefaultAsync(u => u.Role == UserRole.Admin);
+
+            if (adminUser != null && pages.Any() && groups.Any())
+            {
+                var permissions = new List<GroupPagePermission>();
+
+                foreach (var group in groups)
                 {
-                    foreach (var page in pages)
+                    var allowedPaths = group.Name switch
                     {
-                        // Check if role is contained in page's default AllowedRoles string
-                        bool isAllowedByRole = page.AllowedRoles
-                            .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-                            .Contains(user.Role.ToString(), StringComparer.OrdinalIgnoreCase);
+                        "Admins" => pages.Select(p => p.Path).ToList(),
+                        "Managers" => new List<string> { "/dashboard", "/products", "/inventory", "/exit-requests", "/entry-requests", "/categories", "/suppliers", "/compass" },
+                        "Supervisors" => new List<string> { "/dashboard", "/products", "/inventory", "/exit-requests", "/entry-requests", "/compass" },
+                        "Employees" => new List<string> { "/dashboard", "/products", "/exit-requests", "/entry-requests", "/scan", "/compass" },
+                        _ => new List<string>()
+                    };
 
-                        if (isAllowedByRole || user.Role == UserRole.Admin)
+                    foreach (var page in pages.Where(p => allowedPaths.Contains(p.Path, StringComparer.OrdinalIgnoreCase)))
+                    {
+                        permissions.Add(new GroupPagePermission
                         {
-                            permissions.Add(new UserPagePermission
-                            {
-                                UserId = user.Id,
-                                PageId = page.Id,
-                                GrantedByUserId = adminUser.Id
-                            });
-                        }
+                            UserGroupId = group.Id,
+                            PageId = page.Id,
+                            GrantedByUserId = adminUser.Id
+                        });
                     }
                 }
 
-                await context.UserPagePermissions.AddRangeAsync(permissions);
+
+                await context.GroupPagePermissions.AddRangeAsync(permissions);
                 await context.SaveChangesAsync();
             }
         }

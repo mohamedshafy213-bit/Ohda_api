@@ -43,6 +43,11 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.Username).IsRequired().HasMaxLength(100);
         builder.Property(u => u.Email).IsRequired().HasMaxLength(150);
         builder.Property(u => u.PasswordHash).IsRequired();
+
+        builder.HasOne(u => u.UserGroup)
+            .WithMany(g => g.Users)
+            .HasForeignKey(u => u.UserGroupId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }
 
@@ -194,3 +199,76 @@ public class NotificationConfiguration : IEntityTypeConfiguration<Notification>
             .OnDelete(DeleteBehavior.Cascade);
     }
 }
+
+public class UserGroupConfiguration : IEntityTypeConfiguration<UserGroup>
+{
+    public void Configure(EntityTypeBuilder<UserGroup> builder)
+    {
+        builder.HasKey(g => g.Id);
+        builder.Property(g => g.Name).IsRequired().HasMaxLength(100);
+        builder.Property(g => g.Description).HasMaxLength(250);
+    }
+}
+
+public class GroupPagePermissionConfiguration : IEntityTypeConfiguration<GroupPagePermission>
+{
+    public void Configure(EntityTypeBuilder<GroupPagePermission> builder)
+    {
+        builder.HasKey(p => p.Id);
+
+        builder.HasOne(p => p.UserGroup)
+            .WithMany(g => g.GroupPagePermissions)
+            .HasForeignKey(p => p.UserGroupId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(p => p.Page)
+            .WithMany()
+            .HasForeignKey(p => p.PageId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(p => p.GrantedByUser)
+            .WithMany()
+            .HasForeignKey(p => p.GrantedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public class ProductItemConfiguration : IEntityTypeConfiguration<ProductItem>
+{
+    public void Configure(EntityTypeBuilder<ProductItem> builder)
+    {
+        builder.HasKey(pi => pi.Id);
+        builder.HasIndex(pi => pi.SerialNumber).IsUnique();
+
+        builder.Property(pi => pi.SerialNumber).IsRequired().HasMaxLength(100);
+        builder.Property(pi => pi.QRCode).IsRequired().HasMaxLength(500);
+
+        builder.HasOne(pi => pi.Product)
+            .WithMany()
+            .HasForeignKey(pi => pi.ProductId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(pi => pi.ProductExitRequest)
+            .WithMany()
+            .HasForeignKey(pi => pi.ProductExitRequestId)
+            .OnDelete(DeleteBehavior.SetNull);
+    }
+}
+
+public class CompassConfiguration : IEntityTypeConfiguration<Compass>
+{
+    public void Configure(EntityTypeBuilder<Compass> builder)
+    {
+        builder.HasKey(c => c.Id);
+        builder.Property(c => c.SerialNumber).IsRequired().HasMaxLength(100);
+        builder.Property(c => c.ProductName).IsRequired().HasMaxLength(200);
+        builder.Property(c => c.RecipientName).IsRequired().HasMaxLength(150);
+        builder.Property(c => c.Place).IsRequired().HasMaxLength(150);
+
+        builder.HasOne(c => c.ProductExitRequest)
+            .WithMany()
+            .HasForeignKey(c => c.ProductExitRequestId)
+            .OnDelete(DeleteBehavior.SetNull);
+    }
+}
+
