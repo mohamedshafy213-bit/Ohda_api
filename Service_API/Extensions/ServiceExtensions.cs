@@ -1,0 +1,166 @@
+using Contracts.interfaces.Repository;
+using Entities.Models.Databases;
+using Entities.Models.Databases.OracleDb;
+using Entities.Models.Databases.PostgresDb;
+using Entities.Models.Databases.SqlDb;
+using LoggerService;
+using Mapster;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
+using Repositories.Repositories;
+using Service_API.Helpers;
+using System.Security.Claims;
+using System.Text;
+
+namespace Service_API.Extensions;
+
+public static class ServiceExtensions
+{
+    public static void ConfigureAutoMapper(this IServiceCollection services)
+    {
+        TypeAdapterConfig<Contracts.DTOs.User.UserCreateDto, Entities.Models.Tables.User>
+            .NewConfig()
+            .Map(dest => dest.PasswordHash, src => src.Password);
+
+        services.AddMapster();
+    }
+
+    public static void ConfigureLogger(this IServiceCollection services, IConfiguration Configuration)
+    {
+        switch (Configuration["DatabaseProvider"])
+        {
+            case "Oracle":
+                services.AddSingleton<ILoggerManager>(logger => new LoggerManager(Configuration["DatabaseProvider"],
+                    Configuration.GetConnectionString("OracleConnection")));
+                break;
+            case "Postgres":
+                services.AddSingleton<ILoggerManager>(logger => new LoggerManager(Configuration["DatabaseProvider"],
+                    Configuration.GetConnectionString("PostgresConnection")));
+                break;
+            case "SqlServer":
+            default:
+                services.AddSingleton<ILoggerManager>(logger => new LoggerManager(Configuration["DatabaseProvider"] ?? "SqlServer",
+                    Configuration.GetConnectionString("SqlServerConnection")));
+                break;
+        }
+    }
+
+    public static void ConfigureHttpContext(this IServiceCollection services)
+    {
+        services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
+    }
+
+    public static void ConfigureDataBase(this IServiceCollection services, IConfiguration Configuration)
+    {
+        switch (Configuration["DatabaseProvider"])
+        {
+            case "Oracle":
+                services.AddDbContext<RepositoryContext, OracleContext>((serviceProvider, options) =>
+                {
+                    options.UseOracle(Configuration.GetConnectionString("OracleConnection"), b => b.MigrationsAssembly("Entities"));
+                });
+                break;
+            case "Postgres":
+                AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+                services.AddDbContext<RepositoryContext, PostgresContext>((serviceProvider, options) =>
+                {
+                    options.UseNpgsql(Configuration.GetConnectionString("PostgresConnection"), b => b.MigrationsAssembly("Entities"))
+                           .UseSnakeCaseNamingConvention();
+                });
+                break;
+            case "SqlServer":
+            default:
+                services.AddDbContext<RepositoryContext, SqlServerContext>((serviceProvider, options) =>
+                {
+                    options.UseSqlServer(Configuration.GetConnectionString("SqlServerConnection"), b => b.MigrationsAssembly("Entities"));
+                });
+                break;
+        }
+    }
+
+    public static void ConfigureRepositoryWrapper(this IServiceCollection services)
+    {
+        services.AddScoped<IRepositoryWrapper, RepositoryWrapper>();
+        services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
+    }
+
+    public static void ConfigureJwtBearer(this IServiceCollection services, IConfiguration configuration)
+    {
+        var jwtSettings = configuration.GetSection("JwtSettings");
+        var secretKey = jwtSettings["SecretKey"] ?? "SuperSecretKeyForOhdaInventoryApiSystem2026!";
+        var issuer = jwtSettings["Issuer"] ?? "OhdaInventoryApi";
+        var audience = jwtSettings["Audience"] ?? "OhdaInventoryUsers";
+
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
+
+        services.AddAuthentication(options =>
+        {
+            options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+            options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+        })
+        .AddJwtBearer(options =>
+        {
+            options.RequireHttpsMetadata = false;
+            options.SaveToken = true;
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true,
+                ValidateIssuerSigningKey = true,
+                ValidIssuer = issuer,
+                ValidAudience = audience,
+                IssuerSigningKey = key,
+                RoleClaimType = ClaimTypes.Role,
+                NameClaimType = ClaimTypes.NameIdentifier,
+                ClockSkew = TimeSpan.Zero
+            };
+        });
+
+        services.AddAuthorization(options =>
+        {
+            options.FallbackPolicy = new AuthorizationPolicyBuilder()
+                .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
+                .RequireAuthenticatedUser()
+                .Build();
+        });
+    }
+
+    public static void ConfigureSwaggerGen(this IServiceCollection services)
+    {
+        services.AddEndpointsApiExplorer();
+
+        services.AddSwaggerGen(options =>
+        {
+            options.CustomSchemaIds(type => type.FullName);
+
+            options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+            {
+                Name = "Authorization",
+                In = ParameterLocation.Header,
+                Description = "Enter JWT Bearer token: 'Bearer YOUR_TOKEN'",
+                Type = SecuritySchemeType.ApiKey,
+                BearerFormat = "JWT",
+                Scheme = "Bearer"
+            });
+
+            options.AddSecurityRequirement(new OpenApiSecurityRequirement
+            {
+                {
+                    new OpenApiSecurityScheme
+                    {
+                        Reference = new OpenApiReference
+                        {
+                            Type = ReferenceType.SecurityScheme,
+                            Id = "Bearer"
+                        }
+                    },
+                    Array.Empty<string>()
+                }
+            });
+        });
+    }
+}

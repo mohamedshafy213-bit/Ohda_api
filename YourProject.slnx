@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="Contracts/Contracts.csproj" />
+  <Project Path="Entities/Entities.csproj" />
+  <Project Path="LoggerService/LoggerService.csproj" />
+  <Project Path="Repositories/Repositories.csproj" />
+  <Project Path="Service_API/Service_API.csproj" />
+</Solution>

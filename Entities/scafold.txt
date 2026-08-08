@@ -1,0 +1,1 @@
+Scaffold-DbContext -connection "name=OracleConnection" Oracle.EntityFrameworkCore -OutputDir ScafoldFiles/Hall/Entities -ContextDir ScafoldFiles/Hall -Context "HallContext" -force -table HALL,HALL_PLAN,HALLS_SUB_TYP,HALLS_USGE,NOTIF_TYP,NOTIFICATION,PAGE,SHOW_TOOL,USER,USER_GROUP,USER_GROUP_PG
