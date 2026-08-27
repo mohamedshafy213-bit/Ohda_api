@@ -41,11 +41,11 @@ public class ProductItemController : BaseController<ProductItem, ProductItemDto,
             Notes = pi.Notes
         }).ToList();
 
-        return Ok(new SingleObjectResponseModel<List<ProductItemDto>>
+        return Ok(new ListOfObjectsResponseModel<ProductItemDto>
         {
             IsDone = true,
             ReturnMessage = "Product items retrieved successfully.",
-            SingleObject = dtos
+            Objects = dtos
         });
     }
 
@@ -69,11 +69,11 @@ public class ProductItemController : BaseController<ProductItem, ProductItemDto,
             Notes = pi.Notes
         }).ToList();
 
-        return Ok(new SingleObjectResponseModel<List<ProductItemDto>>
+        return Ok(new ListOfObjectsResponseModel<ProductItemDto>
         {
             IsDone = true,
             ReturnMessage = "Available in-stock items retrieved successfully.",
-            SingleObject = dtos
+            Objects = dtos
         });
     }
 }

@@ -3,6 +3,7 @@ using Contracts.DTOs.Inventory;
 using Contracts.DTOs.Notification;
 using Contracts.DTOs.ProductEntryRequest;
 using Contracts.DTOs.ProductExitRequest;
+using Contracts.DTOs.ProductItem;
 using Contracts.interfaces.Repository;
 using Contracts.Responses;
 using Entities.Models.Enums;
@@ -187,7 +188,7 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
             });
         }
 
-        if (request.Status != RequestStatus.ManagerApproved && request.Status != RequestStatus.Pending)
+        if (request.Status != RequestStatus.ManagerApproved)
         {
             return BadRequest(new SingleObjectResponseModel
             {
@@ -218,6 +219,23 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
                 Quantity = newStock,
                 MinStock = inventory.MinStock,
                 MaxStock = inventory.MaxStock
+            });
+        }
+
+        // Generate ProductItem records for each entered quantity
+        string sku = request.Product?.SKU ?? $"P{request.ProductId}";
+        for (int u = 1; u <= request.EnteredQuantity; u++)
+        {
+            string guidSuffix = Guid.NewGuid().ToString().Substring(0, 8).ToUpper();
+            string serialNumber = $"SN-{sku}-{u}-{guidSuffix}";
+            string qrCode = $"QR-{serialNumber}";
+
+            await _repositoryWrapper.ProductItems.Create(new ProductItemCreateDto
+            {
+                ProductId = request.ProductId,
+                SerialNumber = serialNumber,
+                QRCode = qrCode,
+                Status = ProductItemStatus.InStock
             });
         }
 
@@ -274,6 +292,35 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
             });
         }
 
+        return HandleResponse(response);
+    }
+
+    [HttpGet]
+    public override async Task<IActionResult> GetAll()
+    {
+        var response = await _repositoryWrapper.ProductEntryRequests.FindAll();
+        var dtos = (response as ListOfObjectsResponseModel<ProductEntryRequestDto>)?.Objects;
+        if (dtos != null)
+        {
+            int userId = GetCurrentUserId();
+            var user = await _repositoryWrapper.Users.GetByIdWithGroupAsync(userId);
+            if (user != null && user.Role != UserRole.Admin)
+            {
+                if (user.UserGroup?.Name == "Supervisors" || user.Role == UserRole.Supervisor)
+                {
+                    dtos = dtos.Where(d => d.Status != RequestStatus.Pending).ToList();
+                }
+                else if (user.UserGroup?.Name == "Employees" || user.Role == UserRole.Employee)
+                {
+                    dtos = dtos.Where(d => d.ReceivedByUserId == userId).ToList();
+                }
+            }
+
+            if (response is ListOfObjectsResponseModel<ProductEntryRequestDto> listResponse)
+            {
+                listResponse.Objects = dtos;
+            }
+        }
         return HandleResponse(response);
     }
 

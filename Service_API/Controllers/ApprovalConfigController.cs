@@ -7,7 +7,7 @@ using Service_API.BaseControllers;
 
 namespace Service_API.Controllers;
 
-[Authorize(Roles = "Admin")]
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class ApprovalConfigController : BaseController<ApprovalConfig, ApprovalConfigDto, ApprovalConfigCreateDto, ApprovalConfigUpdateDto>
@@ -15,5 +15,26 @@ public class ApprovalConfigController : BaseController<ApprovalConfig, ApprovalC
     public ApprovalConfigController(IRepositoryWrapper repositoryWrapper)
     {
         _repository = repositoryWrapper.ApprovalConfigs;
+    }
+
+    [HttpPost]
+    [Authorize(Roles = "Admin")]
+    public override async Task<IActionResult> Create([FromBody] ApprovalConfigCreateDto createDto)
+    {
+        return await base.Create(createDto);
+    }
+
+    [HttpPut("{id}")]
+    [Authorize(Roles = "Admin")]
+    public override async Task<IActionResult> Update([FromRoute] string id, [FromBody] ApprovalConfigUpdateDto updateDto)
+    {
+        return await base.Update(id, updateDto);
+    }
+
+    [HttpDelete("{id}")]
+    [Authorize(Roles = "Admin")]
+    public override async Task<IActionResult> Delete([FromRoute] string id)
+    {
+        return await base.Delete(id);
     }
 }

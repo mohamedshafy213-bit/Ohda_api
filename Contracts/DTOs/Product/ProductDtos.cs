@@ -16,6 +16,8 @@ public class ProductDto : BaseDto
     public InventoryType InventoryType { get; set; }
     public decimal? PurchasePrice { get; set; }
     public decimal? AssetValue { get; set; }
+    public int Amount { get; set; }
+    public int Quantity { get; set; }
 }
 
 public class ProductCreateDto : BaseCreateDto
@@ -29,6 +31,8 @@ public class ProductCreateDto : BaseCreateDto
     public InventoryType InventoryType { get; set; } = InventoryType.Purchased;
     public decimal? PurchasePrice { get; set; }
     public decimal? AssetValue { get; set; }
+    public int Amount { get; set; }
+    public int Quantity { get; set; }
 }
 
 public class ProductUpdateDto : BaseUpdateDto
@@ -42,4 +46,6 @@ public class ProductUpdateDto : BaseUpdateDto
     public InventoryType InventoryType { get; set; }
     public decimal? PurchasePrice { get; set; }
     public decimal? AssetValue { get; set; }
+    public int Amount { get; set; }
+    public int Quantity { get; set; }
 }

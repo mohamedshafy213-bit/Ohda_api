@@ -150,38 +150,69 @@ public static class DatabaseSeeder
             }
         }
 
-        // 8. Seed ApprovalConfigs if none exist
-        if (!await context.ApprovalConfigs.AnyAsync())
+        // 8. Seed ApprovalConfigs if none exist or update them
+        var adminGrp = await context.UserGroups.FirstOrDefaultAsync(g => g.Name == "Admins");
+        var managerGrp = await context.UserGroups.FirstOrDefaultAsync(g => g.Name == "Managers");
+        var supervisorGrp = await context.UserGroups.FirstOrDefaultAsync(g => g.Name == "Supervisors");
+        var employeeGrp = await context.UserGroups.FirstOrDefaultAsync(g => g.Name == "Employees");
+
+        var configs = new List<ApprovalConfig>();
+
+        // Exit Configs
+        if (employeeGrp != null)
+            configs.Add(new ApprovalConfig { RequestType = RequestType.Exit, UserGroupId = employeeGrp.Id, WorkflowRole = WorkflowRole.Requester });
+        if (managerGrp != null)
+            configs.Add(new ApprovalConfig { RequestType = RequestType.Exit, UserGroupId = managerGrp.Id, WorkflowRole = WorkflowRole.Reviewer });
+        if (supervisorGrp != null)
+            configs.Add(new ApprovalConfig { RequestType = RequestType.Exit, UserGroupId = supervisorGrp.Id, WorkflowRole = WorkflowRole.Approver });
+        if (adminGrp != null)
+            configs.Add(new ApprovalConfig { RequestType = RequestType.Exit, UserGroupId = adminGrp.Id, WorkflowRole = WorkflowRole.Approver });
+
+        // Entry Configs
+        if (employeeGrp != null)
+            configs.Add(new ApprovalConfig { RequestType = RequestType.Entry, UserGroupId = employeeGrp.Id, WorkflowRole = WorkflowRole.Requester });
+        if (managerGrp != null)
+            configs.Add(new ApprovalConfig { RequestType = RequestType.Entry, UserGroupId = managerGrp.Id, WorkflowRole = WorkflowRole.Reviewer });
+        if (supervisorGrp != null)
+            configs.Add(new ApprovalConfig { RequestType = RequestType.Entry, UserGroupId = supervisorGrp.Id, WorkflowRole = WorkflowRole.Approver });
+        if (adminGrp != null)
+            configs.Add(new ApprovalConfig { RequestType = RequestType.Entry, UserGroupId = adminGrp.Id, WorkflowRole = WorkflowRole.Approver });
+
+        var existingConfigs = await context.ApprovalConfigs.ToListAsync();
+        if (existingConfigs.Any())
         {
-            var adminGroup = await context.UserGroups.FirstOrDefaultAsync(g => g.Name == "Admins");
-            var managerGroup = await context.UserGroups.FirstOrDefaultAsync(g => g.Name == "Managers");
-            var supervisorGroup = await context.UserGroups.FirstOrDefaultAsync(g => g.Name == "Supervisors");
-            var employeeGroup = await context.UserGroups.FirstOrDefaultAsync(g => g.Name == "Employees");
-
-            var configs = new List<ApprovalConfig>();
-
-            // Exit Configs
-            if (employeeGroup != null)
-                configs.Add(new ApprovalConfig { RequestType = RequestType.Exit, UserGroupId = employeeGroup.Id, WorkflowRole = WorkflowRole.Requester });
-            if (supervisorGroup != null)
-                configs.Add(new ApprovalConfig { RequestType = RequestType.Exit, UserGroupId = supervisorGroup.Id, WorkflowRole = WorkflowRole.Reviewer });
-            if (managerGroup != null)
-                configs.Add(new ApprovalConfig { RequestType = RequestType.Exit, UserGroupId = managerGroup.Id, WorkflowRole = WorkflowRole.Approver });
-            if (adminGroup != null)
-                configs.Add(new ApprovalConfig { RequestType = RequestType.Exit, UserGroupId = adminGroup.Id, WorkflowRole = WorkflowRole.Approver });
-
-            // Entry Configs
-            if (employeeGroup != null)
-                configs.Add(new ApprovalConfig { RequestType = RequestType.Entry, UserGroupId = employeeGroup.Id, WorkflowRole = WorkflowRole.Requester });
-            if (supervisorGroup != null)
-                configs.Add(new ApprovalConfig { RequestType = RequestType.Entry, UserGroupId = supervisorGroup.Id, WorkflowRole = WorkflowRole.Reviewer });
-            if (managerGroup != null)
-                configs.Add(new ApprovalConfig { RequestType = RequestType.Entry, UserGroupId = managerGroup.Id, WorkflowRole = WorkflowRole.Approver });
-            if (adminGroup != null)
-                configs.Add(new ApprovalConfig { RequestType = RequestType.Entry, UserGroupId = adminGroup.Id, WorkflowRole = WorkflowRole.Approver });
-
-            await context.ApprovalConfigs.AddRangeAsync(configs);
+            context.ApprovalConfigs.RemoveRange(existingConfigs);
             await context.SaveChangesAsync();
         }
+
+        await context.ApprovalConfigs.AddRangeAsync(configs);
+        await context.SaveChangesAsync();
+
+        // 9. Sync ProductItems with Inventories (Self-healing database alignment)
+        var inventories = await context.Inventories.Include(i => i.Product).ToListAsync();
+        foreach (var inv in inventories)
+        {
+            var inStockCount = await context.ProductItems.CountAsync(pi => pi.ProductId == inv.ProductId && pi.Status == ProductItemStatus.InStock && !pi.IsDeleted);
+            int missingCount = inv.Quantity - inStockCount;
+            if (missingCount > 0)
+            {
+                string sku = inv.Product?.SKU ?? $"P{inv.ProductId}";
+                for (int u = 1; u <= missingCount; u++)
+                {
+                    string guidSuffix = Guid.NewGuid().ToString().Substring(0, 8).ToUpper();
+                    string serialNumber = $"SN-{sku}-{inStockCount + u}-{guidSuffix}";
+                    string qrCode = $"QR-{serialNumber}";
+
+                    await context.ProductItems.AddAsync(new ProductItem
+                    {
+                        ProductId = inv.ProductId,
+                        SerialNumber = serialNumber,
+                        QRCode = qrCode,
+                        Status = ProductItemStatus.InStock
+                    });
+                }
+            }
+        }
+        await context.SaveChangesAsync();
     }
 }

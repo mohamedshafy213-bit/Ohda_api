@@ -206,7 +206,7 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
             });
         }
 
-        if (request.Status != RequestStatus.ManagerApproved && request.Status != RequestStatus.Pending)
+        if (request.Status != RequestStatus.ManagerApproved)
         {
             return BadRequest(new SingleObjectResponseModel
             {
@@ -380,11 +380,30 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
         var dtos = (response as ListOfObjectsResponseModel<ProductExitRequestDto>)?.Objects;
         if (dtos != null)
         {
+            int userId = GetCurrentUserId();
+            var user = await _repositoryWrapper.Users.GetByIdWithGroupAsync(userId);
+            if (user != null && user.Role != UserRole.Admin)
+            {
+                if (user.UserGroup?.Name == "Supervisors" || user.Role == UserRole.Supervisor)
+                {
+                    dtos = dtos.Where(d => d.Status != RequestStatus.Pending).ToList();
+                }
+                else if (user.UserGroup?.Name == "Employees" || user.Role == UserRole.Employee)
+                {
+                    dtos = dtos.Where(d => d.RequestedByUserId == userId).ToList();
+                }
+            }
+
             foreach (var dto in dtos)
             {
                 var items = await _repositoryWrapper.ProductItems.GetByExitRequestIdAsync(dto.Id);
                 dto.SelectedProductItemIds = items.Select(i => i.Id).ToList();
                 dto.SelectedSerials = items.Select(i => i.SerialNumber).ToList();
+            }
+
+            if (response is ListOfObjectsResponseModel<ProductExitRequestDto> listResponse)
+            {
+                listResponse.Objects = dtos;
             }
         }
         return HandleResponse(response);
