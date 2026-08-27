@@ -1,3 +1,4 @@
+using Contracts.DTOs.Compass;
 using Contracts.DTOs.Inventory;
 using Contracts.DTOs.Notification;
 using Contracts.DTOs.ProductEntryRequest;
@@ -27,11 +28,20 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
     }
 
     [HttpPost("request")]
-    [Authorize(Roles = "Employee, Admin")]
+    [Authorize]
     public async Task<IActionResult> CreateEntryRequest([FromBody] ProductEntryCreateDto requestDto)
     {
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
+
+        if (!await CheckPermissionAsync(RequestType.Entry, WorkflowRole.Requester))
+        {
+            return BadRequest(new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = "Your user group is not authorized to submit entry requests."
+            });
+        }
 
         int userId = GetCurrentUserId();
         if (userId <= 0)
@@ -57,6 +67,8 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
             ProductId = requestDto.ProductId,
             EnteredQuantity = requestDto.EnteredQuantity,
             FromSource = requestDto.FromSource,
+            DepartmentId = requestDto.DepartmentId,
+            ProductStateId = requestDto.ProductStateId,
             InvoiceNumber = requestDto.InvoiceNumber,
             Notes = requestDto.Notes,
             ReceivedByUserId = userId
@@ -79,9 +91,18 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
     }
 
     [HttpPut("{id}/manager-approve")]
-    [Authorize(Roles = "Manager, Admin")]
+    [Authorize]
     public async Task<IActionResult> ManagerApprove([FromRoute] int id)
     {
+        if (!await CheckPermissionAsync(RequestType.Entry, WorkflowRole.Reviewer))
+        {
+            return BadRequest(new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = "Your user group is not authorized to review/approve requests at this stage."
+            });
+        }
+
         int managerId = GetCurrentUserId();
         var request = await _repositoryWrapper.ProductEntryRequests.GetByIdAsync(id);
         if (request == null)
@@ -112,6 +133,8 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
             ProductId = request.ProductId,
             EnteredQuantity = request.EnteredQuantity,
             FromSource = request.FromSource,
+            DepartmentId = request.DepartmentId,
+            ProductStateId = request.ProductStateId,
             InvoiceNumber = request.InvoiceNumber,
             Notes = request.Notes,
             ReceivedByUserId = request.ReceivedByUserId,
@@ -141,9 +164,18 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
     }
 
     [HttpPut("{id}/supervisor-approve")]
-    [Authorize(Roles = "Supervisor, Admin")]
+    [Authorize]
     public async Task<IActionResult> SupervisorApprove([FromRoute] int id)
     {
+        if (!await CheckPermissionAsync(RequestType.Entry, WorkflowRole.Approver))
+        {
+            return BadRequest(new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = "Your user group is not authorized to approve requests."
+            });
+        }
+
         int supervisorId = GetCurrentUserId();
         var request = await _repositoryWrapper.ProductEntryRequests.GetByIdAsync(id);
         if (request == null)
@@ -199,6 +231,8 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
             ProductId = request.ProductId,
             EnteredQuantity = request.EnteredQuantity,
             FromSource = request.FromSource,
+            DepartmentId = request.DepartmentId,
+            ProductStateId = request.ProductStateId,
             InvoiceNumber = request.InvoiceNumber,
             Notes = request.Notes,
             ReceivedByUserId = request.ReceivedByUserId,
@@ -212,6 +246,22 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
 
         if (response.IsDone)
         {
+            // Create Compass log entry for Entry movement
+            var compassCreate = new CompassCreateDto
+            {
+                SerialNumber = "N/A - Batch Entry",
+                ProductName = request.Product?.Name ?? "Unknown Product",
+                RecipientName = request.ReceivedByUser?.Username ?? "System",
+                Place = request.FromSource ?? "N/A",
+                ExitDate = DateTime.UtcNow,
+                Type = CompassType.Entry,
+                DepartmentId = request.DepartmentId,
+                ProductStateId = request.ProductStateId,
+                ProductEntryRequestId = request.Id,
+                Notes = request.Notes
+            };
+            await _repositoryWrapper.Compasses.Create(compassCreate);
+
             // Step 2 Complete: Notify employee that request is fully approved
             await _repositoryWrapper.Notifications.Create(new NotificationCreateDto
             {
@@ -228,7 +278,7 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
     }
 
     [HttpPut("{id}/reject")]
-    [Authorize(Roles = "Supervisor, Manager, Admin")]
+    [Authorize]
     public async Task<IActionResult> Reject([FromRoute] int id, [FromBody] RejectRequestDto rejectDto)
     {
         var request = await _repositoryWrapper.ProductEntryRequests.GetByIdAsync(id);
@@ -238,6 +288,16 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
             {
                 IsDone = false,
                 ReturnMessage = $"Product entry request with ID {id} not found."
+            });
+        }
+
+        WorkflowRole requiredRole = request.Status == RequestStatus.ManagerApproved ? WorkflowRole.Approver : WorkflowRole.Reviewer;
+        if (!await CheckPermissionAsync(RequestType.Entry, requiredRole))
+        {
+            return BadRequest(new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = "Your user group is not authorized to reject this request."
             });
         }
 
@@ -251,6 +311,8 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
             ProductId = request.ProductId,
             EnteredQuantity = request.EnteredQuantity,
             FromSource = request.FromSource,
+            DepartmentId = request.DepartmentId,
+            ProductStateId = request.ProductStateId,
             InvoiceNumber = request.InvoiceNumber,
             Notes = request.Notes,
             ReceivedByUserId = request.ReceivedByUserId,
@@ -292,5 +354,22 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
         }
 
         return 1;
+    }
+
+    private async Task<bool> CheckPermissionAsync(RequestType type, WorkflowRole role)
+    {
+        int userId = GetCurrentUserId();
+        var user = await _repositoryWrapper.Users.GetByIdWithGroupAsync(userId);
+        if (user == null) return false;
+        if (user.Role == UserRole.Admin) return true;
+        if (user.UserGroupId == null) return false;
+
+        if (role == WorkflowRole.Reviewer)
+        {
+            return await _repositoryWrapper.ApprovalConfigs.IsActionAllowedAsync(type, user.UserGroupId.Value, WorkflowRole.Reviewer) ||
+                   await _repositoryWrapper.ApprovalConfigs.IsActionAllowedAsync(type, user.UserGroupId.Value, WorkflowRole.Approver);
+        }
+
+        return await _repositoryWrapper.ApprovalConfigs.IsActionAllowedAsync(type, user.UserGroupId.Value, role);
     }
 }

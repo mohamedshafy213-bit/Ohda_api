@@ -6,4 +6,5 @@ namespace Contracts.Interfaces.Repository;
 
 public interface ISupplierRepository : IRepositoryBase<Supplier, SupplierDto, SupplierCreateDto, SupplierUpdateDto>
 {
+    Task<Supplier?> GetByNameAsync(string name);
 }

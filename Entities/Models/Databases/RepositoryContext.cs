@@ -26,6 +26,9 @@ public class RepositoryContext : DbContext
     public virtual DbSet<GroupPagePermission> GroupPagePermissions { get; set; } = null!;
     public virtual DbSet<ProductItem> ProductItems { get; set; } = null!;
     public virtual DbSet<Compass> Compasses { get; set; } = null!;
+    public virtual DbSet<ApprovalConfig> ApprovalConfigs { get; set; } = null!;
+    public virtual DbSet<Department> Departments { get; set; } = null!;
+    public virtual DbSet<ProductState> ProductStates { get; set; } = null!;
 
 
     protected readonly IConfiguration _configuration;

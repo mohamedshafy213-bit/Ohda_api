@@ -29,6 +29,24 @@ public static class ServiceExtensions
             .NewConfig()
             .Map(dest => dest.UserGroupName, src => src.UserGroup != null ? src.UserGroup.Name : null);
 
+        TypeAdapterConfig<Entities.Models.Tables.ApprovalConfig, Contracts.DTOs.ApprovalConfig.ApprovalConfigDto>
+            .NewConfig()
+            .Map(dest => dest.UserGroupName, src => src.UserGroup != null ? src.UserGroup.Name : null);
+
+        TypeAdapterConfig<Entities.Models.Tables.ProductExitRequest, Contracts.DTOs.ProductExitRequest.ProductExitRequestDto>
+            .NewConfig()
+            .Map(dest => dest.DepartmentName, src => src.Department != null ? src.Department.Name : null);
+
+        TypeAdapterConfig<Entities.Models.Tables.ProductEntryRequest, Contracts.DTOs.ProductEntryRequest.ProductEntryRequestDto>
+            .NewConfig()
+            .Map(dest => dest.DepartmentName, src => src.Department != null ? src.Department.Name : null)
+            .Map(dest => dest.ProductStateName, src => src.ProductState != null ? src.ProductState.Name : null);
+
+        TypeAdapterConfig<Entities.Models.Tables.Compass, Contracts.DTOs.Compass.CompassDto>
+            .NewConfig()
+            .Map(dest => dest.DepartmentName, src => src.Department != null ? src.Department.Name : null)
+            .Map(dest => dest.ProductStateName, src => src.ProductState != null ? src.ProductState.Name : null);
+
         services.AddMapster();
     }
 
@@ -126,7 +144,7 @@ public static class ServiceExtensions
 
         services.AddAuthorization(options =>
         {
-            options.FallbackPolicy = new AuthorizationPolicyBuilder()
+            options.DefaultPolicy = new AuthorizationPolicyBuilder()
                 .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
                 .RequireAuthenticatedUser()
                 .Build();

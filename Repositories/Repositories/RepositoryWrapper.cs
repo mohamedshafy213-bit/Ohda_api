@@ -31,6 +31,9 @@ public class RepositoryWrapper : IRepositoryWrapper
     private IGroupPagePermissionRepository? _groupPagePermissions;
     private IProductItemRepository? _productItems;
     private ICompassRepository? _compasses;
+    private IApprovalConfigRepository? _approvalConfigs;
+    private IDepartmentRepository? _departments;
+    private IProductStateRepository? _productStates;
 
 
     public RepositoryWrapper(
@@ -92,6 +95,15 @@ public class RepositoryWrapper : IRepositoryWrapper
 
     public ICompassRepository Compasses =>
         _compasses ??= new CompassRepository(_logger, _repoContext, _httpContextAccessor, _mapper);
+
+    public IApprovalConfigRepository ApprovalConfigs =>
+        _approvalConfigs ??= new ApprovalConfigRepository(_logger, _repoContext, _httpContextAccessor, _mapper);
+
+    public IDepartmentRepository Departments =>
+        _departments ??= new DepartmentRepository(_logger, _repoContext, _httpContextAccessor, _mapper);
+
+    public IProductStateRepository ProductStates =>
+        _productStates ??= new ProductStateRepository(_logger, _repoContext, _httpContextAccessor, _mapper);
 
 
     public void Save()

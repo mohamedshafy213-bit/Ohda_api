@@ -13,6 +13,8 @@ public class ProductExitRequest : BaseTable
 
     public string RecipientName { get; set; } = string.Empty;
     public string? RecipientDepartment { get; set; }
+    public int? DepartmentId { get; set; }
+    public Department? Department { get; set; }
     public string? Purpose { get; set; }
 
     public int RequestedByUserId { get; set; }

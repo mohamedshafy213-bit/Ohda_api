@@ -13,6 +13,8 @@ public class ProductExitRequestDto : BaseDto
 
     public string RecipientName { get; set; } = string.Empty;
     public string? RecipientDepartment { get; set; }
+    public int? DepartmentId { get; set; }
+    public string? DepartmentName { get; set; }
     public string? Purpose { get; set; }
 
     public int RequestedByUserId { get; set; }
@@ -39,6 +41,7 @@ public class ProductExitCreateDto : BaseCreateDto
     public int RequestedQuantity { get; set; }
     public string RecipientName { get; set; } = string.Empty;
     public string? RecipientDepartment { get; set; }
+    public int? DepartmentId { get; set; }
     public string? Purpose { get; set; }
     public int RequestedByUserId { get; set; }
     public List<int> SelectedProductItemIds { get; set; } = new();
@@ -51,6 +54,7 @@ public class ProductExitUpdateDto : BaseUpdateDto
     public RequestStatus Status { get; set; }
     public string RecipientName { get; set; } = string.Empty;
     public string? RecipientDepartment { get; set; }
+    public int? DepartmentId { get; set; }
     public string? Purpose { get; set; }
     public int RequestedByUserId { get; set; }
     public int? ManagerId { get; set; }

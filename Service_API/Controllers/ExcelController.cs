@@ -186,6 +186,54 @@ public class ExcelController : ControllerBase
         return File(stream.ToArray(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "Inventory_Stock_Export.xlsx");
     }
 
+    [HttpGet("export/template/products")]
+    [Authorize(Roles = "Admin, Manager")]
+    public IActionResult ExportProductTemplate()
+    {
+        using var workbook = new XLWorkbook();
+        var worksheet = workbook.Worksheets.Add("Product Template");
+
+        // Headers
+        worksheet.Cell(1, 1).Value = "Product Name";
+        worksheet.Cell(1, 2).Value = "SKU";
+        worksheet.Cell(1, 3).Value = "Barcode";
+        worksheet.Cell(1, 4).Value = "Category Name";
+        worksheet.Cell(1, 5).Value = "Supplier Name";
+        worksheet.Cell(1, 6).Value = "Unit Price";
+        worksheet.Cell(1, 7).Value = "Purchase Price";
+        worksheet.Cell(1, 8).Value = "Inventory Type (Purchased/Owned)";
+        worksheet.Cell(1, 9).Value = "Initial Quantity";
+        worksheet.Cell(1, 10).Value = "Min Stock";
+        worksheet.Cell(1, 11).Value = "Max Stock";
+
+        var headerRow = worksheet.Row(1);
+        headerRow.Style.Font.Bold = true;
+        headerRow.Style.Fill.BackgroundColor = XLColor.Navy;
+        headerRow.Style.Font.SetFontColor(XLColor.White);
+
+        // Add a helper comment or tip row
+        worksheet.Cell(2, 1).Value = "Sample Product (Delete this row)";
+        worksheet.Cell(2, 2).Value = "SMPL-SKU-001";
+        worksheet.Cell(2, 3).Value = "123456789012";
+        worksheet.Cell(2, 4).Value = "Electronics";
+        worksheet.Cell(2, 5).Value = "TechSupplier Co";
+        worksheet.Cell(2, 6).Value = 99.99m;
+        worksheet.Cell(2, 7).Value = 75.00m;
+        worksheet.Cell(2, 8).Value = "Purchased";
+        worksheet.Cell(2, 9).Value = 20;
+        worksheet.Cell(2, 10).Value = 5;
+        worksheet.Cell(2, 11).Value = 100;
+
+        worksheet.Row(2).Style.Font.Italic = true;
+        worksheet.Row(2).Style.Font.SetFontColor(XLColor.Gray);
+
+        worksheet.Columns().AdjustToContents();
+
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        return File(stream.ToArray(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "Product_Import_Template.xlsx");
+    }
+
     [HttpPost("import/products")]
     [Authorize(Roles = "Admin, Manager")]
     public async Task<IActionResult> ImportProducts(IFormFile file)
@@ -205,46 +253,170 @@ public class ExcelController : ControllerBase
         var rows = worksheet.RowsUsed().Skip(1); // Skip header
 
         int importedCount = 0;
-        var categoriesResponse = await _repositoryWrapper.Categories.FindAll();
-        var categories = (categoriesResponse as SingleObjectResponseModel<List<Contracts.DTOs.Category.CategoryDto>>)?.SingleObject ?? new();
-
-        var suppliersResponse = await _repositoryWrapper.Suppliers.FindAll();
-        var suppliers = (suppliersResponse as SingleObjectResponseModel<List<Contracts.DTOs.Supplier.SupplierDto>>)?.SingleObject ?? new();
-
-        int defaultCategoryId = categories.FirstOrDefault()?.Id ?? 1;
-        int defaultSupplierId = suppliers.FirstOrDefault()?.Id ?? 1;
+        int updatedCount = 0;
+        int failedCount = 0;
 
         foreach (var row in rows)
         {
-            string name = row.Cell(1).GetValue<string>();
-            string sku = row.Cell(2).GetValue<string>();
-            string barcode = row.Cell(3).GetValue<string>();
-            decimal unitPrice = row.Cell(4).GetValue<decimal>();
-
-            if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(sku) || string.IsNullOrWhiteSpace(barcode))
-                continue;
-
-            var existing = await _repositoryWrapper.Products.GetByBarcodeAsync(barcode);
-            if (existing == null)
+            try
             {
-                await _repositoryWrapper.Products.Create(new Contracts.DTOs.Product.ProductCreateDto
+                string name = row.Cell(1).GetValue<string>();
+                string sku = row.Cell(2).GetValue<string>();
+                string barcode = row.Cell(3).GetValue<string>();
+                string categoryName = row.Cell(4).GetValue<string>();
+                string supplierName = row.Cell(5).GetValue<string>();
+                decimal unitPrice = row.Cell(6).GetValue<decimal>();
+                decimal purchasePrice = row.Cell(7).GetValue<decimal>();
+                string invTypeStr = row.Cell(8).GetValue<string>();
+                int initialQty = row.Cell(9).GetValue<int>();
+                int minStock = row.Cell(10).GetValue<int>();
+                int maxStock = row.Cell(11).GetValue<int>();
+
+                // Skip the sample instruction row or empty rows
+                if (string.IsNullOrWhiteSpace(name) || name.Contains("Sample Product") || string.IsNullOrWhiteSpace(sku) || string.IsNullOrWhiteSpace(barcode))
+                    continue;
+
+                // Resolve Category (find or create)
+                int categoryId;
+                if (!string.IsNullOrWhiteSpace(categoryName))
                 {
-                    Name = name,
-                    SKU = sku,
-                    Barcode = barcode,
-                    UnitPrice = unitPrice > 0 ? unitPrice : 10.00m,
-                    CategoryId = defaultCategoryId,
-                    SupplierId = defaultSupplierId,
-                    InventoryType = Entities.Models.Enums.InventoryType.Purchased
-                });
-                importedCount++;
+                    var cat = await _repositoryWrapper.Categories.GetByNameAsync(categoryName);
+                    if (cat == null)
+                    {
+                        var createResponse = await _repositoryWrapper.Categories.Create(new Contracts.DTOs.Category.CategoryCreateDto
+                        {
+                            Name = categoryName,
+                            Description = "Auto-created during Excel import"
+                        });
+                        var newCat = (createResponse as SingleObjectResponseModel<Contracts.DTOs.Category.CategoryDto>)?.SingleObject;
+                        categoryId = newCat?.Id ?? 1;
+                    }
+                    else
+                    {
+                        categoryId = cat.Id;
+                    }
+                }
+                else
+                {
+                    var categoriesResponse = await _repositoryWrapper.Categories.FindAll();
+                    var categoriesList = (categoriesResponse as ListOfObjectsResponseModel<Contracts.DTOs.Category.CategoryDto>)?.Objects;
+                    categoryId = categoriesList?.FirstOrDefault()?.Id ?? 1;
+                }
+
+                // Resolve Supplier (find or create)
+                int supplierId;
+                if (!string.IsNullOrWhiteSpace(supplierName))
+                {
+                    var sup = await _repositoryWrapper.Suppliers.GetByNameAsync(supplierName);
+                    if (sup == null)
+                    {
+                        var createResponse = await _repositoryWrapper.Suppliers.Create(new Contracts.DTOs.Supplier.SupplierCreateDto
+                        {
+                            CompanyName = supplierName,
+                            ContactName = "Import Agent",
+                            Email = "imported@example.com",
+                            Phone = "0000"
+                        });
+                        var newSup = (createResponse as SingleObjectResponseModel<Contracts.DTOs.Supplier.SupplierDto>)?.SingleObject;
+                        supplierId = newSup?.Id ?? 1;
+                    }
+                    else
+                    {
+                        supplierId = sup.Id;
+                    }
+                }
+                else
+                {
+                    var suppliersResponse = await _repositoryWrapper.Suppliers.FindAll();
+                    var suppliersList = (suppliersResponse as ListOfObjectsResponseModel<Contracts.DTOs.Supplier.SupplierDto>)?.Objects;
+                    supplierId = suppliersList?.FirstOrDefault()?.Id ?? 1;
+                }
+
+                // Resolve Inventory Type
+                var inventoryType = Entities.Models.Enums.InventoryType.Purchased;
+                if (!string.IsNullOrWhiteSpace(invTypeStr) && invTypeStr.Equals("Owned", StringComparison.OrdinalIgnoreCase))
+                {
+                    inventoryType = Entities.Models.Enums.InventoryType.Owned;
+                }
+
+                // Resolve Product
+                var existing = await _repositoryWrapper.Products.GetByBarcodeAsync(barcode);
+                int productId;
+                if (existing == null)
+                {
+                    var createResponse = await _repositoryWrapper.Products.Create(new Contracts.DTOs.Product.ProductCreateDto
+                    {
+                        Name = name,
+                        SKU = sku,
+                        Barcode = barcode,
+                        UnitPrice = unitPrice > 0 ? unitPrice : 10.00m,
+                        PurchasePrice = purchasePrice > 0 ? purchasePrice : 0.00m,
+                        CategoryId = categoryId,
+                        SupplierId = supplierId,
+                        InventoryType = inventoryType
+                    });
+
+                    var newProduct = (createResponse as SingleObjectResponseModel<Contracts.DTOs.Product.ProductDto>)?.SingleObject;
+                    if (newProduct != null)
+                    {
+                        productId = newProduct.Id;
+                        importedCount++;
+
+                        // Seed initial inventory stock for the new product
+                        var inventory = await _repositoryWrapper.Inventories.GetByProductIdAsync(productId);
+                        if (inventory == null)
+                        {
+                            await _repositoryWrapper.Inventories.Create(new Contracts.DTOs.Inventory.InventoryCreateDto
+                            {
+                                ProductId = productId,
+                                Quantity = initialQty >= 0 ? initialQty : 0,
+                                MinStock = minStock > 0 ? minStock : 5,
+                                MaxStock = maxStock > 0 ? maxStock : 100
+                            });
+                        }
+                    }
+                }
+                else
+                {
+                    productId = existing.Id;
+                    updatedCount++;
+
+                    // Update existing inventory quantity (increment it)
+                    var inventory = await _repositoryWrapper.Inventories.GetByProductIdAsync(productId);
+                    if (inventory != null)
+                    {
+                        int newStock = inventory.Quantity + (initialQty >= 0 ? initialQty : 0);
+                        await _repositoryWrapper.Inventories.Update(inventory.Id.ToString(), new Contracts.DTOs.Inventory.InventoryUpdateDto
+                        {
+                            Id = inventory.Id,
+                            ProductId = productId,
+                            Quantity = newStock,
+                            MinStock = minStock > 0 ? minStock : inventory.MinStock,
+                            MaxStock = maxStock > 0 ? maxStock : inventory.MaxStock
+                        });
+                    }
+                    else
+                    {
+                        await _repositoryWrapper.Inventories.Create(new Contracts.DTOs.Inventory.InventoryCreateDto
+                        {
+                            ProductId = productId,
+                            Quantity = initialQty >= 0 ? initialQty : 0,
+                            MinStock = minStock > 0 ? minStock : 5,
+                            MaxStock = maxStock > 0 ? maxStock : 100
+                        });
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                failedCount++;
             }
         }
 
         return Ok(new SingleObjectResponseModel
         {
             IsDone = true,
-            ReturnMessage = $"Successfully imported {importedCount} new products from Excel."
+            ReturnMessage = $"Excel processing complete: Imported {importedCount} new products, updated {updatedCount} existing products, and {failedCount} rows failed."
         });
     }
 }

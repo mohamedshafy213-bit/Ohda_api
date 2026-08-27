@@ -6,4 +6,5 @@ namespace Contracts.Interfaces.Repository;
 
 public interface ICategoryRepository : IRepositoryBase<Category, CategoryDto, CategoryCreateDto, CategoryUpdateDto>
 {
+    Task<Category?> GetByNameAsync(string name);
 }

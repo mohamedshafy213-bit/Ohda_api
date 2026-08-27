@@ -29,11 +29,20 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
     }
 
     [HttpPost("request")]
-    [Authorize(Roles = "Employee, Admin")]
+    [Authorize]
     public async Task<IActionResult> CreateExitRequest([FromBody] ProductExitCreateDto requestDto)
     {
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
+
+        if (!await CheckPermissionAsync(RequestType.Exit, WorkflowRole.Requester))
+        {
+            return BadRequest(new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = "Your user group is not authorized to submit exit requests."
+            });
+        }
 
         int userId = GetCurrentUserId();
         if (userId <= 0)
@@ -102,9 +111,18 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
 
 
     [HttpPut("{id}/manager-approve")]
-    [Authorize(Roles = "Manager, Admin")]
+    [Authorize]
     public async Task<IActionResult> ManagerApprove([FromRoute] int id)
     {
+        if (!await CheckPermissionAsync(RequestType.Exit, WorkflowRole.Reviewer))
+        {
+            return BadRequest(new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = "Your user group is not authorized to review/approve requests at this stage."
+            });
+        }
+
         int managerId = GetCurrentUserId();
         var request = await _repositoryWrapper.ProductExitRequests.GetByIdAsync(id);
         if (request == null)
@@ -136,6 +154,7 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
             RequestedQuantity = request.RequestedQuantity,
             RecipientName = request.RecipientName,
             RecipientDepartment = request.RecipientDepartment,
+            DepartmentId = request.DepartmentId,
             Purpose = request.Purpose,
             RequestedByUserId = request.RequestedByUserId,
             ManagerId = request.ManagerId,
@@ -164,9 +183,18 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
     }
 
     [HttpPut("{id}/supervisor-approve")]
-    [Authorize(Roles = "Supervisor, Admin")]
+    [Authorize]
     public async Task<IActionResult> SupervisorApprove([FromRoute] int id)
     {
+        if (!await CheckPermissionAsync(RequestType.Exit, WorkflowRole.Approver))
+        {
+            return BadRequest(new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = "Your user group is not authorized to approve requests."
+            });
+        }
+
         int supervisorId = GetCurrentUserId();
         var request = await _repositoryWrapper.ProductExitRequests.GetByIdAsync(id);
         if (request == null)
@@ -234,6 +262,8 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
                 RecipientName = request.RecipientName,
                 Place = request.RecipientDepartment ?? "N/A",
                 ExitDate = DateTime.UtcNow,
+                Type = CompassType.Exit,
+                DepartmentId = request.DepartmentId,
                 ProductExitRequestId = request.Id,
                 Notes = request.Purpose
             };
@@ -251,6 +281,7 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
             RequestedQuantity = request.RequestedQuantity,
             RecipientName = request.RecipientName,
             RecipientDepartment = request.RecipientDepartment,
+            DepartmentId = request.DepartmentId,
             Purpose = request.Purpose,
             RequestedByUserId = request.RequestedByUserId,
             ManagerId = request.ManagerId,
@@ -280,7 +311,7 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
 
 
     [HttpPut("{id}/reject")]
-    [Authorize(Roles = "Supervisor, Manager, Admin")]
+    [Authorize]
     public async Task<IActionResult> Reject([FromRoute] int id, [FromBody] RejectRequestDto rejectDto)
     {
         var request = await _repositoryWrapper.ProductExitRequests.GetByIdAsync(id);
@@ -290,6 +321,16 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
             {
                 IsDone = false,
                 ReturnMessage = $"Product exit request with ID {id} not found."
+            });
+        }
+
+        WorkflowRole requiredRole = request.Status == RequestStatus.ManagerApproved ? WorkflowRole.Approver : WorkflowRole.Reviewer;
+        if (!await CheckPermissionAsync(RequestType.Exit, requiredRole))
+        {
+            return BadRequest(new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = "Your user group is not authorized to reject this request."
             });
         }
 
@@ -304,6 +345,7 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
             RequestedQuantity = request.RequestedQuantity,
             RecipientName = request.RecipientName,
             RecipientDepartment = request.RecipientDepartment,
+            DepartmentId = request.DepartmentId,
             Purpose = request.Purpose,
             RequestedByUserId = request.RequestedByUserId,
             ManagerId = request.ManagerId,
@@ -371,6 +413,8 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
             Status = request.Status,
             RecipientName = request.RecipientName,
             RecipientDepartment = request.RecipientDepartment,
+            DepartmentId = request.DepartmentId,
+            DepartmentName = request.Department?.Name,
             Purpose = request.Purpose,
             RequestedByUserId = request.RequestedByUserId,
             RequestedByUsername = request.RequestedByUser?.Username,
@@ -407,6 +451,23 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
         }
 
         return 1;
+    }
+
+    private async Task<bool> CheckPermissionAsync(RequestType type, WorkflowRole role)
+    {
+        int userId = GetCurrentUserId();
+        var user = await _repositoryWrapper.Users.GetByIdWithGroupAsync(userId);
+        if (user == null) return false;
+        if (user.Role == UserRole.Admin) return true;
+        if (user.UserGroupId == null) return false;
+
+        if (role == WorkflowRole.Reviewer)
+        {
+            return await _repositoryWrapper.ApprovalConfigs.IsActionAllowedAsync(type, user.UserGroupId.Value, WorkflowRole.Reviewer) ||
+                   await _repositoryWrapper.ApprovalConfigs.IsActionAllowedAsync(type, user.UserGroupId.Value, WorkflowRole.Approver);
+        }
+
+        return await _repositoryWrapper.ApprovalConfigs.IsActionAllowedAsync(type, user.UserGroupId.Value, role);
     }
 }
 

@@ -2,6 +2,7 @@ using Contracts.DTOs.Compass;
 using Contracts.Interfaces.Repository;
 using Entities.Models.Databases;
 using Entities.Models.Tables;
+using Entities.Models.Enums;
 using LoggerService;
 using MapsterMapper;
 using Microsoft.AspNetCore.Http;
@@ -22,10 +23,19 @@ public class CompassRepository
     {
     }
 
-    public async Task<IEnumerable<Compass>> SearchCompassRecordsAsync(string? query)
+    public async Task<IEnumerable<Compass>> SearchCompassRecordsAsync(
+        string? query,
+        int? departmentId,
+        CompassType? type,
+        int? stateId,
+        DateTime? startDate,
+        DateTime? endDate)
     {
         var dbQuery = RepositoryContext.Compasses
             .Include(c => c.ProductExitRequest)
+            .Include(c => c.ProductEntryRequest)
+            .Include(c => c.Department)
+            .Include(c => c.ProductState)
             .Where(c => !c.IsDeleted);
 
         if (!string.IsNullOrWhiteSpace(query))
@@ -37,6 +47,31 @@ public class CompassRepository
                 c.RecipientName.ToLower().Contains(query) ||
                 c.Place.ToLower().Contains(query)
             );
+        }
+
+        if (departmentId.HasValue)
+        {
+            dbQuery = dbQuery.Where(c => c.DepartmentId == departmentId.Value);
+        }
+
+        if (type.HasValue)
+        {
+            dbQuery = dbQuery.Where(c => c.Type == type.Value);
+        }
+
+        if (stateId.HasValue)
+        {
+            dbQuery = dbQuery.Where(c => c.ProductStateId == stateId.Value);
+        }
+
+        if (startDate.HasValue)
+        {
+            dbQuery = dbQuery.Where(c => c.ExitDate >= startDate.Value);
+        }
+
+        if (endDate.HasValue)
+        {
+            dbQuery = dbQuery.Where(c => c.ExitDate <= endDate.Value);
         }
 
         return await dbQuery.ToListAsync();

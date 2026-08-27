@@ -29,6 +29,7 @@ public class ProductExitRequestRepository
             .Include(r => r.RequestedByUser)
             .Include(r => r.Supervisor)
             .Include(r => r.Manager)
+            .Include(r => r.Department)
             .FirstOrDefaultAsync(r => r.Id == id && !r.IsDeleted);
     }
 }

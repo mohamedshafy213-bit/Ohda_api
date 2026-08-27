@@ -29,6 +29,8 @@ public class ProductEntryRequestRepository
             .Include(r => r.ReceivedByUser)
             .Include(r => r.Supervisor)
             .Include(r => r.Manager)
+            .Include(r => r.Department)
+            .Include(r => r.ProductState)
             .FirstOrDefaultAsync(r => r.Id == id && !r.IsDeleted);
     }
 }

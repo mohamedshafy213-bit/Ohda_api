@@ -29,6 +29,25 @@ public enum RequestStatus
     Rejected = 4
 }
 
+public enum RequestType
+{
+    Entry = 1,
+    Exit = 2
+}
+
+public enum WorkflowRole
+{
+    Requester = 1,
+    Reviewer = 2,
+    Approver = 3
+}
+
+public enum CompassType
+{
+    Entry = 1,
+    Exit = 2
+}
+
 public enum NotificationType
 {
     Info = 1,

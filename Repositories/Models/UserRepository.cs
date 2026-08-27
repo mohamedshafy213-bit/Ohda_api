@@ -28,4 +28,11 @@ public class UserRepository
             .Include(u => u.UserGroup)
             .FirstOrDefaultAsync(u => u.Username.ToLower() == username.ToLower() && !u.IsDeleted);
     }
+
+    public async Task<User?> GetByIdWithGroupAsync(int id)
+    {
+        return await RepositoryContext.Users
+            .Include(u => u.UserGroup)
+            .FirstOrDefaultAsync(u => u.Id == id && !u.IsDeleted);
+    }
 }

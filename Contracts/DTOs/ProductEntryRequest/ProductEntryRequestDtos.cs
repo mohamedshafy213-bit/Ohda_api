@@ -12,6 +12,10 @@ public class ProductEntryRequestDto : BaseDto
     public RequestStatus Status { get; set; }
 
     public string FromSource { get; set; } = string.Empty;
+    public int? DepartmentId { get; set; }
+    public string? DepartmentName { get; set; }
+    public int? ProductStateId { get; set; }
+    public string? ProductStateName { get; set; }
     public string? InvoiceNumber { get; set; }
     public string? Notes { get; set; }
 
@@ -35,6 +39,8 @@ public class ProductEntryCreateDto : BaseCreateDto
     public int ProductId { get; set; }
     public int EnteredQuantity { get; set; }
     public string FromSource { get; set; } = string.Empty;
+    public int? DepartmentId { get; set; }
+    public int? ProductStateId { get; set; }
     public string? InvoiceNumber { get; set; }
     public string? Notes { get; set; }
     public int ReceivedByUserId { get; set; }
@@ -46,6 +52,8 @@ public class ProductEntryUpdateDto : BaseUpdateDto
     public int EnteredQuantity { get; set; }
     public RequestStatus Status { get; set; }
     public string FromSource { get; set; } = string.Empty;
+    public int? DepartmentId { get; set; }
+    public int? ProductStateId { get; set; }
     public string? InvoiceNumber { get; set; }
     public string? Notes { get; set; }
     public int ReceivedByUserId { get; set; }

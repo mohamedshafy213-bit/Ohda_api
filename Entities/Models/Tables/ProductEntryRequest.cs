@@ -12,6 +12,10 @@ public class ProductEntryRequest : BaseTable
     public RequestStatus Status { get; set; } = RequestStatus.Pending;
 
     public string FromSource { get; set; } = string.Empty;
+    public int? DepartmentId { get; set; }
+    public Department? Department { get; set; }
+    public int? ProductStateId { get; set; }
+    public ProductState? ProductState { get; set; }
     public string? InvoiceNumber { get; set; }
     public string? Notes { get; set; }
 

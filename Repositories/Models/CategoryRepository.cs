@@ -5,6 +5,7 @@ using Entities.Models.Tables;
 using LoggerService;
 using MapsterMapper;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 using Repositories.Repositories;
 
 namespace Repositories.Models;
@@ -19,5 +20,11 @@ public class CategoryRepository
         IMapper mapper)
         : base(logger, repositoryContext, httpContextAccessor, mapper)
     {
+    }
+
+    public async Task<Category?> GetByNameAsync(string name)
+    {
+        return await RepositoryContext.Categories
+            .FirstOrDefaultAsync(c => c.Name.ToLower() == name.ToLower() && !c.IsDeleted);
     }
 }

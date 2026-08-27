@@ -27,9 +27,17 @@ public class CompassController : BaseController<Compass, CompassDto, CompassCrea
     }
 
     [HttpGet("search")]
-    public async Task<IActionResult> Search([FromQuery] string? query)
+    public async Task<IActionResult> Search(
+        [FromQuery] string? query,
+        [FromQuery] int? departmentId,
+        [FromQuery] CompassType? type,
+        [FromQuery] int? stateId,
+        [FromQuery] DateTime? startDate,
+        [FromQuery] DateTime? endDate)
     {
-        var records = await _repositoryWrapper.Compasses.SearchCompassRecordsAsync(query);
+        var records = await _repositoryWrapper.Compasses.SearchCompassRecordsAsync(
+            query, departmentId, type, stateId, startDate, endDate);
+
         var dtos = records.Select(c => new CompassDto
         {
             Id = c.Id,
@@ -38,7 +46,13 @@ public class CompassController : BaseController<Compass, CompassDto, CompassCrea
             RecipientName = c.RecipientName,
             Place = c.Place,
             ExitDate = c.ExitDate,
+            Type = c.Type,
+            DepartmentId = c.DepartmentId,
+            DepartmentName = c.Department?.Name,
+            ProductStateId = c.ProductStateId,
+            ProductStateName = c.ProductState?.Name,
             ProductExitRequestId = c.ProductExitRequestId,
+            ProductEntryRequestId = c.ProductEntryRequestId,
             Notes = c.Notes
         }).ToList();
 

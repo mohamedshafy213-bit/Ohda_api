@@ -20,6 +20,9 @@ public interface IRepositoryWrapper
     IGroupPagePermissionRepository GroupPagePermissions { get; }
     IProductItemRepository ProductItems { get; }
     ICompassRepository Compasses { get; }
+    IApprovalConfigRepository ApprovalConfigs { get; }
+    IDepartmentRepository Departments { get; }
+    IProductStateRepository ProductStates { get; }
 
 
     void Save();

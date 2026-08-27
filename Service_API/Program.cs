@@ -48,6 +48,12 @@ public class Program
         app.UseAuthentication();
         app.UseAuthorization();
 
+        app.MapGet("/", context =>
+        {
+            context.Response.Redirect("/swagger");
+            return Task.CompletedTask;
+        }).AllowAnonymous();
+
         app.MapControllers();
 
         await app.RunAsync();

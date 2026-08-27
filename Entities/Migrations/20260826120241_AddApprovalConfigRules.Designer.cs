@@ -4,6 +4,7 @@ using Entities.Models.Databases.SqlDb;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Entities.Migrations
 {
     [DbContext(typeof(SqlServerContext))]
-    partial class SqlServerContextModelSnapshot : ModelSnapshot
+    [Migration("20260826120241_AddApprovalConfigRules")]
+    partial class AddApprovalConfigRules
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -125,9 +128,6 @@ namespace Entities.Migrations
                     b.Property<string>("DeleteUserCode")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int?>("DepartmentId")
-                        .HasColumnType("int");
-
                     b.Property<DateTime>("ExitDate")
                         .HasColumnType("datetime2");
 
@@ -151,9 +151,6 @@ namespace Entities.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
 
-                    b.Property<int?>("ProductEntryRequestId")
-                        .HasColumnType("int");
-
                     b.Property<int?>("ProductExitRequestId")
                         .HasColumnType("int");
 
@@ -161,9 +158,6 @@ namespace Entities.Migrations
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
-
-                    b.Property<int?>("ProductStateId")
-                        .HasColumnType("int");
 
                     b.Property<string>("RecipientName")
                         .IsRequired()
@@ -175,64 +169,14 @@ namespace Entities.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<int>("Type")
-                        .HasColumnType("int");
-
                     b.Property<string>("UpdateUserCode")
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("DepartmentId");
-
-                    b.HasIndex("ProductEntryRequestId");
 
                     b.HasIndex("ProductExitRequestId");
 
-                    b.HasIndex("ProductStateId");
-
                     b.ToTable("Compasses");
-                });
-
-            modelBuilder.Entity("Entities.Models.Tables.Department", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime?>("DeleteDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("DeleteUserCode")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime?>("InsertDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("InsertUserCode")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<DateTime?>("LastUpdate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("UpdateUserCode")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Departments");
                 });
 
             modelBuilder.Entity("Entities.Models.Tables.GroupPagePermission", b =>
@@ -544,7 +488,7 @@ namespace Entities.Migrations
                         {
                             Id = 1,
                             Icon = "dashboard",
-                            InsertDate = new DateTime(2026, 8, 26, 13, 6, 22, 197, DateTimeKind.Utc).AddTicks(7685),
+                            InsertDate = new DateTime(2026, 8, 26, 12, 2, 37, 223, DateTimeKind.Utc).AddTicks(7103),
                             IsDeleted = false,
                             Path = "/dashboard",
                             SortOrder = 1,
@@ -554,7 +498,7 @@ namespace Entities.Migrations
                         {
                             Id = 2,
                             Icon = "inventory_2",
-                            InsertDate = new DateTime(2026, 8, 26, 13, 6, 22, 197, DateTimeKind.Utc).AddTicks(9613),
+                            InsertDate = new DateTime(2026, 8, 26, 12, 2, 37, 224, DateTimeKind.Utc).AddTicks(4449),
                             IsDeleted = false,
                             Path = "/products",
                             SortOrder = 2,
@@ -564,7 +508,7 @@ namespace Entities.Migrations
                         {
                             Id = 3,
                             Icon = "warehouse",
-                            InsertDate = new DateTime(2026, 8, 26, 13, 6, 22, 197, DateTimeKind.Utc).AddTicks(9617),
+                            InsertDate = new DateTime(2026, 8, 26, 12, 2, 37, 224, DateTimeKind.Utc).AddTicks(4461),
                             IsDeleted = false,
                             Path = "/inventory",
                             SortOrder = 3,
@@ -574,7 +518,7 @@ namespace Entities.Migrations
                         {
                             Id = 4,
                             Icon = "qr_code_scanner",
-                            InsertDate = new DateTime(2026, 8, 26, 13, 6, 22, 197, DateTimeKind.Utc).AddTicks(9619),
+                            InsertDate = new DateTime(2026, 8, 26, 12, 2, 37, 224, DateTimeKind.Utc).AddTicks(4467),
                             IsDeleted = false,
                             Path = "/scan",
                             SortOrder = 4,
@@ -584,7 +528,7 @@ namespace Entities.Migrations
                         {
                             Id = 5,
                             Icon = "assignment_return",
-                            InsertDate = new DateTime(2026, 8, 26, 13, 6, 22, 197, DateTimeKind.Utc).AddTicks(9620),
+                            InsertDate = new DateTime(2026, 8, 26, 12, 2, 37, 224, DateTimeKind.Utc).AddTicks(4472),
                             IsDeleted = false,
                             Path = "/exit-requests",
                             SortOrder = 5,
@@ -594,7 +538,7 @@ namespace Entities.Migrations
                         {
                             Id = 6,
                             Icon = "shopping_cart",
-                            InsertDate = new DateTime(2026, 8, 26, 13, 6, 22, 197, DateTimeKind.Utc).AddTicks(9622),
+                            InsertDate = new DateTime(2026, 8, 26, 12, 2, 37, 224, DateTimeKind.Utc).AddTicks(4477),
                             IsDeleted = false,
                             Path = "/orders",
                             SortOrder = 6,
@@ -604,7 +548,7 @@ namespace Entities.Migrations
                         {
                             Id = 7,
                             Icon = "category",
-                            InsertDate = new DateTime(2026, 8, 26, 13, 6, 22, 197, DateTimeKind.Utc).AddTicks(9624),
+                            InsertDate = new DateTime(2026, 8, 26, 12, 2, 37, 224, DateTimeKind.Utc).AddTicks(4481),
                             IsDeleted = false,
                             Path = "/categories",
                             SortOrder = 7,
@@ -614,7 +558,7 @@ namespace Entities.Migrations
                         {
                             Id = 8,
                             Icon = "local_shipping",
-                            InsertDate = new DateTime(2026, 8, 26, 13, 6, 22, 197, DateTimeKind.Utc).AddTicks(9625),
+                            InsertDate = new DateTime(2026, 8, 26, 12, 2, 37, 224, DateTimeKind.Utc).AddTicks(4487),
                             IsDeleted = false,
                             Path = "/suppliers",
                             SortOrder = 8,
@@ -624,7 +568,7 @@ namespace Entities.Migrations
                         {
                             Id = 9,
                             Icon = "group",
-                            InsertDate = new DateTime(2026, 8, 26, 13, 6, 22, 197, DateTimeKind.Utc).AddTicks(9626),
+                            InsertDate = new DateTime(2026, 8, 26, 12, 2, 37, 224, DateTimeKind.Utc).AddTicks(4492),
                             IsDeleted = false,
                             Path = "/users",
                             SortOrder = 9,
@@ -634,7 +578,7 @@ namespace Entities.Migrations
                         {
                             Id = 11,
                             Icon = "explore",
-                            InsertDate = new DateTime(2026, 8, 26, 13, 6, 22, 197, DateTimeKind.Utc).AddTicks(9629),
+                            InsertDate = new DateTime(2026, 8, 26, 12, 2, 37, 224, DateTimeKind.Utc).AddTicks(4496),
                             IsDeleted = false,
                             Path = "/compass",
                             SortOrder = 10,
@@ -736,9 +680,6 @@ namespace Entities.Migrations
                     b.Property<string>("DeleteUserCode")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int?>("DepartmentId")
-                        .HasColumnType("int");
-
                     b.Property<int>("EnteredQuantity")
                         .HasColumnType("int");
 
@@ -773,9 +714,6 @@ namespace Entities.Migrations
                     b.Property<int>("ProductId")
                         .HasColumnType("int");
 
-                    b.Property<int?>("ProductStateId")
-                        .HasColumnType("int");
-
                     b.Property<int>("ReceivedByUserId")
                         .HasColumnType("int");
 
@@ -793,13 +731,9 @@ namespace Entities.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("DepartmentId");
-
                     b.HasIndex("ManagerId");
 
                     b.HasIndex("ProductId");
-
-                    b.HasIndex("ProductStateId");
 
                     b.HasIndex("ReceivedByUserId");
 
@@ -821,9 +755,6 @@ namespace Entities.Migrations
 
                     b.Property<string>("DeleteUserCode")
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<int?>("DepartmentId")
-                        .HasColumnType("int");
 
                     b.Property<DateTime?>("InsertDate")
                         .HasColumnType("datetime2");
@@ -875,8 +806,6 @@ namespace Entities.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("DepartmentId");
 
                     b.HasIndex("ManagerId");
 
@@ -959,47 +888,6 @@ namespace Entities.Migrations
                         .IsUnique();
 
                     b.ToTable("ProductItems");
-                });
-
-            modelBuilder.Entity("Entities.Models.Tables.ProductState", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Code")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime?>("DeleteDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("DeleteUserCode")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime?>("InsertDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("InsertUserCode")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<DateTime?>("LastUpdate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("UpdateUserCode")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("ProductStates");
                 });
 
             modelBuilder.Entity("Entities.Models.Tables.ScanTransaction", b =>
@@ -1338,30 +1226,12 @@ namespace Entities.Migrations
 
             modelBuilder.Entity("Entities.Models.Tables.Compass", b =>
                 {
-                    b.HasOne("Entities.Models.Tables.Department", "Department")
-                        .WithMany()
-                        .HasForeignKey("DepartmentId");
-
-                    b.HasOne("Entities.Models.Tables.ProductEntryRequest", "ProductEntryRequest")
-                        .WithMany()
-                        .HasForeignKey("ProductEntryRequestId");
-
                     b.HasOne("Entities.Models.Tables.ProductExitRequest", "ProductExitRequest")
                         .WithMany()
                         .HasForeignKey("ProductExitRequestId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("Entities.Models.Tables.ProductState", "ProductState")
-                        .WithMany()
-                        .HasForeignKey("ProductStateId");
-
-                    b.Navigation("Department");
-
-                    b.Navigation("ProductEntryRequest");
-
                     b.Navigation("ProductExitRequest");
-
-                    b.Navigation("ProductState");
                 });
 
             modelBuilder.Entity("Entities.Models.Tables.GroupPagePermission", b =>
@@ -1463,10 +1333,6 @@ namespace Entities.Migrations
 
             modelBuilder.Entity("Entities.Models.Tables.ProductEntryRequest", b =>
                 {
-                    b.HasOne("Entities.Models.Tables.Department", "Department")
-                        .WithMany()
-                        .HasForeignKey("DepartmentId");
-
                     b.HasOne("Entities.Models.Tables.User", "Manager")
                         .WithMany()
                         .HasForeignKey("ManagerId")
@@ -1477,10 +1343,6 @@ namespace Entities.Migrations
                         .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.HasOne("Entities.Models.Tables.ProductState", "ProductState")
-                        .WithMany()
-                        .HasForeignKey("ProductStateId");
 
                     b.HasOne("Entities.Models.Tables.User", "ReceivedByUser")
                         .WithMany()
@@ -1493,13 +1355,9 @@ namespace Entities.Migrations
                         .HasForeignKey("SupervisorId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.Navigation("Department");
-
                     b.Navigation("Manager");
 
                     b.Navigation("Product");
-
-                    b.Navigation("ProductState");
 
                     b.Navigation("ReceivedByUser");
 
@@ -1508,10 +1366,6 @@ namespace Entities.Migrations
 
             modelBuilder.Entity("Entities.Models.Tables.ProductExitRequest", b =>
                 {
-                    b.HasOne("Entities.Models.Tables.Department", "Department")
-                        .WithMany()
-                        .HasForeignKey("DepartmentId");
-
                     b.HasOne("Entities.Models.Tables.User", "Manager")
                         .WithMany()
                         .HasForeignKey("ManagerId")
@@ -1533,8 +1387,6 @@ namespace Entities.Migrations
                         .WithMany()
                         .HasForeignKey("SupervisorId")
                         .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Department");
 
                     b.Navigation("Manager");
 
