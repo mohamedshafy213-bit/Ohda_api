@@ -5,10 +5,7 @@ namespace Entities.Models.Tables;
 
 public class ProductEntryRequest : BaseTable
 {
-    public int ProductId { get; set; }
-    public Product? Product { get; set; }
-
-    public int EnteredQuantity { get; set; }
+    public ICollection<ProductEntryRequestItem> Items { get; set; } = new List<ProductEntryRequestItem>();
     public RequestStatus Status { get; set; } = RequestStatus.Pending;
 
     public string FromSource { get; set; } = string.Empty;

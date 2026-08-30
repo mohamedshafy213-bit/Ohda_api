@@ -13,6 +13,8 @@ public interface ICompassRepository : IRepositoryBase<Compass, CompassDto, Compa
         CompassType? type,
         int? stateId,
         DateTime? startDate,
-        DateTime? endDate);
+        DateTime? endDate,
+        int? pageNumber = null,
+        int? pageSize = null);
     Task<Compass?> GetBySerialNumberAsync(string serialNumber);
 }

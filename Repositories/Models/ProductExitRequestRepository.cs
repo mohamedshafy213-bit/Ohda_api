@@ -25,7 +25,8 @@ public class ProductExitRequestRepository
     public async Task<ProductExitRequest?> GetByIdAsync(int id)
     {
         return await RepositoryContext.ProductExitRequests
-            .Include(r => r.Product)
+            .Include(r => r.Items)
+                .ThenInclude(i => i.Product)
             .Include(r => r.RequestedByUser)
             .Include(r => r.Supervisor)
             .Include(r => r.Manager)

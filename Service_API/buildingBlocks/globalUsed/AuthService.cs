@@ -32,7 +32,7 @@ public class AuthService : IAuthService
     public async Task<User?> GetUserByIdAsync(int userId)
     {
         return await _repositoryContext.Users
-            .FirstOrDefaultAsync(u => u.Id == userId && !u.IsDeleted);
+            .FirstOrDefaultAsync(u => u.MilitaryNumber == userId && !u.IsDeleted);
     }
 
     public async Task<bool> ValidatePasswordAsync(string password, string passwordHash, User user)

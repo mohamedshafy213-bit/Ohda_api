@@ -23,9 +23,9 @@ public class ProductController : BaseController<Product, ProductDto, ProductCrea
     }
 
     [HttpGet]
-    public override async Task<IActionResult> GetAll()
+    public override async Task<IActionResult> GetAll([FromQuery] int? pageNumber = null, [FromQuery] int? pageSize = null)
     {
-        var response = await _repositoryWrapper.Products.FindAll();
+        var response = await _repositoryWrapper.Products.FindAll(pageNumber, pageSize);
         var dtos = (response as ListOfObjectsResponseModel<ProductDto>)?.Objects;
         if (dtos != null)
         {

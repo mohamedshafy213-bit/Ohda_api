@@ -14,18 +14,18 @@ namespace Service_API.BaseControllers;
 [Route("api/[controller]")]
 
 public abstract class BaseController<T, TDto, TCreateDto, TUpdateDto> : ControllerBase
-        where T : Entities.Models.BaseTables.BaseTable
-        where TDto : BaseDto
-        where TCreateDto : BaseCreateDto
-        where TUpdateDto : BaseUpdateDto
+        where T : class
+        where TDto : class
+        where TCreateDto : class
+        where TUpdateDto : class
 {
     protected  IRepositoryBase<T, TDto, TCreateDto, TUpdateDto> _repository;
 
 
     [HttpGet]
-    public virtual async Task<IActionResult> GetAll()
+    public virtual async Task<IActionResult> GetAll([FromQuery] int? pageNumber = null, [FromQuery] int? pageSize = null)
     {
-        var response = await _repository.FindAll();
+        var response = await _repository.FindAll(pageNumber, pageSize);
         return HandleResponse(response);
     }
 

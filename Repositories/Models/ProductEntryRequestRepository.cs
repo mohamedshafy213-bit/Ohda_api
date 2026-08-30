@@ -25,12 +25,14 @@ public class ProductEntryRequestRepository
     public async Task<ProductEntryRequest?> GetByIdAsync(int id)
     {
         return await RepositoryContext.ProductEntryRequests
-            .Include(r => r.Product)
+            .Include(r => r.Items)
+                .ThenInclude(i => i.Product)
+            .Include(r => r.Items)
+                .ThenInclude(i => i.ProductState)
             .Include(r => r.ReceivedByUser)
             .Include(r => r.Supervisor)
             .Include(r => r.Manager)
             .Include(r => r.Department)
-            .Include(r => r.ProductState)
             .FirstOrDefaultAsync(r => r.Id == id && !r.IsDeleted);
     }
 }

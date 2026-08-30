@@ -34,7 +34,7 @@ public class DashboardController : ControllerBase
             .ToListAsync();
 
         int totalStockQuantity = inventories.Sum(i => i.Quantity);
-        decimal totalStockValue = inventories.Sum(i => i.Quantity * i.Product!.UnitPrice);
+        decimal totalStockValue = inventories.Sum(i => i.Quantity * (i.Product!.UnitPrice ?? 0));
 
         int lowStockCount = inventories.Count(i => i.Quantity <= i.MinStock && i.Quantity > 0);
         int outOfStockCount = inventories.Count(i => i.Quantity == 0);

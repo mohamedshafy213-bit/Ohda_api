@@ -3,12 +3,14 @@ using Contracts.DTOs.Notification;
 using Contracts.DTOs.ProductExitRequest;
 using Contracts.DTOs.ProductItem;
 using Contracts.DTOs.Compass;
+using Entities.Models.Databases;
 using Contracts.interfaces.Repository;
 using Contracts.Responses;
 using Entities.Models.Enums;
 using Entities.Models.Tables;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Service_API.BaseControllers;
 using System.Security.Claims;
 
@@ -21,10 +23,12 @@ namespace Service_API.Controllers;
 public class ProductExitRequestController : BaseController<ProductExitRequest, ProductExitRequestDto, ProductExitCreateDto, ProductExitUpdateDto>
 {
     private readonly IRepositoryWrapper _repositoryWrapper;
+    private readonly RepositoryContext _context;
 
-    public ProductExitRequestController(IRepositoryWrapper repositoryWrapper)
+    public ProductExitRequestController(IRepositoryWrapper repositoryWrapper, RepositoryContext context)
     {
         _repositoryWrapper = repositoryWrapper;
+        _context = context;
         _repository = repositoryWrapper.ProductExitRequests;
     }
 
@@ -63,6 +67,31 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
             });
         }
 
+        if (requestDto.Items == null || !requestDto.Items.Any())
+        {
+            return BadRequest(new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = "Request must contain at least one item."
+            });
+        }
+
+        // Validate stock for all items
+        foreach (var item in requestDto.Items)
+        {
+            var inventory = await _repositoryWrapper.Inventories.GetByProductIdAsync(item.ProductId);
+            if (inventory == null || inventory.Quantity < item.Quantity)
+            {
+                var product = await _repositoryWrapper.Products.GetByIdAsync(item.ProductId);
+                string prodName = product?.Name ?? $"ID {item.ProductId}";
+                return BadRequest(new SingleObjectResponseModel
+                {
+                    IsDone = false,
+                    ReturnMessage = $"Insufficient inventory stock for '{prodName}'. Available: {inventory?.Quantity ?? 0}, Requested: {item.Quantity}."
+                });
+            }
+        }
+
         requestDto.RequestedByUserId = userId;
         var response = await _repositoryWrapper.ProductExitRequests.Create(requestDto);
 
@@ -71,6 +100,16 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
             var createdDto = (response as SingleObjectResponseModel<ProductExitRequestDto>)?.SingleObject;
             if (createdDto != null && requestDto.SelectedProductItemIds != null && requestDto.SelectedProductItemIds.Any())
             {
+                string departmentName = "N/A";
+                if (requestDto.DepartmentId.HasValue)
+                {
+                    var dep = await _context.Departments.FirstOrDefaultAsync(d => d.Id == requestDto.DepartmentId.Value && !d.IsDeleted);
+                    if (dep != null)
+                    {
+                        departmentName = dep.Name;
+                    }
+                }
+
                 foreach (var itemId in requestDto.SelectedProductItemIds)
                 {
                     var item = await _repositoryWrapper.ProductItems.GetByIdAsync(itemId);
@@ -85,12 +124,11 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
                             Status = item.Status,
                             ProductExitRequestId = createdDto.Id,
                             RecipientName = requestDto.RecipientName,
-                            Place = requestDto.RecipientDepartment,
+                            Place = departmentName,
                             Notes = requestDto.Purpose
                         };
                         await _repositoryWrapper.ProductItems.Update(item.Id.ToString(), updateDto);
                     }
-
                 }
                 await _repositoryWrapper.SaveAsync();
             }
@@ -100,7 +138,7 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
             {
                 UserId = userId,
                 Title = "New Product Exit Request",
-                Message = $"Exit request created for product ID {requestDto.ProductId} (Qty: {requestDto.RequestedQuantity}) to {requestDto.RecipientName}. Awaiting Manager approval.",
+                Message = $"Exit request created containing {requestDto.Items.Count} item(s) to {requestDto.RecipientName}. Awaiting Manager approval.",
                 Type = NotificationType.ExitRequest,
                 ReferenceType = "ProductExitRequest"
             });
@@ -112,7 +150,7 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
 
     [HttpPut("{id}/manager-approve")]
     [Authorize]
-    public async Task<IActionResult> ManagerApprove([FromRoute] int id)
+    public async Task<IActionResult> ManagerApprove([FromRoute] int id, [FromBody] RequestApprovalDto? approvalDto = null)
     {
         if (!await CheckPermissionAsync(RequestType.Exit, WorkflowRole.Reviewer))
         {
@@ -147,44 +185,60 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
         request.ManagerId = managerId;
         request.LastUpdate = DateTime.UtcNow;
 
-        var updateDto = new ProductExitUpdateDto
+        if (approvalDto != null && approvalDto.Items != null && approvalDto.Items.Any())
         {
-            Id = request.Id,
-            ProductId = request.ProductId,
-            RequestedQuantity = request.RequestedQuantity,
-            RecipientName = request.RecipientName,
-            RecipientDepartment = request.RecipientDepartment,
-            DepartmentId = request.DepartmentId,
-            Purpose = request.Purpose,
-            RequestedByUserId = request.RequestedByUserId,
-            ManagerId = request.ManagerId,
-            SupervisorId = request.SupervisorId,
-            Status = request.Status,
-            RejectionReason = request.RejectionReason
-        };
-
-        var response = await _repositoryWrapper.ProductExitRequests.Update(id.ToString(), updateDto);
-
-        if (response.IsDone)
-        {
-            // Step 1 Complete: Notify Supervisors that Manager has approved and Supervisor approval is now required
-            await _repositoryWrapper.Notifications.Create(new NotificationCreateDto
+            foreach (var itemUpdate in approvalDto.Items)
             {
-                UserId = request.RequestedByUserId,
-                Title = "Exit Request Manager Approved (Step 1 Complete)",
-                Message = $"Product exit request (ID: {id}) has received Manager approval. Awaiting final Supervisor approval.",
-                Type = NotificationType.ExitRequest,
-                ReferenceId = id,
-                ReferenceType = "ProductExitRequest"
-            });
+                var item = request.Items.FirstOrDefault(i => i.Id == itemUpdate.ItemId);
+                if (item != null)
+                {
+                    item.Status = itemUpdate.Status;
+                    item.LastUpdate = DateTime.UtcNow;
+                }
+            }
+        }
+        else
+        {
+            foreach (var item in request.Items)
+            {
+                item.Status = RequestStatus.Approved;
+                item.LastUpdate = DateTime.UtcNow;
+            }
         }
 
-        return HandleResponse(response);
+        if (request.Items.All(i => i.Status == RequestStatus.Rejected))
+        {
+            request.Status = RequestStatus.Rejected;
+            request.RejectionReason = "All items rejected by Manager.";
+        }
+
+        await _repositoryWrapper.SaveAsync();
+
+
+
+        // Notify
+        await _repositoryWrapper.Notifications.Create(new NotificationCreateDto
+        {
+            UserId = request.RequestedByUserId,
+            Title = request.Status == RequestStatus.Rejected ? "Exit Request Rejected" : "Exit Request Manager Approved (Step 1 Complete)",
+            Message = request.Status == RequestStatus.Rejected 
+                ? $"Your exit request (ID: {id}) was rejected by the Manager." 
+                : $"Product exit request (ID: {id}) has received Manager approval. Awaiting final Supervisor approval.",
+            Type = request.Status == RequestStatus.Rejected ? NotificationType.Warning : NotificationType.ExitRequest,
+            ReferenceId = id,
+            ReferenceType = "ProductExitRequest"
+        });
+
+        return Ok(new SingleObjectResponseModel
+        {
+            IsDone = true,
+            ReturnMessage = request.Status == RequestStatus.Rejected ? "Request rejected." : "Request approved by Manager."
+        });
     }
 
     [HttpPut("{id}/supervisor-approve")]
     [Authorize]
-    public async Task<IActionResult> SupervisorApprove([FromRoute] int id)
+    public async Task<IActionResult> SupervisorApprove([FromRoute] int id, [FromBody] RequestApprovalDto? approvalDto = null)
     {
         if (!await CheckPermissionAsync(RequestType.Exit, WorkflowRole.Approver))
         {
@@ -215,100 +269,182 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
             });
         }
 
-        // Deduct inventory quantity on final Supervisor approval
-        var inventory = await _repositoryWrapper.Inventories.GetByProductIdAsync(request.ProductId);
-        if (inventory == null || inventory.Quantity < request.RequestedQuantity)
+        // Apply item status updates
+        if (approvalDto != null && approvalDto.Items != null && approvalDto.Items.Any())
         {
-            return BadRequest(new SingleObjectResponseModel
+            foreach (var itemUpdate in approvalDto.Items)
             {
-                IsDone = false,
-                ReturnMessage = $"Insufficient inventory stock. Available: {inventory?.Quantity ?? 0}, Requested: {request.RequestedQuantity}."
-            });
+                var item = request.Items.FirstOrDefault(i => i.Id == itemUpdate.ItemId);
+                if (item != null)
+                {
+                    item.Status = itemUpdate.Status;
+                    item.LastUpdate = DateTime.UtcNow;
+                }
+            }
+        }
+        else
+        {
+            foreach (var item in request.Items)
+            {
+                if (item.Status == RequestStatus.Pending)
+                {
+                    item.Status = RequestStatus.Approved;
+                }
+                item.LastUpdate = DateTime.UtcNow;
+            }
         }
 
-        int newStock = inventory.Quantity - request.RequestedQuantity;
-        await _repositoryWrapper.Inventories.Update(inventory.Id.ToString(), new InventoryUpdateDto
+        if (request.Items.All(i => i.Status == RequestStatus.Rejected))
         {
-            Id = inventory.Id,
-            ProductId = inventory.ProductId,
-            Quantity = newStock,
-            MinStock = inventory.MinStock,
-            MaxStock = inventory.MaxStock
-        });
+            request.Status = RequestStatus.Rejected;
+            request.RejectionReason = "All items rejected by Supervisor.";
+            await _repositoryWrapper.SaveAsync();
 
-        // Mark associated product items as Exited and create Compass entries
+            await _repositoryWrapper.Notifications.Create(new NotificationCreateDto
+            {
+                UserId = request.RequestedByUserId,
+                Title = "Exit Request Rejected",
+                Message = $"Your exit request (ID: {id}) was rejected by the Supervisor.",
+                Type = NotificationType.Warning,
+                ReferenceId = id,
+                ReferenceType = "ProductExitRequest"
+            });
+
+            return Ok(new SingleObjectResponseModel { IsDone = true, ReturnMessage = "Request rejected because all items were rejected." });
+        }
+
+        var approvedItems = request.Items.Where(i => i.Status == RequestStatus.Approved).ToList();
+
+        // 1. Validate stock levels for all approved items atomically
+        foreach (var item in approvedItems)
+        {
+            var inventory = await _repositoryWrapper.Inventories.GetByProductIdAsync(item.ProductId);
+            if (inventory == null || inventory.Quantity < item.Quantity)
+            {
+                var product = await _repositoryWrapper.Products.GetByIdAsync(item.ProductId);
+                string prodName = product?.Name ?? $"ID {item.ProductId}";
+                return BadRequest(new SingleObjectResponseModel
+                {
+                    IsDone = false,
+                    ReturnMessage = $"Insufficient inventory stock for '{prodName}'. Available: {inventory?.Quantity ?? 0}, Requested: {item.Quantity}."
+                });
+            }
+        }
+
+        // 2. Decrement stock atomically
+        foreach (var item in approvedItems)
+        {
+            var inventory = await _repositoryWrapper.Inventories.GetByProductIdAsync(item.ProductId);
+            if (inventory != null)
+            {
+                inventory.Quantity -= item.Quantity;
+                inventory.LastUpdate = DateTime.UtcNow;
+            }
+        }
+
+        // 3. Mark associated product items as Exited and create Compass entries
         var productItems = await _repositoryWrapper.ProductItems.GetByExitRequestIdAsync(id);
-        foreach (var item in productItems)
-        {
-            var itemUpdate = new ProductItemUpdateDto
-            {
-                Id = item.Id,
-                ProductId = item.ProductId,
-                SerialNumber = item.SerialNumber,
-                QRCode = item.QRCode,
-                Status = ProductItemStatus.Exited,
-                ProductExitRequestId = item.ProductExitRequestId,
-                RecipientName = request.RecipientName,
-                Place = request.RecipientDepartment,
-                ExitDate = DateTime.UtcNow,
-                Notes = request.Purpose
-            };
-            await _repositoryWrapper.ProductItems.Update(item.Id.ToString(), itemUpdate);
+        var productItemsGrouped = productItems.GroupBy(pi => pi.ProductId).ToDictionary(g => g.Key, g => g.ToList());
 
-            var compassCreate = new CompassCreateDto
+        foreach (var item in approvedItems)
+        {
+            List<ProductItem> itemsToExit = new();
+            if (productItemsGrouped.TryGetValue(item.ProductId, out var itemsForProduct))
             {
-                SerialNumber = item.SerialNumber,
-                ProductName = request.Product?.Name ?? item.Product?.Name ?? "Unknown Product",
-                RecipientName = request.RecipientName,
-                Place = request.RecipientDepartment ?? "N/A",
-                ExitDate = DateTime.UtcNow,
-                Type = CompassType.Exit,
-                DepartmentId = request.DepartmentId,
-                ProductExitRequestId = request.Id,
-                Notes = request.Purpose
-            };
-            await _repositoryWrapper.Compasses.Create(compassCreate);
+                itemsToExit = itemsForProduct.Take(item.Quantity).ToList();
+            }
+
+            int currentCount = itemsToExit.Count;
+            if (currentCount < item.Quantity)
+            {
+                // We need more items than currently linked. Let's find InStock items for this product.
+                int extraNeeded = item.Quantity - currentCount;
+                var extraItems = await _context.ProductItems
+                    .Where(pi => pi.ProductId == item.ProductId && pi.Status == ProductItemStatus.InStock && !pi.IsDeleted && pi.ProductExitRequestId == null)
+                    .Take(extraNeeded)
+                    .ToListAsync();
+
+                foreach (var extraPi in extraItems)
+                {
+                    extraPi.ProductExitRequestId = id;
+                    itemsToExit.Add(extraPi);
+                }
+
+                // If we STILL don't have enough items, let's generate new ProductItem records.
+                int stillNeeded = item.Quantity - itemsToExit.Count;
+                if (stillNeeded > 0)
+                {
+                    var product = await _repositoryWrapper.Products.GetByIdAsync(item.ProductId);
+                    string sku = product?.SKU ?? $"P{item.ProductId}";
+                    for (int u = 1; u <= stillNeeded; u++)
+                    {
+                        string guidSuffix = Guid.NewGuid().ToString().Substring(0, 8).ToUpper();
+                        string serialNumber = $"SN-{sku}-{u}-{guidSuffix}";
+                        string qrCode = $"QR-{serialNumber}";
+
+                        var productItem = new ProductItem
+                        {
+                            ProductId = item.ProductId,
+                            SerialNumber = serialNumber,
+                            QRCode = qrCode,
+                            Status = ProductItemStatus.InStock,
+                            InsertDate = DateTime.UtcNow,
+                            IsDeleted = false,
+                            ProductExitRequestId = id
+                        };
+                        await _repositoryWrapper.ProductItems.CreateDirectAsync(productItem);
+                        itemsToExit.Add(productItem);
+                    }
+                }
+            }
+
+            // Now exit all of them and log to Compass
+            foreach (var pi in itemsToExit)
+            {
+                pi.Status = ProductItemStatus.Exited;
+                pi.ExitDate = DateTime.UtcNow;
+                pi.RecipientName = request.RecipientName;
+                pi.Place = request.Department?.Name ?? "N/A";
+                pi.Notes = item.Notes ?? request.Purpose;
+
+                // Create Compass log entry
+                var compassCreate = new CompassCreateDto
+                {
+                    SerialNumber = pi.SerialNumber,
+                    ProductName = item.Product?.Name ?? pi.Product?.Name ?? "Unknown Product",
+                    RecipientName = request.RecipientName,
+                    Place = request.Department?.Name ?? "N/A",
+                    ExitDate = DateTime.UtcNow,
+                    Type = CompassType.Exit,
+                    DepartmentId = request.DepartmentId,
+                    ProductExitRequestId = request.Id,
+                    Notes = item.Notes ?? request.Purpose
+                };
+                await _repositoryWrapper.Compasses.Create(compassCreate);
+            }
         }
 
         request.Status = RequestStatus.SupervisorApproved;
         request.SupervisorId = supervisorId;
         request.LastUpdate = DateTime.UtcNow;
 
-        var updateDto = new ProductExitUpdateDto
+        await _repositoryWrapper.SaveAsync();
+
+
+
+        // Notify
+        await _repositoryWrapper.Notifications.Create(new NotificationCreateDto
         {
-            Id = request.Id,
-            ProductId = request.ProductId,
-            RequestedQuantity = request.RequestedQuantity,
-            RecipientName = request.RecipientName,
-            RecipientDepartment = request.RecipientDepartment,
-            DepartmentId = request.DepartmentId,
-            Purpose = request.Purpose,
-            RequestedByUserId = request.RequestedByUserId,
-            ManagerId = request.ManagerId,
-            SupervisorId = request.SupervisorId,
-            Status = request.Status,
-            RejectionReason = request.RejectionReason
-        };
+            UserId = request.RequestedByUserId,
+            Title = "Exit Request Fully Approved",
+            Message = $"Your product exit request (ID: {id}) has received both Manager & Supervisor approvals. Inventory stock updated.",
+            Type = NotificationType.ExitRequest,
+            ReferenceId = id,
+            ReferenceType = "ProductExitRequest"
+        });
 
-        var response = await _repositoryWrapper.ProductExitRequests.Update(id.ToString(), updateDto);
-
-        if (response.IsDone)
-        {
-            // Step 2 Complete: Notify employee that request is fully approved
-            await _repositoryWrapper.Notifications.Create(new NotificationCreateDto
-            {
-                UserId = request.RequestedByUserId,
-                Title = "Exit Request Fully Approved",
-                Message = $"Your product exit request (ID: {id}) for '{request.Product?.Name}' has received both Manager & Supervisor approvals. Inventory stock updated.",
-                Type = NotificationType.ExitRequest,
-                ReferenceId = id,
-                ReferenceType = "ProductExitRequest"
-            });
-        }
-
-        return HandleResponse(response);
+        return Ok(new SingleObjectResponseModel { IsDone = true, ReturnMessage = "Request approved by Supervisor." });
     }
-
 
     [HttpPut("{id}/reject")]
     [Authorize]
@@ -338,45 +474,34 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
         request.RejectionReason = rejectDto.RejectionReason;
         request.LastUpdate = DateTime.UtcNow;
 
-        var updateDto = new ProductExitUpdateDto
+        foreach (var item in request.Items)
         {
-            Id = request.Id,
-            ProductId = request.ProductId,
-            RequestedQuantity = request.RequestedQuantity,
-            RecipientName = request.RecipientName,
-            RecipientDepartment = request.RecipientDepartment,
-            DepartmentId = request.DepartmentId,
-            Purpose = request.Purpose,
-            RequestedByUserId = request.RequestedByUserId,
-            ManagerId = request.ManagerId,
-            SupervisorId = request.SupervisorId,
-            Status = request.Status,
-            RejectionReason = rejectDto.RejectionReason
-        };
-
-        var response = await _repositoryWrapper.ProductExitRequests.Update(id.ToString(), updateDto);
-
-        if (response.IsDone)
-        {
-            // Notify employee of rejection
-            await _repositoryWrapper.Notifications.Create(new NotificationCreateDto
-            {
-                UserId = request.RequestedByUserId,
-                Title = "Exit Request Rejected",
-                Message = $"Your exit request (ID: {id}) was rejected. Reason: {rejectDto.RejectionReason}",
-                Type = NotificationType.Warning,
-                ReferenceId = id,
-                ReferenceType = "ProductExitRequest"
-            });
+            item.Status = RequestStatus.Rejected;
+            item.LastUpdate = DateTime.UtcNow;
         }
 
-        return HandleResponse(response);
+        await _repositoryWrapper.SaveAsync();
+
+
+
+        // Notify employee of rejection
+        await _repositoryWrapper.Notifications.Create(new NotificationCreateDto
+        {
+            UserId = request.RequestedByUserId,
+            Title = "Exit Request Rejected",
+            Message = $"Your exit request (ID: {id}) was rejected. Reason: {rejectDto.RejectionReason}",
+            Type = NotificationType.Warning,
+            ReferenceId = id,
+            ReferenceType = "ProductExitRequest"
+        });
+
+        return Ok(new SingleObjectResponseModel { IsDone = true, ReturnMessage = "Request rejected." });
     }
 
     [HttpGet]
-    public override async Task<IActionResult> GetAll()
+    public override async Task<IActionResult> GetAll([FromQuery] int? pageNumber = null, [FromQuery] int? pageSize = null)
     {
-        var response = await _repositoryWrapper.ProductExitRequests.FindAll();
+        var response = await _repositoryWrapper.ProductExitRequests.FindAll(pageNumber, pageSize);
         var dtos = (response as ListOfObjectsResponseModel<ProductExitRequestDto>)?.Objects;
         if (dtos != null)
         {
@@ -425,13 +550,8 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
         var dto = new ProductExitRequestDto
         {
             Id = request.Id,
-            ProductId = request.ProductId,
-            ProductName = request.Product?.Name,
-            ProductSKU = request.Product?.SKU,
-            RequestedQuantity = request.RequestedQuantity,
             Status = request.Status,
             RecipientName = request.RecipientName,
-            RecipientDepartment = request.RecipientDepartment,
             DepartmentId = request.DepartmentId,
             DepartmentName = request.Department?.Name,
             Purpose = request.Purpose,
@@ -442,7 +562,17 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
             SupervisorId = request.SupervisorId,
             SupervisorUsername = request.Supervisor?.Username,
             RejectionReason = request.RejectionReason,
-            InsertDate = request.InsertDate
+            InsertDate = request.InsertDate,
+            Items = request.Items.Select(i => new ProductExitRequestItemDto
+            {
+                Id = i.Id,
+                ProductId = i.ProductId,
+                ProductName = i.Product?.Name,
+                ProductSKU = i.Product?.SKU,
+                Quantity = i.Quantity,
+                Status = i.Status,
+                Notes = i.Notes
+            }).ToList()
         };
 
         var items = await _repositoryWrapper.ProductItems.GetByExitRequestIdAsync(id);

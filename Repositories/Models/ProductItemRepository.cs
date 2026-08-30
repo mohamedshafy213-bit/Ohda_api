@@ -53,6 +53,20 @@ public class ProductItemRepository
             .ToListAsync();
     }
 
+    public async Task<IEnumerable<ProductItem>> GetByDepartmentIdAsync(int departmentId)
+    {
+        var department = await RepositoryContext.Departments.FirstOrDefaultAsync(d => d.Id == departmentId && !d.IsDeleted);
+        string deptName = department?.Name ?? "";
+
+        return await RepositoryContext.ProductItems
+            .Include(pi => pi.Product)
+            .Include(pi => pi.ProductExitRequest)
+            .Where(pi => (pi.Status == Entities.Models.Enums.ProductItemStatus.Exited && !pi.IsDeleted) &&
+                         ((pi.ProductExitRequest != null && pi.ProductExitRequest.DepartmentId == departmentId) ||
+                          (deptName != "" && pi.Place == deptName)))
+            .ToListAsync();
+    }
+
     public async Task<ProductItem?> GetByIdAsync(int id)
     {
         return await RepositoryContext.ProductItems

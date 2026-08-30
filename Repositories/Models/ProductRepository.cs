@@ -45,5 +45,13 @@ public class ProductRepository
             .Include(p => p.Supplier)
             .FirstOrDefaultAsync(p => p.Name == name && !p.IsDeleted);
     }
+
+    public async Task<Product?> GetByIdAsync(int id)
+    {
+        return await RepositoryContext.Products
+            .Include(p => p.Category)
+            .Include(p => p.Supplier)
+            .FirstOrDefaultAsync(p => p.Id == id && !p.IsDeleted);
+    }
 }
 

@@ -4,8 +4,9 @@ using Entities.Models.Enums;
 
 namespace Contracts.DTOs.User;
 
-public class UserDto : BaseDto
+public class UserDto
 {
+    public int MilitaryNumber { get; set; }
     public string Username { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public UserRole Role { get; set; }
@@ -14,8 +15,9 @@ public class UserDto : BaseDto
     public string? UserGroupName { get; set; }
 }
 
-public class UserCreateDto : BaseCreateDto
+public class UserCreateDto
 {
+    public int MilitaryNumber { get; set; }
     public string Username { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string Password { get; set; } = string.Empty;
@@ -24,8 +26,9 @@ public class UserCreateDto : BaseCreateDto
     public int? UserGroupId { get; set; }
 }
 
-public class UserUpdateDto : BaseUpdateDto
+public class UserUpdateDto
 {
+    public int MilitaryNumber { get; set; }
     public string Username { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string? Password { get; set; }

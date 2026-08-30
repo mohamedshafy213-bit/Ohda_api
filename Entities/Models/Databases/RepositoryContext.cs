@@ -19,6 +19,8 @@ public class RepositoryContext : DbContext
     public virtual DbSet<ScanTransaction> ScanTransactions { get; set; } = null!;
     public virtual DbSet<ProductExitRequest> ProductExitRequests { get; set; } = null!;
     public virtual DbSet<ProductEntryRequest> ProductEntryRequests { get; set; } = null!;
+    public virtual DbSet<ProductExitRequestItem> ProductExitRequestItems { get; set; } = null!;
+    public virtual DbSet<ProductEntryRequestItem> ProductEntryRequestItems { get; set; } = null!;
     public virtual DbSet<Page> Pages { get; set; } = null!;
     public virtual DbSet<UserPagePermission> UserPagePermissions { get; set; } = null!;
     public virtual DbSet<Notification> Notifications { get; set; } = null!;
@@ -47,6 +49,7 @@ public class RepositoryContext : DbContext
         var typesToRegister = Assembly.GetExecutingAssembly().GetTypes()
             .Where(t => t.GetInterfaces().Any(gi => gi.IsGenericType && gi.GetGenericTypeDefinition() == typeof(IEntityTypeConfiguration<>)))
             .Where(t => namespaces.Contains(t.Namespace))
+            .OrderBy(t => Array.IndexOf(namespaces, t.Namespace))
             .ToList();
 
         foreach (var type in typesToRegister)

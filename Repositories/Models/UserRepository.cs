@@ -33,6 +33,6 @@ public class UserRepository
     {
         return await RepositoryContext.Users
             .Include(u => u.UserGroup)
-            .FirstOrDefaultAsync(u => u.Id == id && !u.IsDeleted);
+            .FirstOrDefaultAsync(u => u.MilitaryNumber == id && !u.IsDeleted);
     }
 }

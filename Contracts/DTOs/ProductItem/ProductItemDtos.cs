@@ -8,6 +8,7 @@ public class ProductItemDto : BaseDto
     public int ProductId { get; set; }
     public string ProductName { get; set; } = string.Empty;
     public string ProductBarcode { get; set; } = string.Empty;
+    public string ProductSKU { get; set; } = string.Empty;
 
     public string SerialNumber { get; set; } = string.Empty;
     public string QRCode { get; set; } = string.Empty;

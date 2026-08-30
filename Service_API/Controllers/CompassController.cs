@@ -33,10 +33,12 @@ public class CompassController : BaseController<Compass, CompassDto, CompassCrea
         [FromQuery] CompassType? type,
         [FromQuery] int? stateId,
         [FromQuery] DateTime? startDate,
-        [FromQuery] DateTime? endDate)
+        [FromQuery] DateTime? endDate,
+        [FromQuery] int? pageNumber = null,
+        [FromQuery] int? pageSize = null)
     {
         var records = await _repositoryWrapper.Compasses.SearchCompassRecordsAsync(
-            query, departmentId, type, stateId, startDate, endDate);
+            query, departmentId, type, stateId, startDate, endDate, pageNumber, pageSize);
 
         var dtos = records.Select(c => new CompassDto
         {

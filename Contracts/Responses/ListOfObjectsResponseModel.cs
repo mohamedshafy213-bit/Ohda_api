@@ -1,4 +1,4 @@
-﻿namespace Contracts.Responses
+namespace Contracts.Responses
 {
     /// <summary>
     /// ParentResonseModel Class use as a response for Repositorties Function that return true or false
@@ -10,5 +10,8 @@
         /// listOfObjects returened from the database to the end point
         /// </summary>
         public IEnumerable<T>? Objects { get; set; }
+        public int? TotalCount { get; set; }
+        public int? PageNumber { get; set; }
+        public int? PageSize { get; set; }
     }
 }

@@ -5,14 +5,10 @@ namespace Entities.Models.Tables;
 
 public class ProductExitRequest : BaseTable
 {
-    public int ProductId { get; set; }
-    public Product? Product { get; set; }
-
-    public int RequestedQuantity { get; set; }
+    public ICollection<ProductExitRequestItem> Items { get; set; } = new List<ProductExitRequestItem>();
     public RequestStatus Status { get; set; } = RequestStatus.Pending;
 
     public string RecipientName { get; set; } = string.Empty;
-    public string? RecipientDepartment { get; set; }
     public int? DepartmentId { get; set; }
     public Department? Department { get; set; }
     public string? Purpose { get; set; }

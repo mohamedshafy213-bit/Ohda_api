@@ -37,9 +37,19 @@ public static class ServiceExtensions
             .NewConfig()
             .Map(dest => dest.DepartmentName, src => src.Department != null ? src.Department.Name : null);
 
+        TypeAdapterConfig<Entities.Models.Tables.ProductExitRequestItem, Contracts.DTOs.ProductExitRequest.ProductExitRequestItemDto>
+            .NewConfig()
+            .Map(dest => dest.ProductName, src => src.Product != null ? src.Product.Name : null)
+            .Map(dest => dest.ProductSKU, src => src.Product != null ? src.Product.SKU : null);
+
         TypeAdapterConfig<Entities.Models.Tables.ProductEntryRequest, Contracts.DTOs.ProductEntryRequest.ProductEntryRequestDto>
             .NewConfig()
-            .Map(dest => dest.DepartmentName, src => src.Department != null ? src.Department.Name : null)
+            .Map(dest => dest.DepartmentName, src => src.Department != null ? src.Department.Name : null);
+
+        TypeAdapterConfig<Entities.Models.Tables.ProductEntryRequestItem, Contracts.DTOs.ProductEntryRequest.ProductEntryRequestItemDto>
+            .NewConfig()
+            .Map(dest => dest.ProductName, src => src.Product != null ? src.Product.Name : null)
+            .Map(dest => dest.ProductSKU, src => src.Product != null ? src.Product.SKU : null)
             .Map(dest => dest.ProductStateName, src => src.ProductState != null ? src.ProductState.Name : null);
 
         TypeAdapterConfig<Entities.Models.Tables.Compass, Contracts.DTOs.Compass.CompassDto>

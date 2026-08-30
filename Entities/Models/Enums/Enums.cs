@@ -26,7 +26,8 @@ public enum RequestStatus
     Pending = 1,
     SupervisorApproved = 2,
     ManagerApproved = 3,
-    Rejected = 4
+    Rejected = 4,
+    Approved = 5
 }
 
 public enum RequestType

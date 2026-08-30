@@ -29,7 +29,9 @@ public class CompassRepository
         CompassType? type,
         int? stateId,
         DateTime? startDate,
-        DateTime? endDate)
+        DateTime? endDate,
+        int? pageNumber = null,
+        int? pageSize = null)
     {
         var dbQuery = RepositoryContext.Compasses
             .Include(c => c.ProductExitRequest)
@@ -72,6 +74,16 @@ public class CompassRepository
         if (endDate.HasValue)
         {
             dbQuery = dbQuery.Where(c => c.ExitDate <= endDate.Value);
+        }
+
+        if (pageNumber.HasValue && pageSize.HasValue)
+        {
+            int skip = (pageNumber.Value - 1) * pageSize.Value;
+            dbQuery = dbQuery.Skip(skip).Take(pageSize.Value);
+        }
+        else
+        {
+            dbQuery = dbQuery.Take(100);
         }
 
         return await dbQuery.ToListAsync();

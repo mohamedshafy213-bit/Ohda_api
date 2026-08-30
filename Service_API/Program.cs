@@ -1,6 +1,9 @@
 using System.IdentityModel.Tokens.Jwt;
 using Entities.Models.Databases;
+using Microsoft.EntityFrameworkCore;
 using Service_API.Extensions;
+using Service_API.Helpers;
+using Service_API.Middleware;
 
 namespace Service_API;
 
@@ -14,7 +17,15 @@ public class Program
         JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
 
         // Add services to the container
-        builder.Services.AddControllers();
+        builder.Services.AddControllers()
+            .AddJsonOptions(options =>
+            {
+                options.JsonSerializerOptions.Converters.Add(new NullableIntConverter());
+                options.JsonSerializerOptions.Converters.Add(new NullableDecimalConverter());
+                options.JsonSerializerOptions.Converters.Add(new NullableLongConverter());
+            });
+
+        builder.Services.AddMemoryCache();
 
         builder.Services.ConfigureSwaggerGen();
         builder.Services.ConfigureAutoMapper();
@@ -33,6 +44,9 @@ public class Program
         using (var scope = app.Services.CreateScope())
         {
             var dbContext = scope.ServiceProvider.GetRequiredService<RepositoryContext>();
+            // Force recreation of database to apply military number key changes cleanly
+            await dbContext.Database.EnsureDeletedAsync();
+            await dbContext.Database.EnsureCreatedAsync();
             await DatabaseSeeder.SeedAsync(dbContext);
         }
 
@@ -41,6 +55,8 @@ public class Program
         {
             c.DocExpansion(Swashbuckle.AspNetCore.SwaggerUI.DocExpansion.None);
         });
+
+        app.UseMiddleware<ExceptionMiddleware>();
 
         app.UseHttpsRedirection();
         app.UseCors();

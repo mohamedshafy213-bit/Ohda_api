@@ -81,7 +81,7 @@ public class UserPagePermissionRepository
 
     public async Task<bool> GrantPermissionAsync(int userId, int pageId, int grantedByUserId)
     {
-        var userExists = await RepositoryContext.Users.AnyAsync(u => u.Id == userId && !u.IsDeleted);
+        var userExists = await RepositoryContext.Users.AnyAsync(u => u.MilitaryNumber == userId && !u.IsDeleted);
         if (!userExists)
             return false;
 

@@ -14,16 +14,18 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
 using System.Linq.Expressions;
+using Microsoft.Extensions.Caching.Memory;
+using Entities.Models.Tables;
 using System.Reflection;
 
 
 namespace Repositories.Repositories
 {
     public abstract class RepositoryBase<T, TDto, TCreateDto, TUpdateDto> : IRepositoryBase<T, TDto, TCreateDto, TUpdateDto>
-        where T : Entities.Models.BaseTables.BaseTable
-        where TDto : BaseDto
-        where TCreateDto : BaseCreateDto
-        where TUpdateDto : BaseUpdateDto
+        where T : class
+        where TDto : class
+        where TCreateDto : class
+        where TUpdateDto : class
 
     {
         protected RepositoryContext RepositoryContext { get; set; }
@@ -40,18 +42,103 @@ namespace Repositories.Repositories
             _logger = logger;
         }
 
-        public virtual async Task<SingleObjectResponseModel> FindAll()
+        protected IMemoryCache? MemoryCache => 
+            _httpContextAccessor.HttpContext?.RequestServices.GetService(typeof(IMemoryCache)) as IMemoryCache;
+
+        private void InvalidateCache()
+        {
+            var cache = MemoryCache;
+            if (cache != null && (typeof(T) == typeof(Department) || typeof(T) == typeof(Product)))
+            {
+                var versionKey = $"CacheVersion_{typeof(T).Name}";
+                if (cache.TryGetValue(versionKey, out int version))
+                {
+                    cache.Set(versionKey, version + 1);
+                }
+                else
+                {
+                    cache.Set(versionKey, 1);
+                }
+            }
+        }
+
+        private object? ConvertKey(object key, Type targetType)
+        {
+            if (key == null) return null;
+            if (key.GetType() == targetType) return key;
+
+            if (key is string strKey)
+            {
+                if (targetType == typeof(int))
+                {
+                    return int.Parse(strKey);
+                }
+                if (targetType == typeof(long))
+                {
+                    return long.Parse(strKey);
+                }
+                if (targetType == typeof(Guid))
+                {
+                    return Guid.Parse(strKey);
+                }
+            }
+
+            return Convert.ChangeType(key, targetType);
+        }
+
+        public virtual async Task<SingleObjectResponseModel> FindAll(int? pageNumber = null, int? pageSize = null)
         {
             try
             {
-                var listOfObjects = await RepositoryContext.Set<T>().AsNoTracking().ProjectToType<TDto>().ToListAsync();
-                return new ListOfObjectsResponseModel<TDto>()
+                var cache = MemoryCache;
+                int version = 0;
+                if (cache != null && (typeof(T) == typeof(Department) || typeof(T) == typeof(Product)))
+                {
+                    var versionKey = $"CacheVersion_{typeof(T).Name}";
+                    if (!cache.TryGetValue(versionKey, out version))
+                    {
+                        version = 0;
+                        cache.Set(versionKey, version);
+                    }
+                    var cacheKey = $"FindAll_{typeof(T).Name}_{version}_{pageNumber}_{pageSize}";
+                    if (cache.TryGetValue(cacheKey, out ListOfObjectsResponseModel<TDto>? cachedResult) && cachedResult != null)
+                    {
+                        return cachedResult;
+                    }
+                }
+
+                var query = RepositoryContext.Set<T>().AsNoTracking();
+                var totalCount = await query.CountAsync();
+
+                if (pageNumber.HasValue && pageSize.HasValue)
+                {
+                    int skip = (pageNumber.Value - 1) * pageSize.Value;
+                    query = query.Skip(skip).Take(pageSize.Value);
+                }
+                else
+                {
+                    query = query.Take(100); // cap unbounded queries
+                }
+
+                var listOfObjects = await query.ProjectToType<TDto>().ToListAsync();
+                var response = new ListOfObjectsResponseModel<TDto>()
                 {
                     ErrorCode = ErrorCatalog.noError,
                     IsDone = true,
                     ReturnMessage = "Objects Loaded Successufly",
-                    Objects = listOfObjects
+                    Objects = listOfObjects,
+                    TotalCount = totalCount,
+                    PageNumber = pageNumber,
+                    PageSize = pageSize
                 };
+
+                if (cache != null && (typeof(T) == typeof(Department) || typeof(T) == typeof(Product)))
+                {
+                    var cacheKey = $"FindAll_{typeof(T).Name}_{version}_{pageNumber}_{pageSize}";
+                    cache.Set(cacheKey, response, TimeSpan.FromMinutes(10));
+                }
+
+                return response;
             }
             catch (Exception ex)
             {
@@ -82,21 +169,30 @@ namespace Repositories.Repositories
                     if (keyProperty.ValueGenerated == Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.Never)
                     {
                         var keyName = keyProperty.Name;
-                        var dbSet = RepositoryContext.Set<T>();
 
-                        var maxValue = await dbSet
-                            .Select(e => EF.Property<int?>(e, keyName))
-                            .MaxAsync();
-
-                        int newId = (maxValue ?? 0) + 1;
-
+                        // Only auto-assign a key if the entity doesn't already have one set
                         var propertyInfo = typeof(T).GetProperty(keyName);
-                        propertyInfo?.SetValue(entity, Convert.ChangeType(newId, propertyInfo.PropertyType));
+                        var currentKeyValue = propertyInfo?.GetValue(entity);
+                        bool isKeyDefault = currentKeyValue == null
+                            || currentKeyValue.Equals(0)
+                            || currentKeyValue.Equals(Guid.Empty)
+                            || currentKeyValue.Equals(string.Empty);
+
+                        if (isKeyDefault)
+                        {
+                            var dbSet = RepositoryContext.Set<T>();
+                            var maxValue = await dbSet
+                                .Select(e => EF.Property<int?>(e, keyName))
+                                .MaxAsync();
+                            int newId = (maxValue ?? 0) + 1;
+                            propertyInfo?.SetValue(entity, Convert.ChangeType(newId, propertyInfo.PropertyType));
+                        }
                     }
                 }
 
                 await RepositoryContext.Set<T>().AddAsync(entity);
                 await RepositoryContext.SaveChangesAsync();
+                InvalidateCache();
 
                 return new SingleObjectResponseModel<TDto>()
                 {
@@ -129,12 +225,15 @@ namespace Repositories.Repositories
                 if (primaryKey == null)
                     throw new Exception("Primary key not found");
 
-                var keyName = primaryKey.Properties.First().Name;
+                var keyProperty = primaryKey.Properties.First();
+                var keyName = keyProperty.Name;
+                var keyClrType = keyProperty.ClrType;
+                var resolvedKey = ConvertKey(key, keyClrType);
 
                 var dbSet = RepositoryContext.Set<T>();
 
                 var entity = await dbSet
-                    .FirstOrDefaultAsync(e => EF.Property<object>(e, keyName).Equals(key));
+                    .FirstOrDefaultAsync(e => EF.Property<object>(e, keyName).Equals(resolvedKey));
 
                 if (entity == null)
                 {
@@ -150,6 +249,7 @@ namespace Repositories.Repositories
 
                 RepositoryContext.Set<T>().Update(entity);
                 await RepositoryContext.SaveChangesAsync();
+                InvalidateCache();
 
                 return new SingleObjectResponseModel
                 {
@@ -181,12 +281,15 @@ namespace Repositories.Repositories
                 if (primaryKey == null)
                     throw new Exception("Primary key not found");
 
-                var keyName = primaryKey.Properties.First().Name;
+                var keyProperty = primaryKey.Properties.First();
+                var keyName = keyProperty.Name;
+                var keyClrType = keyProperty.ClrType;
+                var resolvedKey = ConvertKey(key, keyClrType);
 
                 var dbSet = RepositoryContext.Set<T>();
 
                 var entity = await dbSet
-                    .FirstOrDefaultAsync(e => EF.Property<object>(e, keyName).Equals(key));
+                    .FirstOrDefaultAsync(e => EF.Property<object>(e, keyName).Equals(resolvedKey));
 
                 if (entity == null)
                 {
@@ -200,6 +303,7 @@ namespace Repositories.Repositories
 
                 dbSet.Remove(entity);
                 await RepositoryContext.SaveChangesAsync();
+                InvalidateCache();
 
                 return new SingleObjectResponseModel
                 {
@@ -221,5 +325,9 @@ namespace Repositories.Repositories
             }
         }
 
+        public virtual async Task CreateDirectAsync(T entity)
+        {
+            await RepositoryContext.Set<T>().AddAsync(entity);
+        }
     }
 }

@@ -29,6 +29,9 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>
             .WithMany()
             .HasForeignKey(p => p.SupplierId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(p => p.CategoryId);
+        builder.HasIndex(p => p.SupplierId);
     }
 }
 
@@ -36,7 +39,7 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
 {
     public void Configure(EntityTypeBuilder<User> builder)
     {
-        builder.HasKey(u => u.Id);
+        builder.HasKey(u => u.MilitaryNumber);
         builder.HasIndex(u => u.Username).IsUnique();
         builder.HasIndex(u => u.Email).IsUnique();
 
@@ -104,13 +107,7 @@ public class ProductExitRequestConfiguration : IEntityTypeConfiguration<ProductE
         builder.HasKey(r => r.Id);
 
         builder.Property(r => r.RecipientName).IsRequired().HasMaxLength(150);
-        builder.Property(r => r.RecipientDepartment).HasMaxLength(150);
         builder.Property(r => r.Purpose).HasMaxLength(500);
-
-        builder.HasOne(r => r.Product)
-            .WithMany()
-            .HasForeignKey(r => r.ProductId)
-            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(r => r.RequestedByUser)
             .WithMany()
@@ -126,6 +123,28 @@ public class ProductExitRequestConfiguration : IEntityTypeConfiguration<ProductE
             .WithMany()
             .HasForeignKey(r => r.ManagerId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(r => r.DepartmentId);
+        builder.HasIndex(r => r.Status);
+        builder.HasIndex(r => r.InsertDate);
+    }
+}
+
+public class ProductExitRequestItemConfiguration : IEntityTypeConfiguration<ProductExitRequestItem>
+{
+    public void Configure(EntityTypeBuilder<ProductExitRequestItem> builder)
+    {
+        builder.HasKey(i => i.Id);
+        
+        builder.HasOne(i => i.ProductExitRequest)
+            .WithMany(r => r.Items)
+            .HasForeignKey(i => i.ProductExitRequestId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(i => i.Product)
+            .WithMany()
+            .HasForeignKey(i => i.ProductId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }
 
@@ -138,11 +157,6 @@ public class ProductEntryRequestConfiguration : IEntityTypeConfiguration<Product
         builder.Property(r => r.FromSource).IsRequired().HasMaxLength(200);
         builder.Property(r => r.InvoiceNumber).HasMaxLength(100);
         builder.Property(r => r.Notes).HasMaxLength(500);
-
-        builder.HasOne(r => r.Product)
-            .WithMany()
-            .HasForeignKey(r => r.ProductId)
-            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(r => r.ReceivedByUser)
             .WithMany()
@@ -157,6 +171,33 @@ public class ProductEntryRequestConfiguration : IEntityTypeConfiguration<Product
         builder.HasOne(r => r.Manager)
             .WithMany()
             .HasForeignKey(r => r.ManagerId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(r => r.DepartmentId);
+        builder.HasIndex(r => r.Status);
+        builder.HasIndex(r => r.InsertDate);
+    }
+}
+
+public class ProductEntryRequestItemConfiguration : IEntityTypeConfiguration<ProductEntryRequestItem>
+{
+    public void Configure(EntityTypeBuilder<ProductEntryRequestItem> builder)
+    {
+        builder.HasKey(i => i.Id);
+
+        builder.HasOne(i => i.ProductEntryRequest)
+            .WithMany(r => r.Items)
+            .HasForeignKey(i => i.ProductEntryRequestId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(i => i.Product)
+            .WithMany()
+            .HasForeignKey(i => i.ProductId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(i => i.ProductState)
+            .WithMany()
+            .HasForeignKey(i => i.ProductStateId)
             .OnDelete(DeleteBehavior.Restrict);
     }
 }
@@ -269,6 +310,9 @@ public class CompassConfiguration : IEntityTypeConfiguration<Compass>
             .WithMany()
             .HasForeignKey(c => c.ProductExitRequestId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasIndex(c => c.DepartmentId);
+        builder.HasIndex(c => c.InsertDate);
     }
 }
 

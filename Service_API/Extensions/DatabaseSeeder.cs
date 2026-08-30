@@ -33,6 +33,7 @@ public static class DatabaseSeeder
 
             var admin = new User
             {
+                MilitaryNumber = 10001,
                 Username = "admin",
                 Email = "admin@ohda.com",
                 Role = UserRole.Admin,
@@ -97,12 +98,12 @@ public static class DatabaseSeeder
                          var hasPerm = await context.GroupPagePermissions.AnyAsync(gpp => gpp.UserGroupId == group.Id && gpp.PageId == page.Id);
                          if (!hasPerm)
                          {
-                             await context.GroupPagePermissions.AddAsync(new GroupPagePermission
-                             {
-                                 UserGroupId = group.Id,
-                                 PageId = page.Id,
-                                 GrantedByUserId = adminUser.Id
-                             });
+                              await context.GroupPagePermissions.AddAsync(new GroupPagePermission
+                              {
+                                  UserGroupId = group.Id,
+                                  PageId = page.Id,
+                                  GrantedByUserId = adminUser.MilitaryNumber
+                              });
                          }
                      }
                      await context.SaveChangesAsync();
@@ -139,7 +140,7 @@ public static class DatabaseSeeder
                         {
                             UserGroupId = group.Id,
                             PageId = page.Id,
-                            GrantedByUserId = adminUser.Id
+                            GrantedByUserId = adminUser.MilitaryNumber
                         });
                     }
                 }

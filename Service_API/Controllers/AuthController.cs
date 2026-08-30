@@ -51,11 +51,11 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
         }
 
         var (token, expiresAt) = _jwtTokenGenerator.GenerateToken(user);
-        var allowedPages = await _repositoryWrapper.UserPagePermissions.GetAllowedPagesForUserAsync(user.Id);
+        var allowedPages = await _repositoryWrapper.UserPagePermissions.GetAllowedPagesForUserAsync(user.MilitaryNumber);
 
         var userDto = new UserDto
         {
-            Id = user.Id,
+            MilitaryNumber = user.MilitaryNumber,
             Username = user.Username,
             Email = user.Email,
             Role = user.Role,
@@ -97,11 +97,23 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
             });
         }
 
-        var tempUser = new User { Username = registerDto.Username };
+        // Check military number not already taken
+        var existingMilitary = await _repositoryWrapper.Users.GetByIdWithGroupAsync(registerDto.MilitaryNumber);
+        if (existingMilitary != null)
+        {
+            return BadRequest(new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = "Military number already exists"
+            });
+        }
+
+        var tempUser = new User { Username = registerDto.Username, MilitaryNumber = registerDto.MilitaryNumber };
         string hashedPassword = PasswordHasherHelper.HashPassword(tempUser, registerDto.Password);
 
         var user = new User
         {
+            MilitaryNumber = registerDto.MilitaryNumber,
             Username = registerDto.Username,
             Email = registerDto.Email,
             PasswordHash = hashedPassword,
@@ -110,20 +122,24 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
             UserGroupId = registerDto.UserGroupId
         };
 
-        await _repositoryWrapper.Users.Create(new UserCreateDto
+        await _repositoryWrapper.Users.CreateDirectAsync(user);
+        await _repositoryWrapper.SaveAsync();
+
+        var createdUserDto = new UserDto
         {
+            MilitaryNumber = user.MilitaryNumber,
             Username = user.Username,
             Email = user.Email,
-            Password = user.PasswordHash,
             Role = user.Role,
             PersonName = user.PersonName,
             UserGroupId = user.UserGroupId
-        });
+        };
 
-        return Ok(new SingleObjectResponseModel
+        return Ok(new SingleObjectResponseModel<UserDto>
         {
             IsDone = true,
-            ReturnMessage = "User registered successfully"
+            ReturnMessage = "User registered successfully",
+            SingleObject = createdUserDto
         });
     }
 }
