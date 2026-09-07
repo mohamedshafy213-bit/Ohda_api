@@ -44,8 +44,7 @@ public class Program
         using (var scope = app.Services.CreateScope())
         {
             var dbContext = scope.ServiceProvider.GetRequiredService<RepositoryContext>();
-            // Force recreation of database to apply military number key changes cleanly
-            await dbContext.Database.EnsureDeletedAsync();
+            // Ensure database schema exists and seed initial data
             await dbContext.Database.EnsureCreatedAsync();
             await DatabaseSeeder.SeedAsync(dbContext);
         }

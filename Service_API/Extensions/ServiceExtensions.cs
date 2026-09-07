@@ -107,7 +107,11 @@ public static class ServiceExtensions
             default:
                 services.AddDbContext<RepositoryContext, SqlServerContext>((serviceProvider, options) =>
                 {
-                    options.UseSqlServer(Configuration.GetConnectionString("SqlServerConnection"), b => b.MigrationsAssembly("Entities"));
+                    options.UseSqlServer(Configuration.GetConnectionString("SqlServerConnection"), b =>
+                    {
+                        b.MigrationsAssembly("Entities");
+                        b.EnableRetryOnFailure(maxRetryCount: 5, maxRetryDelay: TimeSpan.FromSeconds(10), errorNumbersToAdd: null);
+                    });
                 });
                 break;
         }

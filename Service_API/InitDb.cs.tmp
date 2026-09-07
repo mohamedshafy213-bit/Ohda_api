@@ -1,0 +1,24 @@
+using Entities.Models.Databases;
+using Entities.Models.Databases.SqlDb;
+using Microsoft.EntityFrameworkCore;
+using Service_API.Extensions;
+
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.ConfigureDataBase(builder.Configuration);
+builder.Services.ConfigureAutoMapper();
+builder.Services.ConfigureHttpContext();
+builder.Services.ConfigureLogger(builder.Configuration);
+
+var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<RepositoryContext>();
+    Console.WriteLine("Applying EnsureCreated on OhdaDb_TEST...");
+    await dbContext.Database.EnsureCreatedAsync();
+    Console.WriteLine("EnsureCreated completed successfully!");
+
+    Console.WriteLine("Seeding initial data...");
+    await DatabaseSeeder.SeedAsync(dbContext);
+    Console.WriteLine("Seeding completed successfully!");
+}

@@ -18,7 +18,11 @@ public partial class SqlServerContext : RepositoryContext
         if (!optionsBuilder.IsConfigured)
         {
             var connectionString = _configuration.GetConnectionString("SqlServerConnection");
-            optionsBuilder.UseSqlServer(connectionString, b => b.MigrationsAssembly("Entities"));
+            optionsBuilder.UseSqlServer(connectionString, b =>
+            {
+                b.MigrationsAssembly("Entities");
+                b.EnableRetryOnFailure(maxRetryCount: 5, maxRetryDelay: TimeSpan.FromSeconds(10), errorNumbersToAdd: null);
+            });
             optionsBuilder.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
         }
     }
