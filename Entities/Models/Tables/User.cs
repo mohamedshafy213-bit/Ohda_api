@@ -9,6 +9,7 @@ namespace Entities.Models.Tables;
 public class User : ISoftDelete
 {
     [Key]
+    [Column("id")]
     [DatabaseGenerated(DatabaseGeneratedOption.None)]
     public int MilitaryNumber { get; set; }
 

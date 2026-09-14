@@ -40,6 +40,7 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
     public void Configure(EntityTypeBuilder<User> builder)
     {
         builder.HasKey(u => u.MilitaryNumber);
+        builder.Property(u => u.MilitaryNumber).HasColumnName("id");
         builder.HasIndex(u => u.Username).IsUnique();
         builder.HasIndex(u => u.Email).IsUnique();
 

@@ -305,19 +305,42 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
             var product = await _repositoryWrapper.Products.GetByIdAsync(item.ProductId);
             string sku = product?.SKU ?? $"P{item.ProductId}";
 
-            // Process returned serial numbers (change status from Exited to InStock)
+            // Resolve item state to determine if it has problems (Damaged / InMaintenance)
+            ProductItemStatus itemStatus = ProductItemStatus.InStock;
+            string stateLabel = "";
+            if (item.ProductStateId.HasValue)
+            {
+                var pState = await _repositoryWrapper.ProductStates.GetByIdAsync(item.ProductStateId.Value);
+                if (pState != null)
+                {
+                    stateLabel = pState.Name ?? "";
+                    string code = (pState.Code ?? "").ToUpper();
+                    if (code == "DAMAGED" || stateLabel.Contains("تالف"))
+                    {
+                        itemStatus = ProductItemStatus.Damaged;
+                    }
+                    else if (code == "MAINT" || stateLabel.Contains("صيانة"))
+                    {
+                        itemStatus = ProductItemStatus.InMaintenance;
+                    }
+                }
+            }
+
+            // Process returned serial numbers (change status from Exited to InStock or Damaged/Maintenance)
             int processedQty = 0;
             foreach (var serial in returnedSerials)
             {
                 var productItem = await _repositoryWrapper.ProductItems.GetBySerialNumberAsync(serial);
                 if (productItem != null)
                 {
-                    productItem.Status = ProductItemStatus.InStock;
+                    productItem.Status = itemStatus;
                     productItem.RecipientName = null;
                     productItem.Place = null;
                     productItem.ExitDate = null;
                     productItem.ProductExitRequestId = null;
-                    productItem.Notes = "Returned to stock via Request #" + request.Id;
+                    productItem.Notes = string.IsNullOrWhiteSpace(stateLabel) 
+                        ? $"Returned to stock via Request #{request.Id}" 
+                        : $"Returned via Request #{request.Id} (حالة الصنف: {stateLabel})";
 
                     // Create Compass log entry for return
                     var compassCreate = new CompassCreateDto
@@ -351,7 +374,8 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
                     ProductId = item.ProductId,
                     SerialNumber = serialNumber,
                     QRCode = qrCode,
-                    Status = ProductItemStatus.InStock,
+                    Status = itemStatus,
+                    Notes = string.IsNullOrWhiteSpace(stateLabel) ? null : $"حالة الصنف عند التوريد: {stateLabel}",
                     InsertDate = DateTime.UtcNow,
                     IsDeleted = false
                 };

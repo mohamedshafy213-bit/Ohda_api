@@ -6,4 +6,5 @@ namespace Contracts.Interfaces.Repository;
 
 public interface IProductStateRepository : IRepositoryBase<ProductState, ProductStateDto, ProductStateCreateDto, ProductStateUpdateDto>
 {
+    Task<ProductState?> GetByIdAsync(int id);
 }
