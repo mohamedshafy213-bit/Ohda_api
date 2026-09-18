@@ -12,6 +12,9 @@ namespace Contracts.DTOs.ProductExitRequest
         public string? ProductName { get; set; }
         public string? ProductSKU { get; set; }
         public int Quantity { get; set; }
+        public int? BinId { get; set; }
+        public string? BinCode { get; set; }
+        public string? BinName { get; set; }
         public RequestStatus Status { get; set; }
         public string? Notes { get; set; }
     }

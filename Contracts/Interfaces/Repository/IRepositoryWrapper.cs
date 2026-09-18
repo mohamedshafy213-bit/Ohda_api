@@ -23,6 +23,7 @@ public interface IRepositoryWrapper
     IApprovalConfigRepository ApprovalConfigs { get; }
     IDepartmentRepository Departments { get; }
     IProductStateRepository ProductStates { get; }
+    IWarehouseBinRepository WarehouseBins { get; }
 
 
     void Save();

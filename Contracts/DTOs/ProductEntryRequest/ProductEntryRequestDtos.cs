@@ -14,6 +14,8 @@ namespace Contracts.DTOs.ProductEntryRequest
         public int Quantity { get; set; }
         public int? ProductStateId { get; set; }
         public string? ProductStateName { get; set; }
+        public int? BinId { get; set; }
+        public string? BinCode { get; set; }
         public RequestStatus Status { get; set; }
         public string? Notes { get; set; }
     }
@@ -23,6 +25,7 @@ namespace Contracts.DTOs.ProductEntryRequest
         public int ProductId { get; set; }
         public int Quantity { get; set; }
         public int? ProductStateId { get; set; }
+        public int? BinId { get; set; }
         public string? Notes { get; set; }
     }
 

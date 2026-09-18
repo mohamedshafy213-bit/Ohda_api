@@ -41,6 +41,7 @@ public class ProductItemRepository
     {
         return await RepositoryContext.ProductItems
             .Include(pi => pi.Product)
+            .Include(pi => pi.Bin)
             .Where(pi => pi.ProductId == productId && pi.Status == Entities.Models.Enums.ProductItemStatus.InStock && !pi.IsDeleted)
             .ToListAsync();
     }
@@ -49,6 +50,7 @@ public class ProductItemRepository
     {
         return await RepositoryContext.ProductItems
             .Include(pi => pi.Product)
+            .Include(pi => pi.Bin)
             .Where(pi => pi.ProductExitRequestId == exitRequestId && !pi.IsDeleted)
             .ToListAsync();
     }

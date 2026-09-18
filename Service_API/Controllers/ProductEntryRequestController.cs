@@ -334,6 +334,7 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
                 if (productItem != null)
                 {
                     productItem.Status = itemStatus;
+                    productItem.BinId = item.BinId;
                     productItem.RecipientName = null;
                     productItem.Place = null;
                     productItem.ExitDate = null;
@@ -375,6 +376,7 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
                     SerialNumber = serialNumber,
                     QRCode = qrCode,
                     Status = itemStatus,
+                    BinId = item.BinId,
                     Notes = string.IsNullOrWhiteSpace(stateLabel) ? null : $"حالة الصنف عند التوريد: {stateLabel}",
                     InsertDate = DateTime.UtcNow,
                     IsDeleted = false
@@ -510,6 +512,8 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
                 Quantity = i.Quantity,
                 ProductStateId = i.ProductStateId,
                 ProductStateName = i.ProductState?.Name,
+                BinId = i.BinId,
+                BinCode = i.Bin?.Code,
                 Status = i.Status,
                 Notes = i.Notes
             }).ToList()

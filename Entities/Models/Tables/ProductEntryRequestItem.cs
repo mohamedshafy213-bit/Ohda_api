@@ -15,6 +15,9 @@ namespace Entities.Models.Tables
         public int? ProductStateId { get; set; }
         public ProductState? ProductState { get; set; }
 
+        public int? BinId { get; set; }
+        public WarehouseBin? Bin { get; set; }
+
         public RequestStatus Status { get; set; } = RequestStatus.Pending;
         public string? Notes { get; set; }
     }

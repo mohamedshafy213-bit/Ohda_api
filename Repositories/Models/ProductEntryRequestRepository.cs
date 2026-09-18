@@ -29,6 +29,8 @@ public class ProductEntryRequestRepository
                 .ThenInclude(i => i.Product)
             .Include(r => r.Items)
                 .ThenInclude(i => i.ProductState)
+            .Include(r => r.Items)
+                .ThenInclude(i => i.Bin)
             .Include(r => r.ReceivedByUser)
             .Include(r => r.Supervisor)
             .Include(r => r.Manager)

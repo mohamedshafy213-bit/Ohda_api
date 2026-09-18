@@ -19,5 +19,8 @@ public class ProductItem : BaseTable
     public DateTime? ExitDate { get; set; }
     public int? ProductExitRequestId { get; set; }
     public ProductExitRequest? ProductExitRequest { get; set; }
+    public int? BinId { get; set; }
+    public WarehouseBin? Bin { get; set; }
+
     public string? Notes { get; set; }
 }

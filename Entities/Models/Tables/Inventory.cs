@@ -10,4 +10,7 @@ public class Inventory : BaseTable
     public int Quantity { get; set; }
     public int MinStock { get; set; }
     public int MaxStock { get; set; }
+
+    public int? BinId { get; set; }
+    public WarehouseBin? Bin { get; set; }
 }

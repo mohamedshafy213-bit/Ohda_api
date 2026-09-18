@@ -728,6 +728,112 @@ public static class DatabaseSeeder
             await context.Notifications.AddRangeAsync(notifications);
             await context.SaveChangesAsync();
         }
+
+        // 16. Ensure WarehouseBins table & seed sample bins
+        try
+        {
+            await context.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS warehouse_bins (
+                    id SERIAL PRIMARY KEY,
+                    code VARCHAR(100) NOT NULL,
+                    name VARCHAR(255) NOT NULL,
+                    aisle VARCHAR(50),
+                    shelf VARCHAR(50),
+                    capacity INT,
+                    description TEXT,
+                    is_active BOOLEAN DEFAULT TRUE,
+                    department_id INT NOT NULL,
+                    insert_user_code VARCHAR(100),
+                    insert_date TIMESTAMP WITH TIME ZONE,
+                    update_user_code VARCHAR(100),
+                    last_update TIMESTAMP WITH TIME ZONE,
+                    is_deleted BOOLEAN DEFAULT FALSE,
+                    delete_user_code VARCHAR(100),
+                    delete_date TIMESTAMP WITH TIME ZONE
+                );
+
+                ALTER TABLE product_items ADD COLUMN IF NOT EXISTS bin_id INT;
+                ALTER TABLE inventories ADD COLUMN IF NOT EXISTS bin_id INT;
+                ALTER TABLE product_entry_request_items ADD COLUMN IF NOT EXISTS bin_id INT;
+            ");
+        }
+        catch { }
+
+        if (!await context.WarehouseBins.AnyAsync())
+        {
+            var depts = await context.Departments.ToListAsync();
+            var mainDept = depts.FirstOrDefault(d => d.Name.Contains("المستودع") || d.Name.Contains("تقنية")) ?? depts.FirstOrDefault();
+            int deptId = mainDept?.Id ?? 1;
+
+            var sampleBins = new List<WarehouseBin>
+            {
+                new WarehouseBin
+                {
+                    Code = "A-01-R01",
+                    Name = "رف الحواسب المحمولة (Laptops Rack)",
+                    Aisle = "A",
+                    Shelf = "01",
+                    Capacity = 50,
+                    DepartmentId = deptId,
+                    Description = "مخصص لتخزين حواسيب Dell و ThinkPad المحمولة"
+                },
+                new WarehouseBin
+                {
+                    Code = "A-02-R01",
+                    Name = "رف معدات الشبكات والراوترات (Network Rack)",
+                    Aisle = "A",
+                    Shelf = "02",
+                    Capacity = 30,
+                    DepartmentId = deptId,
+                    Description = "مخصص لمحولات سيسكو وموزعات الشبكة"
+                },
+                new WarehouseBin
+                {
+                    Code = "B-01-R02",
+                    Name = "رف أجهزة الاتصال واللاسلكي (Radio Comms)",
+                    Aisle = "B",
+                    Shelf = "01",
+                    Capacity = 40,
+                    DepartmentId = deptId,
+                    Description = "أجهزة موتورولا واللاسلكي التكتيكي"
+                },
+                new WarehouseBin
+                {
+                    Code = "B-02-R03",
+                    Name = "رف الطابعات والماسحات الضوئية (Printers & Scanners)",
+                    Aisle = "B",
+                    Shelf = "02",
+                    Capacity = 20,
+                    DepartmentId = deptId,
+                    Description = "طابعات HP وماسحات الباركود وملحقاتها"
+                },
+                new WarehouseBin
+                {
+                    Code = "C-01-R01",
+                    Name = "رف الأجهزة تحت الصيانة والرجيع (Maintenance Bay)",
+                    Aisle = "C",
+                    Shelf = "01",
+                    Capacity = 25,
+                    DepartmentId = deptId,
+                    Description = "الأجهزة التالفة أو المحولة للصيانة الفنية"
+                }
+            };
+
+            await context.WarehouseBins.AddRangeAsync(sampleBins);
+            await context.SaveChangesAsync();
+
+            // Link existing ProductItems to some bins
+            var createdBins = await context.WarehouseBins.ToListAsync();
+            var items = await context.ProductItems.Where(i => i.BinId == null).Take(30).ToListAsync();
+            if (createdBins.Any() && items.Any())
+            {
+                for (int i = 0; i < items.Count; i++)
+                {
+                    items[i].BinId = createdBins[i % createdBins.Count].Id;
+                }
+                await context.SaveChangesAsync();
+            }
+        }
     }
 }
 

@@ -34,6 +34,7 @@ public class RepositoryWrapper : IRepositoryWrapper
     private IApprovalConfigRepository? _approvalConfigs;
     private IDepartmentRepository? _departments;
     private IProductStateRepository? _productStates;
+    private IWarehouseBinRepository? _warehouseBins;
 
 
     public RepositoryWrapper(
@@ -104,6 +105,9 @@ public class RepositoryWrapper : IRepositoryWrapper
 
     public IProductStateRepository ProductStates =>
         _productStates ??= new ProductStateRepository(_logger, _repoContext, _httpContextAccessor, _mapper);
+
+    public IWarehouseBinRepository WarehouseBins =>
+        _warehouseBins ??= new WarehouseBinRepository(_logger, _repoContext, _httpContextAccessor, _mapper);
 
 
     public void Save()

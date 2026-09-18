@@ -31,6 +31,7 @@ public class RepositoryContext : DbContext
     public virtual DbSet<ApprovalConfig> ApprovalConfigs { get; set; } = null!;
     public virtual DbSet<Department> Departments { get; set; } = null!;
     public virtual DbSet<ProductState> ProductStates { get; set; } = null!;
+    public virtual DbSet<WarehouseBin> WarehouseBins { get; set; } = null!;
 
 
     protected readonly IConfiguration _configuration;

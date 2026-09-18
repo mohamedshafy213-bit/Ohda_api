@@ -579,6 +579,27 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
         dto.SelectedProductItemIds = items.Select(i => i.Id).ToList();
         dto.SelectedSerials = items.Select(i => i.SerialNumber).ToList();
 
+        foreach (var itm in dto.Items)
+        {
+            var assigned = items.FirstOrDefault(x => x.ProductId == itm.ProductId && x.BinId != null);
+            if (assigned != null)
+            {
+                itm.BinId = assigned.BinId;
+                itm.BinCode = assigned.Bin?.Code;
+                itm.BinName = assigned.Bin?.Name;
+            }
+            else
+            {
+                var inStock = (await _repositoryWrapper.ProductItems.GetInStockByProductIdAsync(itm.ProductId)).FirstOrDefault(x => x.BinId != null);
+                if (inStock != null)
+                {
+                    itm.BinId = inStock.BinId;
+                    itm.BinCode = inStock.Bin?.Code;
+                    itm.BinName = inStock.Bin?.Name;
+                }
+            }
+        }
+
         return Ok(new SingleObjectResponseModel<ProductExitRequestDto>
         {
             IsDone = true,
