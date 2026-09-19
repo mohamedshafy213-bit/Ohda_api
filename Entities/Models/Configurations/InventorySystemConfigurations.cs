@@ -9,8 +9,9 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>
     public void Configure(EntityTypeBuilder<Product> builder)
     {
         builder.HasKey(p => p.Id);
-        builder.HasIndex(p => p.Barcode).IsUnique();
-        builder.HasIndex(p => p.SKU).IsUnique();
+        builder.HasIndex(p => new { p.BranchId, p.Barcode }).IsUnique();
+        builder.HasIndex(p => new { p.BranchId, p.SKU }).IsUnique();
+        builder.HasIndex(p => p.BranchId);
 
         builder.Property(p => p.Name).IsRequired().HasMaxLength(200);
         builder.Property(p => p.SKU).IsRequired().HasMaxLength(100);
@@ -19,6 +20,11 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.Property(p => p.UnitPrice).HasPrecision(18, 2);
         builder.Property(p => p.PurchasePrice).HasPrecision(18, 2);
         builder.Property(p => p.AssetValue).HasPrecision(18, 2);
+
+        builder.HasOne(p => p.Branch)
+            .WithMany()
+            .HasForeignKey(p => p.BranchId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(p => p.Category)
             .WithMany()
@@ -43,10 +49,16 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.MilitaryNumber).HasColumnName("id");
         builder.HasIndex(u => u.Username).IsUnique();
         builder.HasIndex(u => u.Email).IsUnique();
+        builder.HasIndex(u => u.BranchId);
 
         builder.Property(u => u.Username).IsRequired().HasMaxLength(100);
         builder.Property(u => u.Email).IsRequired().HasMaxLength(150);
         builder.Property(u => u.PasswordHash).IsRequired();
+
+        builder.HasOne(u => u.Branch)
+            .WithMany()
+            .HasForeignKey(u => u.BranchId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(u => u.UserGroup)
             .WithMany(g => g.Users)
@@ -146,6 +158,9 @@ public class ProductExitRequestItemConfiguration : IEntityTypeConfiguration<Prod
             .WithMany()
             .HasForeignKey(i => i.ProductId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(i => i.ProductExitRequestId);
+        builder.HasIndex(i => i.ProductId);
     }
 }
 
@@ -200,6 +215,10 @@ public class ProductEntryRequestItemConfiguration : IEntityTypeConfiguration<Pro
             .WithMany()
             .HasForeignKey(i => i.ProductStateId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(i => i.ProductEntryRequestId);
+        builder.HasIndex(i => i.ProductId);
+        builder.HasIndex(i => i.ProductStateId);
     }
 }
 
@@ -280,10 +299,16 @@ public class ProductItemConfiguration : IEntityTypeConfiguration<ProductItem>
     public void Configure(EntityTypeBuilder<ProductItem> builder)
     {
         builder.HasKey(pi => pi.Id);
-        builder.HasIndex(pi => pi.SerialNumber).IsUnique();
+        builder.HasIndex(pi => new { pi.BranchId, pi.SerialNumber }).IsUnique();
+        builder.HasIndex(pi => pi.BranchId);
 
         builder.Property(pi => pi.SerialNumber).IsRequired().HasMaxLength(100);
         builder.Property(pi => pi.QRCode).IsRequired().HasMaxLength(500);
+
+        builder.HasOne(pi => pi.Branch)
+            .WithMany()
+            .HasForeignKey(pi => pi.BranchId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(pi => pi.Product)
             .WithMany()
@@ -294,6 +319,13 @@ public class ProductItemConfiguration : IEntityTypeConfiguration<ProductItem>
             .WithMany()
             .HasForeignKey(pi => pi.ProductExitRequestId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasIndex(pi => pi.ProductId);
+        builder.HasIndex(pi => pi.Status);
+        builder.HasIndex(pi => new { pi.ProductId, pi.Status });
+        builder.HasIndex(pi => pi.ProductExitRequestId);
+        builder.HasIndex(pi => pi.BinId);
+        builder.HasIndex(pi => pi.IsDeleted);
     }
 }
 

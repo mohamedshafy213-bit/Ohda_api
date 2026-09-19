@@ -10,38 +10,209 @@ public static class DatabaseSeeder
 {
     public static async Task SeedAsync(RepositoryContext context)
     {
-        // 0. Seed UserGroups if none exist
-        if (!await context.UserGroups.AnyAsync())
+        // Ensure branches identity sequence is aligned with existing data
+        try
         {
-            var groups = new List<UserGroup>
-            {
-                new UserGroup { Name = "Admins", Description = "Full system administration group" },
-                new UserGroup { Name = "Managers", Description = "Inventory managers group" },
-                new UserGroup { Name = "Supervisors", Description = "Warehouse supervisors group" },
-                new UserGroup { Name = "Employees", Description = "Regular employee staff group" }
-            };
+            await context.Database.ExecuteSqlRawAsync(
+                "SELECT setval(pg_get_serial_sequence('branches', 'id'), COALESCE((SELECT MAX(id) FROM branches), 1));"
+            );
+        }
+        catch { /* ignore for non-postgres or if sequence doesn't exist yet */ }
 
-            await context.UserGroups.AddRangeAsync(groups);
+        // -1. Seed Branches
+        var branchesToSeed = new List<Branch>
+        {
+            new Branch
+            {
+                Name = "الفرع الرئيسي - الرياض",
+                Code = "MAIN",
+                IndustryTemplate = "MilitaryCustody",
+                DefaultLanguage = "ar",
+                Currency = "SAR",
+                TimeZone = "Asia/Riyadh",
+                CreatedDate = DateTime.UtcNow,
+                MaxUsers = 25,
+                MaxProducts = 10000,
+                MaxStorageMB = 10240,
+                IsActive = true,
+                ContactName = "سلطان القحطاني",
+                ContactEmail = "main@ohda.com",
+                ContactPhone = "+966500000001"
+            },
+            new Branch
+            {
+                Name = "فرع منطقة مكة المكرمة - جدة",
+                Code = "JEDDAH",
+                IndustryTemplate = "Logistics",
+                DefaultLanguage = "ar",
+                Currency = "SAR",
+                TimeZone = "Asia/Riyadh",
+                CreatedDate = DateTime.UtcNow,
+                MaxUsers = 5,
+                MaxProducts = 3000,
+                MaxStorageMB = 4096,
+                IsActive = true,
+                ContactName = "سالم الأحمدي",
+                ContactEmail = "jeddah@ohda.com",
+                ContactPhone = "+966501234567"
+            },
+            new Branch
+            {
+                Name = "فرع المنطقة الشرقية - الدمام",
+                Code = "DAMMAM",
+                IndustryTemplate = "Warehouse",
+                DefaultLanguage = "ar",
+                Currency = "SAR",
+                TimeZone = "Asia/Riyadh",
+                CreatedDate = DateTime.UtcNow,
+                MaxUsers = 8,
+                MaxProducts = 5000,
+                MaxStorageMB = 4096,
+                IsActive = true,
+                ContactName = "عبدالله الدوسري",
+                ContactEmail = "dammam@ohda.com",
+                ContactPhone = "+966507654321"
+            },
+            new Branch
+            {
+                Name = "فرع منطقة المدينة المنورة",
+                Code = "MADINAH",
+                IndustryTemplate = "Retail",
+                DefaultLanguage = "ar",
+                Currency = "SAR",
+                TimeZone = "Asia/Riyadh",
+                CreatedDate = DateTime.UtcNow,
+                SuspendedDate = DateTime.UtcNow,
+                MaxUsers = 10,
+                MaxProducts = 2000,
+                MaxStorageMB = 2048,
+                IsActive = false,
+                ContactName = "فهد الحربي",
+                ContactEmail = "madinah@ohda.com",
+                ContactPhone = "+966509876543"
+            }
+        };
+
+        var defaultBranch = await context.Branches.IgnoreQueryFilters().FirstOrDefaultAsync(b => b.Id == 1 || b.Code == "MAIN");
+        if (defaultBranch == null)
+        {
+            defaultBranch = branchesToSeed[0];
+            await context.Branches.AddAsync(defaultBranch);
+            await context.SaveChangesAsync();
+        }
+        else
+        {
+            defaultBranch.Name = "الفرع الرئيسي - الرياض";
+            defaultBranch.Code = "MAIN";
+            defaultBranch.MaxUsers = 25;
+            defaultBranch.MaxProducts = 10000;
+        }
+
+        foreach (var b in branchesToSeed.Skip(1))
+        {
+            if (!await context.Branches.IgnoreQueryFilters().AnyAsync(x => x.Code.ToLower() == b.Code.ToLower()))
+            {
+                await context.Branches.AddAsync(b);
+            }
+        }
+        await context.SaveChangesAsync();
+
+        var jeddahBranch = await context.Branches.IgnoreQueryFilters().FirstOrDefaultAsync(b => b.Code == "JEDDAH");
+        var dammamBranch = await context.Branches.IgnoreQueryFilters().FirstOrDefaultAsync(b => b.Code == "DAMMAM");
+        var madinahBranch = await context.Branches.IgnoreQueryFilters().FirstOrDefaultAsync(b => b.Code == "MADINAH");
+
+        // -0. Seed SuperAdmin User
+        var hasher = new PasswordHasher<User>();
+        var existingSuperAdmin = await context.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Username == "superadmin");
+        if (existingSuperAdmin == null)
+        {
+            var superAdmin = new User
+            {
+                MilitaryNumber = 1,
+                Username = "superadmin",
+                Email = "superadmin@ohda.com",
+                Role = UserRole.SuperAdmin,
+                PersonName = "مدير المنصة العام (SuperAdmin)",
+                BranchId = null,
+                MustChangePassword = false
+            };
+            superAdmin.PasswordHash = hasher.HashPassword(superAdmin, "SuperAdmin@2026!");
+            await context.Users.AddAsync(superAdmin);
+            await context.SaveChangesAsync();
+        }
+        else
+        {
+            existingSuperAdmin.Role = UserRole.SuperAdmin;
+            existingSuperAdmin.BranchId = null;
+            existingSuperAdmin.PasswordHash = hasher.HashPassword(existingSuperAdmin, "SuperAdmin@2026!");
             await context.SaveChangesAsync();
         }
 
-        // 1. Seed Users (Multi-role coverage for testing)
-        var hasher = new PasswordHasher<User>();
-        var adminGroup = await context.UserGroups.FirstOrDefaultAsync(g => g.Name == "Admins");
-        var managerGroup = await context.UserGroups.FirstOrDefaultAsync(g => g.Name == "Managers");
-        var supervisorGroup = await context.UserGroups.FirstOrDefaultAsync(g => g.Name == "Supervisors");
-        var employeeGroup = await context.UserGroups.FirstOrDefaultAsync(g => g.Name == "Employees");
+        // 0. Seed UserGroups for branches if missing
+        var groupsToEnsure = new List<UserGroup>
+        {
+            new UserGroup { BranchId = defaultBranch.Id, Name = "Admins", Description = "Full system administration group" },
+            new UserGroup { BranchId = defaultBranch.Id, Name = "Managers", Description = "Inventory managers group" },
+            new UserGroup { BranchId = defaultBranch.Id, Name = "Supervisors", Description = "Warehouse supervisors group" },
+            new UserGroup { BranchId = defaultBranch.Id, Name = "Employees", Description = "Regular employee staff group" }
+        };
+
+        if (jeddahBranch != null)
+        {
+            groupsToEnsure.Add(new UserGroup { BranchId = jeddahBranch.Id, Name = "إدارة فرع جدة", Description = "مسؤولي فرع جدة" });
+            groupsToEnsure.Add(new UserGroup { BranchId = jeddahBranch.Id, Name = "موظفي فرع جدة", Description = "موظفي فرع جدة" });
+        }
+
+        if (dammamBranch != null)
+        {
+            groupsToEnsure.Add(new UserGroup { BranchId = dammamBranch.Id, Name = "إدارة فرع الدمام", Description = "مسؤولي فرع الدمام" });
+            groupsToEnsure.Add(new UserGroup { BranchId = dammamBranch.Id, Name = "موظفي فرع الدمام", Description = "موظفي فرع الدمام" });
+        }
+
+        if (madinahBranch != null)
+        {
+            groupsToEnsure.Add(new UserGroup { BranchId = madinahBranch.Id, Name = "إدارة فرع المدينة", Description = "مسؤولي فرع المدينة" });
+        }
+
+        foreach (var grp in groupsToEnsure)
+        {
+            var exists = await context.UserGroups.IgnoreQueryFilters()
+                .AnyAsync(g => g.BranchId == grp.BranchId && g.Name == grp.Name);
+            if (!exists)
+            {
+                await context.UserGroups.AddAsync(grp);
+            }
+        }
+        await context.SaveChangesAsync();
+
+        // 1. Seed Users (Dedicated Tenant Admin for each branch + sample branch staff)
+        var adminGroup = await context.UserGroups.IgnoreQueryFilters().FirstOrDefaultAsync(g => g.Name == "Admins");
+        var managerGroup = await context.UserGroups.IgnoreQueryFilters().FirstOrDefaultAsync(g => g.Name == "Managers");
+        var supervisorGroup = await context.UserGroups.IgnoreQueryFilters().FirstOrDefaultAsync(g => g.Name == "Supervisors");
+        var employeeGroup = await context.UserGroups.IgnoreQueryFilters().FirstOrDefaultAsync(g => g.Name == "Employees");
+
+        var jeddahAdminGroup = jeddahBranch != null 
+            ? await context.UserGroups.IgnoreQueryFilters().FirstOrDefaultAsync(g => g.BranchId == jeddahBranch.Id && g.Name.Contains("إدارة"))
+            : null;
+        var dammamAdminGroup = dammamBranch != null 
+            ? await context.UserGroups.IgnoreQueryFilters().FirstOrDefaultAsync(g => g.BranchId == dammamBranch.Id && g.Name.Contains("إدارة"))
+            : null;
+        var madinahAdminGroup = madinahBranch != null 
+            ? await context.UserGroups.IgnoreQueryFilters().FirstOrDefaultAsync(g => g.BranchId == madinahBranch.Id && g.Name.Contains("إدارة"))
+            : null;
 
         var usersToSeed = new List<User>
         {
+            // Branch 1 (Main Riyadh) Admin & Staff
             new User
             {
                 MilitaryNumber = 10001,
                 Username = "admin",
                 Email = "admin@ohda.com",
                 Role = UserRole.Admin,
-                PersonName = "System Admin",
-                UserGroupId = adminGroup?.Id
+                PersonName = "سليمان الرشيد (مدير فرع الرياض)",
+                UserGroupId = adminGroup?.Id,
+                BranchId = defaultBranch.Id
             },
             new User
             {
@@ -50,7 +221,8 @@ public static class DatabaseSeeder
                 Email = "manager1@ohda.com",
                 Role = UserRole.Manager,
                 PersonName = "أحمد منصور (مدير المستودع)",
-                UserGroupId = managerGroup?.Id
+                UserGroupId = managerGroup?.Id,
+                BranchId = defaultBranch.Id
             },
             new User
             {
@@ -59,7 +231,8 @@ public static class DatabaseSeeder
                 Email = "supervisor1@ohda.com",
                 Role = UserRole.Supervisor,
                 PersonName = "خالد التميمي (مشرف العمليات)",
-                UserGroupId = supervisorGroup?.Id
+                UserGroupId = supervisorGroup?.Id,
+                BranchId = defaultBranch.Id
             },
             new User
             {
@@ -68,7 +241,8 @@ public static class DatabaseSeeder
                 Email = "employee1@ohda.com",
                 Role = UserRole.Employee,
                 PersonName = "عمر الحربي (أمين عهدة)",
-                UserGroupId = employeeGroup?.Id
+                UserGroupId = employeeGroup?.Id,
+                BranchId = defaultBranch.Id
             },
             new User
             {
@@ -77,13 +251,81 @@ public static class DatabaseSeeder
                 Email = "employee2@ohda.com",
                 Role = UserRole.Employee,
                 PersonName = "سارة القحطاني (مستلم عهدة)",
-                UserGroupId = employeeGroup?.Id
+                UserGroupId = employeeGroup?.Id,
+                BranchId = defaultBranch.Id
             }
         };
 
+        // Add Branch 2 (Jeddah) Admin & Staff
+        if (jeddahBranch != null)
+        {
+            usersToSeed.Add(new User
+            {
+                MilitaryNumber = 20001,
+                Username = "admin_jeddah",
+                Email = "admin.jeddah@ohda.com",
+                Role = UserRole.Admin,
+                PersonName = "سالم الأحمدي (مدير فرع جدة)",
+                UserGroupId = jeddahAdminGroup?.Id,
+                BranchId = jeddahBranch.Id
+            });
+            usersToSeed.Add(new User
+            {
+                MilitaryNumber = 20002,
+                Username = "employee_jeddah1",
+                Email = "emp1.jeddah@ohda.com",
+                Role = UserRole.Employee,
+                PersonName = "ماجد الغامدي (أمين عهدة جدة)",
+                UserGroupId = null,
+                BranchId = jeddahBranch.Id
+            });
+        }
+
+        // Add Branch 3 (Dammam) Admin & Staff
+        if (dammamBranch != null)
+        {
+            usersToSeed.Add(new User
+            {
+                MilitaryNumber = 30001,
+                Username = "admin_dammam",
+                Email = "admin.dammam@ohda.com",
+                Role = UserRole.Admin,
+                PersonName = "عبدالله الدوسري (مدير فرع الدمام)",
+                UserGroupId = dammamAdminGroup?.Id,
+                BranchId = dammamBranch.Id
+            });
+            usersToSeed.Add(new User
+            {
+                MilitaryNumber = 30002,
+                Username = "employee_dammam1",
+                Email = "emp1.dammam@ohda.com",
+                Role = UserRole.Employee,
+                PersonName = "فيصل الخالدي (أمين عهدة الدمام)",
+                UserGroupId = null,
+                BranchId = dammamBranch.Id
+            });
+        }
+
+        // Add Branch 4 (Madinah) Admin
+        if (madinahBranch != null)
+        {
+            usersToSeed.Add(new User
+            {
+                MilitaryNumber = 40001,
+                Username = "admin_madinah",
+                Email = "admin.madinah@ohda.com",
+                Role = UserRole.Admin,
+                PersonName = "فهد الحربي (مدير فرع المدينة)",
+                UserGroupId = madinahAdminGroup?.Id,
+                BranchId = madinahBranch.Id
+            });
+        }
+
         foreach (var u in usersToSeed)
         {
-            if (!await context.Users.AnyAsync(x => x.MilitaryNumber == u.MilitaryNumber || x.Username == u.Username))
+            var existingUser = await context.Users.IgnoreQueryFilters()
+                .FirstOrDefaultAsync(x => x.MilitaryNumber == u.MilitaryNumber || x.Username == u.Username);
+            if (existingUser == null)
             {
                 string pass = u.Role switch
                 {
@@ -95,7 +337,32 @@ public static class DatabaseSeeder
                 u.PasswordHash = hasher.HashPassword(u, pass);
                 await context.Users.AddAsync(u);
             }
+            else
+            {
+                if (existingUser.BranchId == null && u.BranchId != null)
+                {
+                    existingUser.BranchId = u.BranchId;
+                }
+                if (u.Role == UserRole.Admin)
+                {
+                    existingUser.Role = UserRole.Admin;
+                }
+                if (existingUser.UserGroupId == null && u.UserGroupId != null)
+                {
+                    existingUser.UserGroupId = u.UserGroupId;
+                }
+            }
         }
+
+        // Backfill any remaining users without branch to default branch (Riyadh)
+        var nullBranchUsers = await context.Users.IgnoreQueryFilters()
+            .Where(u => u.BranchId == null && u.Role != UserRole.SuperAdmin)
+            .ToListAsync();
+        foreach (var u in nullBranchUsers)
+        {
+            u.BranchId = defaultBranch.Id;
+        }
+
         await context.SaveChangesAsync();
 
         // 2. Seed Departments
@@ -376,66 +643,95 @@ public static class DatabaseSeeder
             await context.SaveChangesAsync();
         }
 
-        // 9. Seed Pages if none exist or update permissions
-        if (!await context.Pages.AnyAsync())
+        // 9. Seed Pages if missing
+        var defaultPages = new List<Page>
         {
-            var defaultPages = new List<Page>
-            {
-                new Page { Title = "Dashboard", Path = "/dashboard", Icon = "LayoutDashboard", SortOrder = 1 },
-                new Page { Title = "Products", Path = "/products", Icon = "Package", SortOrder = 2 },
-                new Page { Title = "Inventory", Path = "/inventory", Icon = "Boxes", SortOrder = 3 },
-                new Page { Title = "Exit Requests", Path = "/exit-requests", Icon = "ArrowUpRight", SortOrder = 4 },
-                new Page { Title = "Entry Requests", Path = "/entry-requests", Icon = "ArrowDownLeft", SortOrder = 5 },
-                new Page { Title = "Barcode Scan", Path = "/scan", Icon = "QrCode", SortOrder = 6 },
-                new Page { Title = "Categories", Path = "/categories", Icon = "Tags", SortOrder = 7 },
-                new Page { Title = "Suppliers", Path = "/suppliers", Icon = "Truck", SortOrder = 8 },
-                new Page { Title = "Users & Permissions", Path = "/users", Icon = "Users", SortOrder = 9 },
-                new Page { Title = "Compass Log", Path = "/compass", Icon = "explore", SortOrder = 10 },
-                new Page { Title = "Departments", Path = "/departments", Icon = "Building", SortOrder = 11 },
-                new Page { Title = "Product States", Path = "/product-states", Icon = "Activity", SortOrder = 12 },
-                new Page { Title = "Acceptance Settings", Path = "/approval-config", Icon = "Settings", SortOrder = 13 }
-            };
+            new Page { Title = "Dashboard", Path = "/dashboard", Icon = "LayoutDashboard", SortOrder = 1 },
+            new Page { Title = "Products", Path = "/products", Icon = "Package", SortOrder = 2 },
+            new Page { Title = "Inventory", Path = "/inventory", Icon = "Boxes", SortOrder = 3 },
+            new Page { Title = "Exit Requests", Path = "/exit-requests", Icon = "ArrowUpRight", SortOrder = 4 },
+            new Page { Title = "Entry Requests", Path = "/entry-requests", Icon = "ArrowDownLeft", SortOrder = 5 },
+            new Page { Title = "Barcode Scan", Path = "/scan", Icon = "QrCode", SortOrder = 6 },
+            new Page { Title = "Categories", Path = "/categories", Icon = "Tags", SortOrder = 7 },
+            new Page { Title = "Suppliers", Path = "/suppliers", Icon = "Truck", SortOrder = 8 },
+            new Page { Title = "Users & Permissions", Path = "/users", Icon = "Users", SortOrder = 9 },
+            new Page { Title = "Compass Log", Path = "/compass", Icon = "explore", SortOrder = 10 },
+            new Page { Title = "Departments", Path = "/departments", Icon = "Building", SortOrder = 11 },
+            new Page { Title = "Product States", Path = "/product-states", Icon = "Activity", SortOrder = 12 },
+            new Page { Title = "Acceptance Settings", Path = "/approval-config", Icon = "Settings", SortOrder = 13 },
+            new Page { Title = "إدارة الفروع (Branches)", Path = "/branches", Icon = "Building2", SortOrder = 14 },
+            new Page { Title = "لوحة مؤشرات الفروع (Branches Dashboard)", Path = "/branches-dashboard", Icon = "Activity", SortOrder = 15 },
+            new Page { Title = "أماكن وأرفف التخزين", Path = "/warehouse-bins", Icon = "Layers", SortOrder = 16 }
+        };
 
-            await context.Pages.AddRangeAsync(defaultPages);
-            await context.SaveChangesAsync();
+        foreach (var p in defaultPages)
+        {
+            if (!await context.Pages.AnyAsync(x => x.Path.ToLower() == p.Path.ToLower()))
+            {
+                await context.Pages.AddAsync(p);
+            }
         }
+        await context.SaveChangesAsync();
 
-        // 10. Seed GroupPagePermissions if none exist
-        if (!await context.GroupPagePermissions.AnyAsync())
+        // 10. Seed GroupPagePermissions & Assign Pages to SuperAdmin
+        var allSeedGroups = await context.UserGroups.IgnoreQueryFilters().ToListAsync();
+        var allSeedPages = await context.Pages.IgnoreQueryFilters().ToListAsync();
+        var adminUserForPerm = await context.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Role == UserRole.SuperAdmin || u.Role == UserRole.Admin);
+
+        if (allSeedPages.Any() && allSeedGroups.Any())
         {
-            var groups = await context.UserGroups.ToListAsync();
-            var pages = await context.Pages.ToListAsync();
-            var adminUser = await context.Users.FirstOrDefaultAsync(u => u.Role == UserRole.Admin);
-
-            if (adminUser != null && pages.Any() && groups.Any())
+            foreach (var group in allSeedGroups)
             {
-                var permissions = new List<GroupPagePermission>();
+                var allowedPaths = (group.Name.Contains("Admin") || group.Name.Contains("إدارة"))
+                    ? allSeedPages.Select(p => p.Path).ToList()
+                    : group.Name.Contains("Manager")
+                        ? new List<string> { "/dashboard", "/products", "/inventory", "/warehouse-bins", "/exit-requests", "/entry-requests", "/categories", "/suppliers", "/compass", "/departments", "/product-states" }
+                        : group.Name.Contains("Supervisor")
+                            ? new List<string> { "/dashboard", "/products", "/inventory", "/warehouse-bins", "/exit-requests", "/entry-requests", "/compass" }
+                            : group.Name.Contains("Employee") || group.Name.Contains("موظف")
+                                ? new List<string> { "/dashboard", "/products", "/exit-requests", "/entry-requests", "/scan", "/compass" }
+                                : new List<string>();
 
-                foreach (var group in groups)
+                foreach (var page in allSeedPages.Where(p => allowedPaths.Contains(p.Path, StringComparer.OrdinalIgnoreCase)))
                 {
-                    var allowedPaths = group.Name switch
+                    var exists = await context.GroupPagePermissions.IgnoreQueryFilters()
+                        .AnyAsync(gp => gp.UserGroupId == group.Id && gp.PageId == page.Id);
+                    if (!exists)
                     {
-                        "Admins" => pages.Select(p => p.Path).ToList(),
-                        "Managers" => new List<string> { "/dashboard", "/products", "/inventory", "/exit-requests", "/entry-requests", "/categories", "/suppliers", "/compass", "/departments", "/product-states" },
-                        "Supervisors" => new List<string> { "/dashboard", "/products", "/inventory", "/exit-requests", "/entry-requests", "/compass" },
-                        "Employees" => new List<string> { "/dashboard", "/products", "/exit-requests", "/entry-requests", "/scan", "/compass" },
-                        _ => new List<string>()
-                    };
-
-                    foreach (var page in pages.Where(p => allowedPaths.Contains(p.Path, StringComparer.OrdinalIgnoreCase)))
-                    {
-                        permissions.Add(new GroupPagePermission
+                        await context.GroupPagePermissions.AddAsync(new GroupPagePermission
                         {
                             UserGroupId = group.Id,
                             PageId = page.Id,
-                            GrantedByUserId = adminUser.MilitaryNumber
+                            BranchId = group.BranchId,
+                            GrantedByUserId = adminUserForPerm?.MilitaryNumber ?? 10001
                         });
                     }
                 }
-
-                await context.GroupPagePermissions.AddRangeAsync(permissions);
-                await context.SaveChangesAsync();
             }
+            await context.SaveChangesAsync();
+        }
+
+        // 10.b Explicitly assign all active pages to SuperAdmin user
+        var superAdminForPerm = await context.Users.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(u => u.Username == "superadmin" || u.Role == UserRole.SuperAdmin);
+        if (superAdminForPerm != null && allSeedPages.Any())
+        {
+            foreach (var page in allSeedPages)
+            {
+                var hasUserPerm = await context.UserPagePermissions.IgnoreQueryFilters()
+                    .AnyAsync(up => up.UserId == superAdminForPerm.MilitaryNumber && up.PageId == page.Id);
+                if (!hasUserPerm)
+                {
+                    await context.UserPagePermissions.AddAsync(new UserPagePermission
+                    {
+                        UserId = superAdminForPerm.MilitaryNumber,
+                        PageId = page.Id,
+                        BranchId = defaultBranch.Id,
+                        GrantedByUserId = superAdminForPerm.MilitaryNumber
+                    });
+                }
+            }
+            await context.SaveChangesAsync();
         }
 
         // 11. Seed ApprovalConfigs

@@ -35,6 +35,11 @@ public class Program
         builder.Services.ConfigureRepositoryWrapper();
         builder.Services.ConfigureJwtBearer(builder.Configuration);
 
+        builder.Services.AddResponseCompression(options =>
+        {
+            options.EnableForHttps = true;
+        });
+
         builder.Services.AddCors(options =>
             options.AddDefaultPolicy(b => b.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
 
@@ -44,8 +49,8 @@ public class Program
         using (var scope = app.Services.CreateScope())
         {
             var dbContext = scope.ServiceProvider.GetRequiredService<RepositoryContext>();
-            // Ensure database schema exists and seed initial data
-            await dbContext.Database.EnsureCreatedAsync();
+            // Apply any pending EF Core migrations, then seed initial data
+            await dbContext.Database.MigrateAsync();
             await DatabaseSeeder.SeedAsync(dbContext);
         }
 
@@ -55,8 +60,23 @@ public class Program
             c.DocExpansion(Swashbuckle.AspNetCore.SwaggerUI.DocExpansion.None);
         });
 
+        // Slow request logging middleware (logs requests exceeding 500ms)
+        app.Use(async (context, next) =>
+        {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            await next();
+            sw.Stop();
+            if (sw.ElapsedMilliseconds > 500)
+            {
+                var logger = context.RequestServices.GetService<ILogger<Program>>();
+                logger?.LogWarning("[SLOW REQUEST] {Method} {Path} returned {StatusCode} in {Elapsed}ms",
+                    context.Request.Method, context.Request.Path, context.Response.StatusCode, sw.ElapsedMilliseconds);
+            }
+        });
+
         app.UseMiddleware<ExceptionMiddleware>();
 
+        app.UseResponseCompression();
         app.UseHttpsRedirection();
         app.UseCors();
 

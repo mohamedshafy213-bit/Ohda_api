@@ -25,14 +25,15 @@ public class UserPagePermissionRepository
 
     public async Task<List<PageDto>> GetAllowedPagesForUserAsync(int userId)
     {
-        var user = await RepositoryContext.Users.FindAsync(userId);
+        var user = await RepositoryContext.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.MilitaryNumber == userId);
         if (user == null)
             return new List<PageDto>();
 
-        if (user.Role == Entities.Models.Enums.UserRole.Admin)
+        if (user.Role == Entities.Models.Enums.UserRole.SuperAdmin)
         {
-            // Admin automatically gets access to all active pages
+            // SuperAdmin gets access to all active pages including branch platform management
             return await RepositoryContext.Pages
+                .IgnoreQueryFilters()
                 .AsNoTracking()
                 .Where(p => !p.IsDeleted)
                 .OrderBy(p => p.SortOrder)
@@ -47,9 +48,30 @@ public class UserPagePermissionRepository
                 .ToListAsync();
         }
 
+        // 1. Direct user-specific page permissions
+        var directUserPages = await RepositoryContext.UserPagePermissions
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(p => p.UserId == userId && !p.IsDeleted && p.Page != null && !p.Page.IsDeleted)
+            .OrderBy(p => p.Page!.SortOrder)
+            .Select(p => new PageDto
+            {
+                Id = p.Page!.Id,
+                Title = p.Page.Title,
+                Path = p.Page.Path,
+                Icon = p.Page.Icon,
+                SortOrder = p.Page.SortOrder
+            })
+            .ToListAsync();
+
+        if (directUserPages.Any())
+            return directUserPages;
+
+        // 2. User group permissions if assigned
         if (user.UserGroupId.HasValue)
         {
-            return await RepositoryContext.GroupPagePermissions
+            var groupPages = await RepositoryContext.GroupPagePermissions
+                .IgnoreQueryFilters()
                 .AsNoTracking()
                 .Where(p => p.UserGroupId == user.UserGroupId.Value && !p.IsDeleted && p.Page != null && !p.Page.IsDeleted)
                 .OrderBy(p => p.Page!.SortOrder)
@@ -62,19 +84,43 @@ public class UserPagePermissionRepository
                     SortOrder = p.Page.SortOrder
                 })
                 .ToListAsync();
+
+            if (groupPages.Any())
+                return groupPages;
         }
 
-        return await RepositoryContext.UserPagePermissions
+        // 3. Fallback for branch Admin without specific group
+        if (user.Role == Entities.Models.Enums.UserRole.Admin)
+        {
+            return await RepositoryContext.Pages
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .Where(p => !p.IsDeleted && p.Path != "/branches" && p.Path != "/branches-dashboard" && p.Path != "/ohda/branches" && p.Path != "/ohda/branches-dashboard")
+                .OrderBy(p => p.SortOrder)
+                .Select(p => new PageDto
+                {
+                    Id = p.Id,
+                    Title = p.Title,
+                    Path = p.Path,
+                    Icon = p.Icon,
+                    SortOrder = p.SortOrder
+                })
+                .ToListAsync();
+        }
+
+        // 4. Default minimal fallback for other users
+        return await RepositoryContext.Pages
+            .IgnoreQueryFilters()
             .AsNoTracking()
-            .Where(p => p.UserId == userId && !p.IsDeleted && p.Page != null && !p.Page.IsDeleted)
-            .OrderBy(p => p.Page!.SortOrder)
+            .Where(p => !p.IsDeleted && (p.Path == "/dashboard" || p.Path == "/ohda/dashboard"))
+            .OrderBy(p => p.SortOrder)
             .Select(p => new PageDto
             {
-                Id = p.Page!.Id,
-                Title = p.Page.Title,
-                Path = p.Page.Path,
-                Icon = p.Page.Icon,
-                SortOrder = p.Page.SortOrder
+                Id = p.Id,
+                Title = p.Title,
+                Path = p.Path,
+                Icon = p.Icon,
+                SortOrder = p.SortOrder
             })
             .ToListAsync();
     }

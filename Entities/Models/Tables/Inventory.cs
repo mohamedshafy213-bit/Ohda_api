@@ -2,7 +2,7 @@ using Entities.Models.BaseTables;
 
 namespace Entities.Models.Tables;
 
-public class Inventory : BaseTable
+public class Inventory : TenantBaseTable
 {
     public int ProductId { get; set; }
     public Product? Product { get; set; }

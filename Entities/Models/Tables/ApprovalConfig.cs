@@ -3,7 +3,7 @@ using Entities.Models.Enums;
 
 namespace Entities.Models.Tables;
 
-public class ApprovalConfig : BaseTable
+public class ApprovalConfig : TenantBaseTable
 {
     public RequestType RequestType { get; set; }
     public int UserGroupId { get; set; }

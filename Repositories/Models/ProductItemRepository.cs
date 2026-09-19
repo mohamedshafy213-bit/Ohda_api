@@ -40,9 +40,20 @@ public class ProductItemRepository
     public async Task<IEnumerable<ProductItem>> GetInStockByProductIdAsync(int productId)
     {
         return await RepositoryContext.ProductItems
+            .AsNoTracking()
             .Include(pi => pi.Product)
             .Include(pi => pi.Bin)
             .Where(pi => pi.ProductId == productId && pi.Status == Entities.Models.Enums.ProductItemStatus.InStock && !pi.IsDeleted)
+            .ToListAsync();
+    }
+
+    public async Task<IEnumerable<ProductItem>> GetAllInStockAsync()
+    {
+        return await RepositoryContext.ProductItems
+            .AsNoTracking()
+            .Include(pi => pi.Product)
+            .Include(pi => pi.Bin)
+            .Where(pi => pi.Status == Entities.Models.Enums.ProductItemStatus.InStock && !pi.IsDeleted)
             .ToListAsync();
     }
 

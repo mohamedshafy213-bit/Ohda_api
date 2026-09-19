@@ -8,4 +8,5 @@ public interface IUserRepository : IRepositoryBase<User, UserDto, UserCreateDto,
 {
     Task<User?> GetByUsernameAsync(string username);
     Task<User?> GetByIdWithGroupAsync(int id);
+    Task<List<UserDto>> GetUsersFilteredAsync(int? branchId, bool isSuperAdmin, int? userBranchId);
 }

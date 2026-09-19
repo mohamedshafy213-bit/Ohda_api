@@ -2,6 +2,7 @@ namespace Entities.Models.Enums;
 
 public enum UserRole
 {
+    SuperAdmin = 0,
     Admin = 1,
     Employee = 2,
     Supervisor = 3,

@@ -21,21 +21,21 @@ public class UserGroupController : BaseController<UserGroup, UserGroupDto, UserG
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,SuperAdmin")]
     public override async Task<IActionResult> Create([FromBody] UserGroupCreateDto createDto)
     {
         return await base.Create(createDto);
     }
 
     [HttpPut("{id}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,SuperAdmin")]
     public override async Task<IActionResult> Update([FromRoute] string id, [FromBody] UserGroupUpdateDto updateDto)
     {
         return await base.Update(id, updateDto);
     }
 
     [HttpDelete("{id}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,SuperAdmin")]
     public override async Task<IActionResult> Delete([FromRoute] string id)
     {
         return await base.Delete(id);

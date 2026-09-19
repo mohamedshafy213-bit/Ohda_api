@@ -3,7 +3,7 @@ using Entities.Models.Enums;
 
 namespace Entities.Models.Tables;
 
-public class ProductExitRequest : BaseTable
+public class ProductExitRequest : TenantBaseTable
 {
     public ICollection<ProductExitRequestItem> Items { get; set; } = new List<ProductExitRequestItem>();
     public RequestStatus Status { get; set; } = RequestStatus.Pending;

@@ -50,7 +50,8 @@ namespace Repositories.Repositories
             var cache = MemoryCache;
             if (cache != null && (typeof(T) == typeof(Department) || typeof(T) == typeof(Product)))
             {
-                var versionKey = $"CacheVersion_{typeof(T).Name}";
+                var branchId = RepositoryContext.CurrentBranchId ?? 0;
+                var versionKey = $"CacheVersion_{typeof(T).Name}_{branchId}";
                 if (cache.TryGetValue(versionKey, out int version))
                 {
                     cache.Set(versionKey, version + 1);
@@ -92,15 +93,17 @@ namespace Repositories.Repositories
             {
                 var cache = MemoryCache;
                 int version = 0;
+                var branchId = RepositoryContext.CurrentBranchId ?? 0;
+                var cacheKey = $"FindAll_{typeof(T).Name}_{branchId}_{version}_{pageNumber}_{pageSize}";
                 if (cache != null && (typeof(T) == typeof(Department) || typeof(T) == typeof(Product)))
                 {
-                    var versionKey = $"CacheVersion_{typeof(T).Name}";
+                    var versionKey = $"CacheVersion_{typeof(T).Name}_{branchId}";
                     if (!cache.TryGetValue(versionKey, out version))
                     {
                         version = 0;
                         cache.Set(versionKey, version);
                     }
-                    var cacheKey = $"FindAll_{typeof(T).Name}_{version}_{pageNumber}_{pageSize}";
+                    cacheKey = $"FindAll_{typeof(T).Name}_{branchId}_{version}_{pageNumber}_{pageSize}";
                     if (cache.TryGetValue(cacheKey, out ListOfObjectsResponseModel<TDto>? cachedResult) && cachedResult != null)
                     {
                         return cachedResult;
@@ -134,7 +137,6 @@ namespace Repositories.Repositories
 
                 if (cache != null && (typeof(T) == typeof(Department) || typeof(T) == typeof(Product)))
                 {
-                    var cacheKey = $"FindAll_{typeof(T).Name}_{version}_{pageNumber}_{pageSize}";
                     cache.Set(cacheKey, response, TimeSpan.FromMinutes(10));
                 }
 
@@ -206,11 +208,12 @@ namespace Repositories.Repositories
             {
                 _logger.logErrorWithException(ex, $"{typeof(T).Name} ===> Create ");
 
+                var errorMsg = ex.InnerException != null ? $"{ex.Message} --> {ex.InnerException.Message}" : ex.Message;
                 return new SingleObjectResponseModel()
                 {
                     ErrorCode = ErrorCatalog.DataBaseFauiler,
                     IsDone = false,
-                    ReturnMessage = ex.Message,
+                    ReturnMessage = errorMsg,
                 };
             }
         }

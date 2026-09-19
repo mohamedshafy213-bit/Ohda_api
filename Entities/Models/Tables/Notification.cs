@@ -3,7 +3,7 @@ using Entities.Models.Enums;
 
 namespace Entities.Models.Tables;
 
-public class Notification : BaseTable
+public class Notification : TenantBaseTable
 {
     public int UserId { get; set; }
     public User? User { get; set; }

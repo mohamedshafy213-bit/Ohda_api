@@ -2,7 +2,7 @@ using Entities.Models.BaseTables;
 
 namespace Entities.Models.Tables;
 
-public class UserPagePermission : BaseTable
+public class UserPagePermission : TenantBaseTable
 {
     public int UserId { get; set; }
     public User? User { get; set; }

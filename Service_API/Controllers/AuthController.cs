@@ -1,6 +1,8 @@
+using System.Security.Claims;
 using Contracts.DTOs.User;
 using Contracts.interfaces.Repository;
 using Contracts.Responses;
+using Entities.Models.Enums;
 using Entities.Models.Tables;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -40,6 +42,16 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
             });
         }
 
+        // Verify Branch status if user belongs to a branch
+        if (user.Branch != null && (!user.Branch.IsActive || user.Branch.IsDeleted))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = "Your branch account is currently suspended or inactive. Please contact system administration."
+            });
+        }
+
         bool isPasswordValid = PasswordHasherHelper.VerifyPassword(user, user.PasswordHash, loginDto.Password);
         if (!isPasswordValid)
         {
@@ -61,7 +73,10 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
             Role = user.Role,
             PersonName = user.PersonName,
             UserGroupId = user.UserGroupId,
-            UserGroupName = user.UserGroup?.Name
+            UserGroupName = user.UserGroup?.Name,
+            BranchId = user.BranchId,
+            BranchName = user.Branch?.Name,
+            MustChangePassword = user.MustChangePassword
         };
 
         var authResponse = new AuthResponseDto
@@ -77,6 +92,66 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
             IsDone = true,
             ReturnMessage = "Login successful",
             SingleObject = authResponse
+        });
+    }
+
+    [HttpPost("change-password")]
+    [Authorize]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto dto)
+    {
+        var militaryNumberClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (!int.TryParse(militaryNumberClaim, out var militaryNumber))
+            return Unauthorized();
+
+        var user = await _repositoryWrapper.Users.GetByIdWithGroupAsync(militaryNumber);
+        if (user == null)
+            return NotFound();
+
+        bool isCurrentValid = PasswordHasherHelper.VerifyPassword(user, user.PasswordHash, dto.CurrentPassword);
+        if (!isCurrentValid)
+        {
+            return BadRequest(new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = "Current password is not correct"
+            });
+        }
+
+        user.PasswordHash = PasswordHasherHelper.HashPassword(user, dto.NewPassword);
+        user.MustChangePassword = false;
+        await _repositoryWrapper.SaveAsync();
+
+        return Ok(new SingleObjectResponseModel
+        {
+            IsDone = true,
+            ReturnMessage = "Password changed successfully"
+        });
+    }
+
+    [HttpGet]
+    [Authorize]
+    public override async Task<IActionResult> GetAll([FromQuery] int? pageNumber = null, [FromQuery] int? pageSize = null)
+    {
+        int? branchId = null;
+        if (HttpContext.Request.Query.TryGetValue("branchId", out var branchIdVal) && int.TryParse(branchIdVal, out var parsedBranchId))
+        {
+            branchId = parsedBranchId;
+        }
+
+        var roleClaim = User.FindFirst(ClaimTypes.Role)?.Value;
+        bool isSuperAdmin = roleClaim == "SuperAdmin" || User.IsInRole("SuperAdmin");
+        var branchClaim = User.FindFirst("branch_id")?.Value ?? User.FindFirst("BranchId")?.Value;
+        int? userBranchId = int.TryParse(branchClaim, out var bId) && bId > 0 ? bId : null;
+
+        var users = await _repositoryWrapper.Users.GetUsersFilteredAsync(branchId, isSuperAdmin, userBranchId);
+
+        return Ok(new ListOfObjectsResponseModel<UserDto>
+        {
+            IsDone = true,
+            ErrorCode = Contracts.enums.ErrorCatalog.noError,
+            ReturnMessage = "Users loaded successfully",
+            Objects = users,
+            TotalCount = users.Count
         });
     }
 
@@ -97,7 +172,6 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
             });
         }
 
-        // Check military number not already taken
         var existingMilitary = await _repositoryWrapper.Users.GetByIdWithGroupAsync(registerDto.MilitaryNumber);
         if (existingMilitary != null)
         {
@@ -106,6 +180,43 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
                 IsDone = false,
                 ReturnMessage = "Military number already exists"
             });
+        }
+
+        var roleClaim = User.FindFirst(ClaimTypes.Role)?.Value;
+        bool isSuperAdmin = roleClaim == "SuperAdmin" || User.IsInRole("SuperAdmin");
+        var branchClaim = User.FindFirst("branch_id")?.Value ?? User.FindFirst("BranchId")?.Value;
+        int? userBranchId = int.TryParse(branchClaim, out var bId) && bId > 0 ? bId : null;
+
+        int targetBranchId;
+        if (isSuperAdmin)
+        {
+            targetBranchId = registerDto.BranchId ?? 1;
+        }
+        else
+        {
+            // Branch Admin is strictly locked to their own branch
+            targetBranchId = userBranchId ?? registerDto.BranchId ?? 1;
+            // Prevent Branch Admin from creating SuperAdmins
+            if (registerDto.Role == UserRole.SuperAdmin)
+            {
+                registerDto.Role = UserRole.Employee;
+            }
+        }
+
+        // Enforce MaxUsers quota configured by SuperAdmin
+        var branch = await _repositoryWrapper.Branches.GetByIdAsync(targetBranchId);
+        if (branch != null && branch.MaxUsers > 0 && !isSuperAdmin)
+        {
+            var currentUsersCount = await _repositoryWrapper.Branches.GetActiveUserCountAsync(targetBranchId);
+            if (currentUsersCount >= branch.MaxUsers)
+            {
+                return BadRequest(new SingleObjectResponseModel
+                {
+                    ErrorCode = Contracts.enums.ErrorCatalog.missingValues,
+                    IsDone = false,
+                    ReturnMessage = $"لقد تم استهلاك الحد الأقصى للمستخدمين المسموح به لهذا الفرع ({branch.MaxUsers} مستخدم). تم تعيين هذا الحد بواسطة مدير المنصة (SuperAdmin)."
+                });
+            }
         }
 
         var tempUser = new User { Username = registerDto.Username, MilitaryNumber = registerDto.MilitaryNumber };
@@ -119,7 +230,8 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
             PasswordHash = hashedPassword,
             Role = registerDto.Role,
             PersonName = registerDto.PersonName,
-            UserGroupId = registerDto.UserGroupId
+            UserGroupId = registerDto.UserGroupId,
+            BranchId = targetBranchId
         };
 
         await _repositoryWrapper.Users.CreateDirectAsync(user);
@@ -132,7 +244,10 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
             Email = user.Email,
             Role = user.Role,
             PersonName = user.PersonName,
-            UserGroupId = user.UserGroupId
+            UserGroupId = user.UserGroupId,
+            UserGroupName = user.UserGroup?.Name,
+            BranchId = user.BranchId,
+            BranchName = branch?.Name
         };
 
         return Ok(new SingleObjectResponseModel<UserDto>
@@ -140,6 +255,105 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
             IsDone = true,
             ReturnMessage = "User registered successfully",
             SingleObject = createdUserDto
+        });
+    }
+
+    [HttpPut("{id}")]
+    [Authorize]
+    public override async Task<IActionResult> Update([FromRoute] string id, [FromBody] UserUpdateDto updateDto)
+    {
+        if (!int.TryParse(id, out var militaryNumber))
+            return BadRequest("Invalid user ID");
+
+        var roleClaim = User.FindFirst(ClaimTypes.Role)?.Value;
+        bool isSuperAdmin = roleClaim == "SuperAdmin" || User.IsInRole("SuperAdmin");
+        var branchClaim = User.FindFirst("branch_id")?.Value ?? User.FindFirst("BranchId")?.Value;
+        int? userBranchId = int.TryParse(branchClaim, out var bId) && bId > 0 ? bId : null;
+
+        var existingUser = await _repositoryWrapper.Users.GetByIdWithGroupAsync(militaryNumber);
+        if (existingUser == null)
+            return NotFound();
+
+        if (!isSuperAdmin && existingUser.BranchId != userBranchId)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = "لا تملك صلاحية تعديل بيانات مستخدمين تابعين لفروع أخرى"
+            });
+        }
+
+        existingUser.Username = updateDto.Username;
+        existingUser.Email = updateDto.Email;
+        existingUser.PersonName = updateDto.PersonName;
+        existingUser.Role = (!isSuperAdmin && updateDto.Role == UserRole.SuperAdmin) ? existingUser.Role : updateDto.Role;
+        existingUser.UserGroupId = updateDto.UserGroupId;
+
+        if (isSuperAdmin && updateDto.BranchId.HasValue)
+        {
+            existingUser.BranchId = updateDto.BranchId.Value;
+        }
+        else if (!isSuperAdmin && userBranchId.HasValue)
+        {
+            existingUser.BranchId = userBranchId.Value;
+        }
+
+        if (!string.IsNullOrWhiteSpace(updateDto.Password))
+        {
+            existingUser.PasswordHash = PasswordHasherHelper.HashPassword(existingUser, updateDto.Password);
+        }
+
+        await _repositoryWrapper.SaveAsync();
+
+        return Ok(new SingleObjectResponseModel
+        {
+            IsDone = true,
+            ReturnMessage = "User updated successfully"
+        });
+    }
+
+    [HttpDelete("{id}")]
+    [Authorize]
+    public override async Task<IActionResult> Delete([FromRoute] string id)
+    {
+        if (!int.TryParse(id, out var militaryNumber))
+            return BadRequest("Invalid user ID");
+
+        var roleClaim = User.FindFirst(ClaimTypes.Role)?.Value;
+        bool isSuperAdmin = roleClaim == "SuperAdmin" || User.IsInRole("SuperAdmin");
+        var branchClaim = User.FindFirst("branch_id")?.Value ?? User.FindFirst("BranchId")?.Value;
+        int? userBranchId = int.TryParse(branchClaim, out var bId) && bId > 0 ? bId : null;
+
+        var existingUser = await _repositoryWrapper.Users.GetByIdWithGroupAsync(militaryNumber);
+        if (existingUser == null)
+            return NotFound();
+
+        if (existingUser.Role == UserRole.SuperAdmin)
+        {
+            return BadRequest(new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = "لا يمكن حذف حساب مدير المنصة العام (SuperAdmin)"
+            });
+        }
+
+        if (!isSuperAdmin && existingUser.BranchId != userBranchId)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = "لا تملك صلاحية حذف مستخدمين تابعين لفروع أخرى"
+            });
+        }
+
+        existingUser.IsDeleted = true;
+        existingUser.DeleteDate = DateTime.UtcNow;
+        await _repositoryWrapper.SaveAsync();
+
+        return Ok(new SingleObjectResponseModel
+        {
+            IsDone = true,
+            ReturnMessage = "User deleted successfully"
         });
     }
 }

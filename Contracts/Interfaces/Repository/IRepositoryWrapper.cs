@@ -4,6 +4,7 @@ namespace Contracts.interfaces.Repository;
 
 public interface IRepositoryWrapper
 {
+    IBranchRepository Branches { get; }
     IUserRepository Users { get; }
     ICategoryRepository Categories { get; }
     ISupplierRepository Suppliers { get; }

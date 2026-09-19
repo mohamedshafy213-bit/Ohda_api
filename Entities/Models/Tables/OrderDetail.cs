@@ -2,7 +2,7 @@ using Entities.Models.BaseTables;
 
 namespace Entities.Models.Tables;
 
-public class OrderDetail : BaseTable
+public class OrderDetail : TenantBaseTable
 {
     public int OrderId { get; set; }
     public Order? Order { get; set; }

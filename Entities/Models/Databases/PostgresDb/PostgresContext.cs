@@ -1,3 +1,4 @@
+using Entities.Models.Extensions;
 using Entities.Models.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -28,6 +29,8 @@ namespace Entities.Models.Databases.PostgresDb
         {
             var namespaces = new[] { "Entities.Models.Configurations", "Entities.Models.Databases.PostgresDb.Configurations" };
             ApplyConfiguration(modelBuilder, namespaces);
+
+            modelBuilder.ApplyGlobalFilters(_httpContextAccessor);
 
             OnModelCreatingPartial(modelBuilder);
         }

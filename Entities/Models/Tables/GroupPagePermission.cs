@@ -2,7 +2,7 @@ using Entities.Models.BaseTables;
 
 namespace Entities.Models.Tables;
 
-public class GroupPagePermission : BaseTable
+public class GroupPagePermission : TenantBaseTable
 {
     public int UserGroupId { get; set; }
     public UserGroup? UserGroup { get; set; }

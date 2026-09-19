@@ -1,3 +1,4 @@
+using Entities.Models.Extensions;
 using Entities.Models.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -31,6 +32,8 @@ public partial class SqlServerContext : RepositoryContext
     {
         var namespaces = new[] { "Entities.Models.Configurations", "Entities.Models.Databases.SqlDb.Configurations" };
         ApplyConfiguration(modelBuilder, namespaces);
+
+        modelBuilder.ApplyGlobalFilters(_httpContextAccessor);
 
         OnModelCreatingPartial(modelBuilder);
     }

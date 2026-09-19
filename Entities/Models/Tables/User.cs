@@ -22,6 +22,11 @@ public class User : ISoftDelete
     public int? UserGroupId { get; set; }
     public UserGroup? UserGroup { get; set; }
 
+    public int? BranchId { get; set; }
+    public Branch? Branch { get; set; }
+
+    public bool MustChangePassword { get; set; } = false;
+
     // Replicate BaseTable properties directly
     public string? InsertUserCode { get; set; }
     public DateTime? InsertDate { get; set; } = DateTime.UtcNow;

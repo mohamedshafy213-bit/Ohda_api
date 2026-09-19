@@ -35,6 +35,7 @@ public class RepositoryWrapper : IRepositoryWrapper
     private IDepartmentRepository? _departments;
     private IProductStateRepository? _productStates;
     private IWarehouseBinRepository? _warehouseBins;
+    private IBranchRepository? _branches;
 
 
     public RepositoryWrapper(
@@ -48,6 +49,9 @@ public class RepositoryWrapper : IRepositoryWrapper
         _mapper = mapper;
         _logger = logger;
     }
+
+    public IBranchRepository Branches =>
+        _branches ??= new BranchRepository(_logger, _repoContext, _httpContextAccessor, _mapper);
 
     public IUserRepository Users =>
         _users ??= new UserRepository(_logger, _repoContext, _httpContextAccessor, _mapper);

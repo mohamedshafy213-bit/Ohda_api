@@ -3,7 +3,7 @@ using Entities.Models.Enums;
 
 namespace Entities.Models.Tables;
 
-public class Compass : BaseTable
+public class Compass : TenantBaseTable
 {
     public string SerialNumber { get; set; } = string.Empty;
     public string ProductName { get; set; } = string.Empty;

@@ -3,6 +3,8 @@ using Entities.Models.Databases;
 using Entities.Models.Databases.OracleDb;
 using Entities.Models.Databases.PostgresDb;
 using Entities.Models.Databases.SqlDb;
+using Entities.Models.Interfaces;
+using Entities.Models.Services;
 using LoggerService;
 using Mapster;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -119,6 +121,8 @@ public static class ServiceExtensions
 
     public static void ConfigureRepositoryWrapper(this IServiceCollection services)
     {
+        services.AddScoped<ICurrentBranch, CurrentBranchService>();
+        services.AddScoped<ITenantService, CurrentBranchService>();
         services.AddScoped<IRepositoryWrapper, RepositoryWrapper>();
         services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
     }

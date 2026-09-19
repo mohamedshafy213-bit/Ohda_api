@@ -79,6 +79,35 @@ public class ProductItemController : BaseController<ProductItem, ProductItemDto,
         });
     }
 
+    [HttpGet("instock")]
+    public async Task<IActionResult> GetAllInStock()
+    {
+        var items = await _repositoryWrapper.ProductItems.GetAllInStockAsync();
+        var dtos = items.Select(pi => new ProductItemDto
+        {
+            Id = pi.Id,
+            ProductId = pi.ProductId,
+            ProductName = pi.Product?.Name ?? string.Empty,
+            ProductBarcode = pi.Product?.Barcode ?? string.Empty,
+            ProductSKU = pi.Product?.SKU ?? string.Empty,
+            SerialNumber = pi.SerialNumber,
+            QRCode = pi.QRCode,
+            Status = pi.Status,
+            RecipientName = pi.RecipientName,
+            Place = pi.Place,
+            ExitDate = pi.ExitDate,
+            ProductExitRequestId = pi.ProductExitRequestId,
+            Notes = pi.Notes
+        }).ToList();
+
+        return Ok(new ListOfObjectsResponseModel<ProductItemDto>
+        {
+            IsDone = true,
+            ReturnMessage = "All available in-stock items retrieved successfully.",
+            Objects = dtos
+        });
+    }
+
     [HttpGet("department/{departmentId}")]
     public async Task<IActionResult> GetByDepartmentId([FromRoute] int departmentId)
     {

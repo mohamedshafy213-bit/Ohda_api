@@ -13,6 +13,9 @@ public class UserDto
     public string? PersonName { get; set; }
     public int? UserGroupId { get; set; }
     public string? UserGroupName { get; set; }
+    public int? BranchId { get; set; }
+    public string? BranchName { get; set; }
+    public bool MustChangePassword { get; set; }
 }
 
 public class UserCreateDto
@@ -24,6 +27,7 @@ public class UserCreateDto
     public UserRole Role { get; set; } = UserRole.Employee;
     public string? PersonName { get; set; }
     public int? UserGroupId { get; set; }
+    public int? BranchId { get; set; }
 }
 
 public class UserUpdateDto
@@ -35,6 +39,7 @@ public class UserUpdateDto
     public UserRole Role { get; set; }
     public string? PersonName { get; set; }
     public int? UserGroupId { get; set; }
+    public int? BranchId { get; set; }
 }
 
 public class LoginDto
@@ -49,4 +54,10 @@ public class AuthResponseDto
     public DateTime ExpiresAt { get; set; }
     public UserDto User { get; set; } = null!;
     public List<PageDto> AllowedPages { get; set; } = new();
+}
+
+public class ChangePasswordDto
+{
+    public string CurrentPassword { get; set; } = string.Empty;
+    public string NewPassword { get; set; } = string.Empty;
 }

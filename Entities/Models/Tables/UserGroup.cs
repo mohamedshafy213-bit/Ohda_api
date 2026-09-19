@@ -2,7 +2,7 @@ using Entities.Models.BaseTables;
 
 namespace Entities.Models.Tables;
 
-public class UserGroup : BaseTable
+public class UserGroup : TenantBaseTable
 {
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }

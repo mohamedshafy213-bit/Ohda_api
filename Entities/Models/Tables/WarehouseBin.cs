@@ -2,7 +2,7 @@ using Entities.Models.BaseTables;
 
 namespace Entities.Models.Tables;
 
-public class WarehouseBin : BaseTable
+public class WarehouseBin : TenantBaseTable
 {
     public string Code { get; set; } = string.Empty; // e.g. "A-01-B03"
     public string Name { get; set; } = string.Empty; // e.g. "رف أجهزة الحواسب واللابتوبات"

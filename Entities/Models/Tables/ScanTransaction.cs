@@ -3,7 +3,7 @@ using Entities.Models.Enums;
 
 namespace Entities.Models.Tables;
 
-public class ScanTransaction : BaseTable
+public class ScanTransaction : TenantBaseTable
 {
     public string BarcodeScanned { get; set; } = string.Empty;
     public TransactionType TransactionType { get; set; }

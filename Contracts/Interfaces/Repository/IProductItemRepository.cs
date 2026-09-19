@@ -9,6 +9,7 @@ public interface IProductItemRepository : IRepositoryBase<ProductItem, ProductIt
     Task<ProductItem?> GetBySerialNumberAsync(string serialNumber);
     Task<IEnumerable<ProductItem>> GetByProductIdAsync(int productId);
     Task<IEnumerable<ProductItem>> GetInStockByProductIdAsync(int productId);
+    Task<IEnumerable<ProductItem>> GetAllInStockAsync();
     Task<IEnumerable<ProductItem>> GetByExitRequestIdAsync(int exitRequestId);
     Task<IEnumerable<ProductItem>> GetByDepartmentIdAsync(int departmentId);
     Task<ProductItem?> GetByIdAsync(int id);

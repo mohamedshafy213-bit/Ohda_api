@@ -3,7 +3,7 @@ using Entities.Models.Enums;
 
 namespace Entities.Models.Tables;
 
-public class ProductItem : BaseTable
+public class ProductItem : TenantBaseTable
 {
     public int ProductId { get; set; }
     public Product? Product { get; set; }

@@ -46,6 +46,27 @@ public class ProductController : BaseController<Product, ProductDto, ProductCrea
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
+        // Enforce MaxProducts quota configured by SuperAdmin
+        var branchClaim = User.FindFirst("branch_id")?.Value ?? User.FindFirst("BranchId")?.Value;
+        bool isSuperAdmin = User.IsInRole("SuperAdmin");
+        if (int.TryParse(branchClaim, out var userBranchId) && userBranchId > 0 && !isSuperAdmin)
+        {
+            var branch = await _repositoryWrapper.Branches.GetByIdAsync(userBranchId);
+            if (branch != null && branch.MaxProducts > 0)
+            {
+                var currentProductCount = await _repositoryWrapper.Branches.GetActiveProductCountAsync(userBranchId);
+                if (currentProductCount >= branch.MaxProducts)
+                {
+                    return BadRequest(new SingleObjectResponseModel
+                    {
+                        ErrorCode = Contracts.enums.ErrorCatalog.missingValues,
+                        IsDone = false,
+                        ReturnMessage = $"لقد تم استهلاك الحد الأقصى للأصناف والمنتجات المسموح بها لهذا الفرع ({branch.MaxProducts} صنف). تم تعيين هذا الحد بواسطة مدير المنصة (SuperAdmin)."
+                    });
+                }
+            }
+        }
+
         var response = await _repositoryWrapper.Products.Create(createDto);
         if (response.IsDone)
         {

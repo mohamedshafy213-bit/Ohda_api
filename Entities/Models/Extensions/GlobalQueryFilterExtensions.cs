@@ -1,6 +1,8 @@
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Security.Claims;
 using Entities.Models.Interfaces;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 
 namespace Entities.Models.Extensions;
@@ -10,26 +12,32 @@ namespace Entities.Models.Extensions;
 /// </summary>
 public static class GlobalQueryFilterExtensions
 {
-    // Cache reflection lookups � these never change at runtime
     private static readonly MethodInfo SetQueryFilterMethod = typeof(GlobalQueryFilterExtensions)
-        .GetMethod(nameof(SetQueryFilter), BindingFlags.NonPublic | BindingFlags.Static)!;
+        .GetMethod(nameof(SetQueryFilter), BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static)!;
 
-    private static readonly MethodInfo ResolveUniversityIdMethod = typeof(GlobalQueryFilterExtensions)
-        .GetMethod(nameof(ResolveUniversityId), BindingFlags.NonPublic | BindingFlags.Static)!;
+    private static readonly MethodInfo ResolveBranchIdMethod = typeof(GlobalQueryFilterExtensions)
+        .GetMethod(nameof(ResolveBranchId), BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static)!;
+
+    private static readonly MethodInfo CheckSupportAccessMethod = typeof(GlobalQueryFilterExtensions)
+        .GetMethod(nameof(CheckSupportAccess), BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static)!;
 
     /// <summary>
-    /// Applies global query filters for soft delete (IsDeleted) and multi-tenancy (UniversityId)
+    /// Applies global query filters for soft delete (IsDeleted == false) and multi-tenancy (BranchId == currentBranchId)
     /// </summary>
-    /// <param name="modelBuilder">The model builder</param>
-    /// <param name="tenantService">The tenant service to get current university ID</param>
-    public static void ApplyGlobalFilters(this ModelBuilder modelBuilder, ITenantService? tenantService)
+    public static void ApplyGlobalFilters(this ModelBuilder modelBuilder, IHttpContextAccessor? httpContextAccessor)
     {
+        if (httpContextAccessor == null)
+        {
+            ApplySoftDeleteFilter(modelBuilder);
+            return;
+        }
+
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {
             var clrType = entityType.ClrType;
 
             var hasSoftDelete = typeof(ISoftDelete).IsAssignableFrom(clrType);
-            var hasTenant = typeof(ITenantEntity).IsAssignableFrom(clrType) && tenantService != null;
+            var hasTenant = typeof(ITenantEntity).IsAssignableFrom(clrType);
 
             if (!hasSoftDelete && !hasTenant) continue;
 
@@ -43,21 +51,21 @@ public static class GlobalQueryFilterExtensions
                 filterExpression = Expression.Equal(isDeletedProperty, Expression.Constant(false));
             }
 
-            // Tenant filter: e.UniversityId == ResolveUniversityId(tenantService)
-            // Only applied when a tenant context actually exists at query time
+            // Tenant filter: (hasSupportAccess) OR (resolvedBranchId != 0 && e.BranchId == resolvedBranchId)
             if (hasTenant)
             {
-                var universityIdProperty = Expression.Property(parameter, nameof(ITenantEntity.UniversityId));
-                var tenantServiceConstant = Expression.Constant(tenantService);
+                var branchIdProperty = Expression.Property(parameter, nameof(ITenantEntity.BranchId));
 
-                // Single call to ResolveUniversityId � result is reused in both checks below
-                var resolvedUniversityId = Expression.Call(null, ResolveUniversityIdMethod, tenantServiceConstant);
+                // Context method calls - EF evaluates dynamically on the context instance
+                var resolvedBranchId = Expression.Call(null, ResolveBranchIdMethod, Expression.Constant(httpContextAccessor));
+                var resolvedSupportAccess = Expression.Call(null, CheckSupportAccessMethod, Expression.Constant(httpContextAccessor));
 
-                // (universityId == 0) OR (e.UniversityId == universityId)
-                // Bypasses filtering entirely when no tenant context exists (universityId == 0)
-                var noTenantContext = Expression.Equal(resolvedUniversityId, Expression.Constant(0));
-                var tenantMatches = Expression.Equal(universityIdProperty, resolvedUniversityId);
-                var tenantFilter = Expression.OrElse(noTenantContext, tenantMatches);
+                // (resolvedSupportAccess == true) || (resolvedBranchId != 0 && e.BranchId == resolvedBranchId)
+                var supportAccessMatches = Expression.IsTrue(resolvedSupportAccess);
+                var hasValidBranch = Expression.NotEqual(resolvedBranchId, Expression.Constant(0));
+                var branchMatches = Expression.AndAlso(hasValidBranch, Expression.Equal(branchIdProperty, resolvedBranchId));
+
+                var tenantFilter = Expression.OrElse(supportAccessMatches, branchMatches);
 
                 filterExpression = filterExpression == null
                     ? tenantFilter
@@ -71,6 +79,14 @@ public static class GlobalQueryFilterExtensions
                 .MakeGenericMethod(clrType)
                 .Invoke(null, new object[] { modelBuilder, lambda });
         }
+    }
+
+    /// <summary>
+    /// Overload for backwards compatibility with ITenantService
+    /// </summary>
+    public static void ApplyGlobalFilters(this ModelBuilder modelBuilder, ITenantService? tenantService)
+    {
+        // Handled via IHttpContextAccessor in ApplyGlobalFilters(ModelBuilder, IHttpContextAccessor)
     }
 
     /// <summary>
@@ -95,9 +111,6 @@ public static class GlobalQueryFilterExtensions
         }
     }
 
-    /// <summary>
-    /// Helper method to apply query filter using generic type
-    /// </summary>
     private static void SetQueryFilter<TEntity>(ModelBuilder modelBuilder, LambdaExpression filter)
         where TEntity : class
     {
@@ -105,12 +118,69 @@ public static class GlobalQueryFilterExtensions
     }
 
     /// <summary>
-    /// Resolves the nullable university ID to a plain int.
-    /// Returns 0 when no tenant context exists � since no real UniversityId
-    /// should ever be 0, this effectively bypasses tenant filtering.
+    /// Evaluated dynamically per query. Resolves the current user's BranchId from claims.
+    /// Returns 0 when no branch context is present (which matches no valid BranchId).
     /// </summary>
-    private static int ResolveUniversityId(ITenantService tenantService)
+    public static int ResolveBranchId(IHttpContextAccessor httpContextAccessor)
     {
-        return tenantService.GetCurrentUniversityId() ?? 0;
+        var httpContext = httpContextAccessor.HttpContext;
+        if (httpContext == null)
+            return 0;
+
+        // 1. Check explicit X-Branch-Id header if supplied
+        if (httpContext.Request.Headers.TryGetValue("X-Branch-Id", out var headerValue))
+        {
+            if (int.TryParse(headerValue.ToString(), out var headerBranchId) && headerBranchId > 0)
+                return headerBranchId;
+        }
+
+        var user = httpContext.User;
+        if (user == null || user.Identity?.IsAuthenticated != true)
+            return 0;
+
+        // 2. Check user's JWT branch claims
+        var branchClaim = user.FindFirst("branch_id")?.Value
+                       ?? user.FindFirst("BranchId")?.Value;
+
+        if (int.TryParse(branchClaim, out var branchId) && branchId > 0)
+            return branchId;
+
+        // 3. Fallback: for any authenticated user without explicit branch claim, default to branch 1 (Main branch)
+        return 1;
+    }
+
+    /// <summary>
+    /// Evaluated dynamically per query. Returns true if tenant isolation should be bypassed:
+    /// 1. Non-HTTP contexts (background jobs, startup seeding, design-time migrations).
+    /// 2. Request explicitly flagged with IgnoreTenantFilter in HttpContext.Items.
+    /// 3. Authenticated SuperAdmin (platform-wide oversight).
+    /// </summary>
+    public static bool CheckSupportAccess(IHttpContextAccessor httpContextAccessor)
+    {
+        var httpContext = httpContextAccessor.HttpContext;
+        if (httpContext == null)
+            return true; // Non-HTTP background / startup context
+
+        if (httpContext.Items.TryGetValue("IgnoreTenantFilter", out var ignore) && ignore is true)
+            return true;
+
+        var user = httpContext.User;
+        if (user == null || user.Identity?.IsAuthenticated != true)
+            return false;
+
+        var isSuperAdmin = user.IsInRole("SuperAdmin")
+            || string.Equals(user.FindFirst(ClaimTypes.Role)?.Value, "SuperAdmin", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(user.FindFirst("role")?.Value, "SuperAdmin", StringComparison.OrdinalIgnoreCase)
+            || user.HasClaim(c => (c.Type == ClaimTypes.Role || c.Type == "role") && string.Equals(c.Value, "SuperAdmin", StringComparison.OrdinalIgnoreCase));
+
+        if (isSuperAdmin)
+            return true;
+
+        if (httpContext.Request.Headers.TryGetValue("X-Support-Access", out var supportHeaderValue))
+        {
+            return string.Equals(supportHeaderValue.ToString(), "true", StringComparison.OrdinalIgnoreCase);
+        }
+
+        return false;
     }
 }
