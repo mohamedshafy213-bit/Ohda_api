@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Service_API.BaseControllers;
+using Service_API.Helpers;
 using System.Security.Claims;
 
 namespace Service_API.Controllers;
@@ -81,15 +82,34 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
 
         if (response.IsDone)
         {
-            // Step 1: Notify Managers about new entry request pending Manager approval
-            await _repositoryWrapper.Notifications.Create(new NotificationCreateDto
+            int newReqId = 0;
+            if (response is SingleObjectResponseModel<ProductEntryRequestDto> typedResp && typedResp.SingleObject != null)
             {
-                UserId = userId,
-                Title = "New Product Entry Request",
-                Message = $"Stock-In request created containing {requestDto.Items.Count} item(s) from {requestDto.FromSource}. Awaiting Manager approval.",
-                Type = NotificationType.EntryRequest,
-                ReferenceType = "ProductEntryRequest"
-            });
+                newReqId = typedResp.SingleObject.Id;
+            }
+
+            // Step 1 -> Step 2: Notify Reviewers / Managers about new entry request
+            await NotificationHelper.NotifyWorkflowStepUsersAsync(
+                _repositoryWrapper,
+                _context,
+                RequestType.Entry,
+                WorkflowRole.Reviewer,
+                "طلب توريد جديد بانتظار المراجعة والتدقيق",
+                $"تم تقديم طلب توريد مخزون جديد برقم #{newReqId} من قبل المستخدم #{userId}. يرجى المراجعة والتدقيق.",
+                newReqId,
+                "ProductEntryRequest"
+            );
+
+            // Notify Requester (confirmation)
+            await NotificationHelper.SendNotificationToUserAsync(
+                _repositoryWrapper,
+                userId,
+                "تم تسجيل طلب التوريد بنجاح",
+                $"تم تسجيل طلب التوريد #{newReqId} بنجاح وهو الآن في مرحلة مراجعة وتدقيق المدير.",
+                NotificationType.EntryRequest,
+                newReqId,
+                "ProductEntryRequest"
+            );
         }
 
         return HandleResponse(response);
@@ -164,17 +184,43 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
 
 
         // Notify
-        await _repositoryWrapper.Notifications.Create(new NotificationCreateDto
+        if (request.Status == RequestStatus.Rejected)
         {
-            UserId = request.ReceivedByUserId,
-            Title = request.Status == RequestStatus.Rejected ? "Entry Request Rejected" : "Entry Request Manager Approved (Step 1 Complete)",
-            Message = request.Status == RequestStatus.Rejected 
-                ? $"Your entry request (ID: {id}) was rejected by the Manager." 
-                : $"Product entry request (ID: {id}) has received Manager approval. Awaiting final Supervisor approval.",
-            Type = request.Status == RequestStatus.Rejected ? NotificationType.Warning : NotificationType.EntryRequest,
-            ReferenceId = id,
-            ReferenceType = "ProductEntryRequest"
-        });
+            await NotificationHelper.SendNotificationToUserAsync(
+                _repositoryWrapper,
+                request.ReceivedByUserId,
+                "تم رفض طلب التوريد",
+                $"تم رفض طلب التوريد #{id} من قبل المدير. السبب: {request.RejectionReason}",
+                NotificationType.Warning,
+                id,
+                "ProductEntryRequest"
+            );
+        }
+        else
+        {
+            // Step 2 -> Step 3: Notify Approvers / Supervisors
+            await NotificationHelper.NotifyWorkflowStepUsersAsync(
+                _repositoryWrapper,
+                _context,
+                RequestType.Entry,
+                WorkflowRole.Approver,
+                "طلب توريد معتمد من المدير بانتظار التوثيق النهائي",
+                $"تمت موافقة المدير على طلب التوريد #{id}. يرجى توثيق الطلب وإدخال الأصناف للمخزن.",
+                id,
+                "ProductEntryRequest"
+            );
+
+            // Notify Requester
+            await NotificationHelper.SendNotificationToUserAsync(
+                _repositoryWrapper,
+                request.ReceivedByUserId,
+                "موافقة المدير على طلب التوريد",
+                $"تمت مراجعة واعتماد طلب التوريد #{id} من قبل المدير. بانتظار التوثيق والاعتماد النهائي من المشرف.",
+                NotificationType.EntryRequest,
+                id,
+                "ProductEntryRequest"
+            );
+        }
 
         return Ok(new SingleObjectResponseModel
         {
@@ -407,16 +453,16 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
 
         await _repositoryWrapper.SaveAsync();
 
-        // Notify
-        await _repositoryWrapper.Notifications.Create(new NotificationCreateDto
-        {
-            UserId = request.ReceivedByUserId,
-            Title = "Entry Request Fully Approved",
-            Message = $"Your product entry request (ID: {id}) has received both Manager & Supervisor approvals. Inventory stock increased.",
-            Type = NotificationType.EntryRequest,
-            ReferenceId = id,
-            ReferenceType = "ProductEntryRequest"
-        });
+        // Notify Requester that request is fully approved and stock added
+        await NotificationHelper.SendNotificationToUserAsync(
+            _repositoryWrapper,
+            request.ReceivedByUserId,
+            "اكتمال وتوثيق طلب التوريد بنجاح",
+            $"تم توثيق طلب التوريد #{id} من قبل المشرف وإضافة الأصناف إلى رصيد المخزن بنجاح.",
+            NotificationType.EntryRequest,
+            id,
+            "ProductEntryRequest"
+        );
 
         return Ok(new SingleObjectResponseModel { IsDone = true, ReturnMessage = "Request approved by Supervisor." });
     }
@@ -463,8 +509,8 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
         await _repositoryWrapper.Notifications.Create(new NotificationCreateDto
         {
             UserId = request.ReceivedByUserId,
-            Title = "Entry Request Rejected",
-            Message = $"Your entry request (ID: {id}) was rejected. Reason: {rejectDto.RejectionReason}",
+            Title = $"تم إرجاع / رفض طلب إدخال المخزون (رقم #{id})",
+            Message = $"تم إرجاع طلب التوريد الخاص بك. سبب الإرجاع: {rejectDto.RejectionReason}",
             Type = NotificationType.Warning,
             ReferenceId = id,
             ReferenceType = "ProductEntryRequest"
@@ -547,7 +593,7 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
         int userId = GetCurrentUserId();
         var user = await _repositoryWrapper.Users.GetByIdWithGroupAsync(userId);
         if (user == null) return false;
-        if (user.Role == UserRole.Admin) return true;
+        if (user.Role == UserRole.Admin || user.Role == UserRole.SuperAdmin) return true;
         if (user.UserGroupId == null) return false;
 
         if (role == WorkflowRole.Reviewer)

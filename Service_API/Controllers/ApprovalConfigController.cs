@@ -18,21 +18,21 @@ public class ApprovalConfigController : BaseController<ApprovalConfig, ApprovalC
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,SuperAdmin,Manager,Supervisor")]
     public override async Task<IActionResult> Create([FromBody] ApprovalConfigCreateDto createDto)
     {
         return await base.Create(createDto);
     }
 
     [HttpPut("{id}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,SuperAdmin,Manager,Supervisor")]
     public override async Task<IActionResult> Update([FromRoute] string id, [FromBody] ApprovalConfigUpdateDto updateDto)
     {
         return await base.Update(id, updateDto);
     }
 
     [HttpDelete("{id}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,SuperAdmin,Manager,Supervisor")]
     public override async Task<IActionResult> Delete([FromRoute] string id)
     {
         return await base.Delete(id);

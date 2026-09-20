@@ -22,6 +22,36 @@ public class NotificationController : BaseController<Notification, NotificationD
         _repository = repositoryWrapper.Notifications;
     }
 
+    [HttpPost]
+    public override async Task<IActionResult> Create([FromBody] NotificationCreateDto createDto)
+    {
+        if (createDto.UserId <= 0)
+        {
+            createDto.UserId = GetCurrentUserId();
+        }
+
+        if (createDto.UserId <= 0)
+        {
+            return BadRequest(new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = "Recipient UserId is required and must be greater than 0."
+            });
+        }
+
+        var recipient = await _repositoryWrapper.Users.GetByIdWithGroupAsync(createDto.UserId);
+        if (recipient == null)
+        {
+            return BadRequest(new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = $"Recipient user with ID {createDto.UserId} does not exist."
+            });
+        }
+
+        return await base.Create(createDto);
+    }
+
     [HttpGet("my-notifications")]
     public async Task<IActionResult> GetMyNotifications([FromQuery] bool unreadOnly = false)
     {

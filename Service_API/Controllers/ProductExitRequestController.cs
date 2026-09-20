@@ -12,8 +12,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Service_API.BaseControllers;
+using Service_API.Helpers;
 using System.Security.Claims;
-
 
 namespace Service_API.Controllers;
 
@@ -133,15 +133,34 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
                 await _repositoryWrapper.SaveAsync();
             }
 
-            // Step 1: Notify Managers about new exit request pending Manager approval
-            await _repositoryWrapper.Notifications.Create(new NotificationCreateDto
+            int newReqId = 0;
+            if (response is SingleObjectResponseModel<ProductExitRequestDto> typedResp && typedResp.SingleObject != null)
             {
-                UserId = userId,
-                Title = "New Product Exit Request",
-                Message = $"Exit request created containing {requestDto.Items.Count} item(s) to {requestDto.RecipientName}. Awaiting Manager approval.",
-                Type = NotificationType.ExitRequest,
-                ReferenceType = "ProductExitRequest"
-            });
+                newReqId = typedResp.SingleObject.Id;
+            }
+
+            // Step 1 -> Step 2: Notify Reviewers / Managers about new exit request
+            await NotificationHelper.NotifyWorkflowStepUsersAsync(
+                _repositoryWrapper,
+                _context,
+                RequestType.Exit,
+                WorkflowRole.Reviewer,
+                "طلب صرف عهدة جديد بانتظار المراجعة والتدقيق",
+                $"تم تقديم طلب صرف عهدة جديد برقم #{newReqId} من قبل المستخدم #{userId}. يرجى مراجعة الطلب.",
+                newReqId,
+                "ProductExitRequest"
+            );
+
+            // Notify Requester (confirmation)
+            await NotificationHelper.SendNotificationToUserAsync(
+                _repositoryWrapper,
+                userId,
+                "تم تسجيل طلب صرف العهدة بنجاح",
+                $"تم تسجيل طلب صرف العهدة #{newReqId} بنجاح وهو الآن في مرحلة مراجعة وتدقيق المدير.",
+                NotificationType.ExitRequest,
+                newReqId,
+                "ProductExitRequest"
+            );
         }
 
         return HandleResponse(response);
@@ -217,17 +236,43 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
 
 
         // Notify
-        await _repositoryWrapper.Notifications.Create(new NotificationCreateDto
+        if (request.Status == RequestStatus.Rejected)
         {
-            UserId = request.RequestedByUserId,
-            Title = request.Status == RequestStatus.Rejected ? "Exit Request Rejected" : "Exit Request Manager Approved (Step 1 Complete)",
-            Message = request.Status == RequestStatus.Rejected 
-                ? $"Your exit request (ID: {id}) was rejected by the Manager." 
-                : $"Product exit request (ID: {id}) has received Manager approval. Awaiting final Supervisor approval.",
-            Type = request.Status == RequestStatus.Rejected ? NotificationType.Warning : NotificationType.ExitRequest,
-            ReferenceId = id,
-            ReferenceType = "ProductExitRequest"
-        });
+            await NotificationHelper.SendNotificationToUserAsync(
+                _repositoryWrapper,
+                request.RequestedByUserId,
+                "تم رفض طلب صرف العهدة",
+                $"تم رفض طلب صرف العهدة #{id} من قبل المدير. السبب: {request.RejectionReason}",
+                NotificationType.Warning,
+                id,
+                "ProductExitRequest"
+            );
+        }
+        else
+        {
+            // Step 2 -> Step 3: Notify Approvers / Supervisors
+            await NotificationHelper.NotifyWorkflowStepUsersAsync(
+                _repositoryWrapper,
+                _context,
+                RequestType.Exit,
+                WorkflowRole.Approver,
+                "طلب صرف معتمد من المدير بانتظار التوثيق والصرف النهائي",
+                $"تمت موافقة المدير على طلب صرف العهدة #{id}. يرجى التوثيق والاعتماد النهائي وصرف الأصناف للمستفيد.",
+                id,
+                "ProductExitRequest"
+            );
+
+            // Notify Requester
+            await NotificationHelper.SendNotificationToUserAsync(
+                _repositoryWrapper,
+                request.RequestedByUserId,
+                "موافقة المدير على طلب صرف العهدة",
+                $"تمت مراجعة واعتماد طلب صرف العهدة #{id} من قبل المدير. بانتظار التوثيق والصرف النهائي من المشرف.",
+                NotificationType.ExitRequest,
+                id,
+                "ProductExitRequest"
+            );
+        }
 
         return Ok(new SingleObjectResponseModel
         {
@@ -432,16 +477,16 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
 
 
 
-        // Notify
-        await _repositoryWrapper.Notifications.Create(new NotificationCreateDto
-        {
-            UserId = request.RequestedByUserId,
-            Title = "Exit Request Fully Approved",
-            Message = $"Your product exit request (ID: {id}) has received both Manager & Supervisor approvals. Inventory stock updated.",
-            Type = NotificationType.ExitRequest,
-            ReferenceId = id,
-            ReferenceType = "ProductExitRequest"
-        });
+        // Notify Requester that request is fully approved and stock updated
+        await NotificationHelper.SendNotificationToUserAsync(
+            _repositoryWrapper,
+            request.RequestedByUserId,
+            "اكتمال وتوثيق صرف العهدة بنجاح",
+            $"تم توثيق طلب صرف العهدة #{id} من قبل المشرف وصرف الأصناف إلى {request.RecipientName} بنجاح.",
+            NotificationType.ExitRequest,
+            id,
+            "ProductExitRequest"
+        );
 
         return Ok(new SingleObjectResponseModel { IsDone = true, ReturnMessage = "Request approved by Supervisor." });
     }
@@ -488,8 +533,8 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
         await _repositoryWrapper.Notifications.Create(new NotificationCreateDto
         {
             UserId = request.RequestedByUserId,
-            Title = "Exit Request Rejected",
-            Message = $"Your exit request (ID: {id}) was rejected. Reason: {rejectDto.RejectionReason}",
+            Title = $"تم إرجاع / رفض طلب الصرف (رقم #{id})",
+            Message = $"تم إرجاع طلب الصرف الخاص بك. سبب الإرجاع: {rejectDto.RejectionReason}",
             Type = NotificationType.Warning,
             ReferenceId = id,
             ReferenceType = "ProductExitRequest"
@@ -628,7 +673,7 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
         int userId = GetCurrentUserId();
         var user = await _repositoryWrapper.Users.GetByIdWithGroupAsync(userId);
         if (user == null) return false;
-        if (user.Role == UserRole.Admin) return true;
+        if (user.Role == UserRole.Admin || user.Role == UserRole.SuperAdmin) return true;
         if (user.UserGroupId == null) return false;
 
         if (role == WorkflowRole.Reviewer)
