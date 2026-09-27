@@ -33,6 +33,15 @@ public partial class SqlServerContext : RepositoryContext
         var namespaces = new[] { "Entities.Models.Configurations", "Entities.Models.Databases.SqlDb.Configurations" };
         ApplyConfiguration(modelBuilder, namespaces);
 
+        // Prevent multiple cascade paths in SQL Server for all tenant entities referencing Branch
+        foreach (var foreignKey in modelBuilder.Model.GetEntityTypes().SelectMany(e => e.GetForeignKeys()))
+        {
+            if (foreignKey.PrincipalEntityType.ClrType == typeof(Entities.Models.Tables.Branch))
+            {
+                foreignKey.DeleteBehavior = DeleteBehavior.Restrict;
+            }
+        }
+
         modelBuilder.ApplyGlobalFilters(_httpContextAccessor);
 
         OnModelCreatingPartial(modelBuilder);

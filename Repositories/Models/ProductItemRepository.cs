@@ -25,6 +25,7 @@ public class ProductItemRepository
     public async Task<ProductItem?> GetBySerialNumberAsync(string serialNumber)
     {
         return await RepositoryContext.ProductItems
+            .AsNoTracking()
             .Include(pi => pi.Product)
             .FirstOrDefaultAsync(pi => pi.SerialNumber == serialNumber && !pi.IsDeleted);
     }
@@ -32,6 +33,7 @@ public class ProductItemRepository
     public async Task<IEnumerable<ProductItem>> GetByProductIdAsync(int productId)
     {
         return await RepositoryContext.ProductItems
+            .AsNoTracking()
             .Include(pi => pi.Product)
             .Where(pi => pi.ProductId == productId && !pi.IsDeleted)
             .ToListAsync();
@@ -60,6 +62,7 @@ public class ProductItemRepository
     public async Task<IEnumerable<ProductItem>> GetByExitRequestIdAsync(int exitRequestId)
     {
         return await RepositoryContext.ProductItems
+            .AsNoTracking()
             .Include(pi => pi.Product)
             .Include(pi => pi.Bin)
             .Where(pi => pi.ProductExitRequestId == exitRequestId && !pi.IsDeleted)
@@ -68,10 +71,13 @@ public class ProductItemRepository
 
     public async Task<IEnumerable<ProductItem>> GetByDepartmentIdAsync(int departmentId)
     {
-        var department = await RepositoryContext.Departments.FirstOrDefaultAsync(d => d.Id == departmentId && !d.IsDeleted);
+        var department = await RepositoryContext.Departments
+            .AsNoTracking()
+            .FirstOrDefaultAsync(d => d.Id == departmentId && !d.IsDeleted);
         string deptName = department?.Name ?? "";
 
         return await RepositoryContext.ProductItems
+            .AsNoTracking()
             .Include(pi => pi.Product)
             .Include(pi => pi.ProductExitRequest)
             .Where(pi => (pi.Status == Entities.Models.Enums.ProductItemStatus.Exited && !pi.IsDeleted) &&
@@ -83,6 +89,7 @@ public class ProductItemRepository
     public async Task<ProductItem?> GetByIdAsync(int id)
     {
         return await RepositoryContext.ProductItems
+            .AsNoTracking()
             .Include(pi => pi.Product)
             .FirstOrDefaultAsync(pi => pi.Id == id && !pi.IsDeleted);
     }

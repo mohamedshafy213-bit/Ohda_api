@@ -12,6 +12,6 @@ public class WarehouseBin : TenantBaseTable
     public string? Description { get; set; }
     public bool IsActive { get; set; } = true;
 
-    public int DepartmentId { get; set; }
+    public int? DepartmentId { get; set; }
     public Department? Department { get; set; }
 }

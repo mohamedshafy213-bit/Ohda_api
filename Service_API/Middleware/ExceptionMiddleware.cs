@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Contracts.Responses;
 using LoggerService;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 
 namespace Service_API.Middleware
 {
@@ -27,7 +28,7 @@ namespace Service_API.Middleware
             }
             catch (Exception ex)
             {
-                _logger.LogError($"Unhandled exception occurred: {ex}");
+                _logger.LogError($"[GLOBAL_EXCEPTION_CAUGHT] Path: {httpContext.Request.Path} - Error: {ex}");
                 await HandleExceptionAsync(httpContext, ex);
             }
         }
@@ -35,20 +36,60 @@ namespace Service_API.Middleware
         private static async Task HandleExceptionAsync(HttpContext context, Exception exception)
         {
             context.Response.ContentType = "application/json";
-            context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
 
-            var message = "حدث خطأ داخلي في الخادم. يرجى المحاولة مرة أخرى لاحقاً.";
-            
-            // Localized database error message if it's a database exception
-            if (exception.ToString().Contains("Npgsql") || exception.ToString().Contains("Microsoft.EntityFrameworkCore"))
+            var statusCode = HttpStatusCode.BadRequest;
+            string userFriendlyMessage;
+
+            if (exception is DbUpdateException dbEx)
             {
-                message = "خطأ في معالجة البيانات بقاعدة البيانات. يرجى التأكد من صحة الحقول والمدخلات.";
+                var innerMessage = dbEx.InnerException?.Message ?? dbEx.Message;
+
+                if (innerMessage.Contains("IX_Users_Username") || innerMessage.Contains("Username"))
+                {
+                    userFriendlyMessage = "اسم المستخدم موجود مسبقاً، يرجى اختيار اسم مستخدم آخر.";
+                }
+                else if (innerMessage.Contains("IX_Users_Email") || innerMessage.Contains("Email"))
+                {
+                    userFriendlyMessage = "البريد الإلكتروني مسجل مسبقاً لمستخدم آخر.";
+                }
+                else if (innerMessage.Contains("PK_Users") || innerMessage.Contains("MilitaryNumber") || innerMessage.Contains("PRIMARY KEY"))
+                {
+                    userFriendlyMessage = "الرقم العسكري مسجل مسبقاً بالنظام.";
+                }
+                else if (innerMessage.Contains("FK_") || innerMessage.Contains("FOREIGN KEY"))
+                {
+                    userFriendlyMessage = "خطأ في ارتباط البيانات: القيمة المحددة (مثل الفرع أو مجموعة الصلاحيات) غير صحيحة أو تم حذفها.";
+                }
+                else
+                {
+                    userFriendlyMessage = $"تعذر حفظ التغييرات بقاعدة البيانات: {dbEx.InnerException?.Message ?? dbEx.Message}";
+                }
             }
+            else if (exception is UnauthorizedAccessException)
+            {
+                statusCode = HttpStatusCode.Unauthorized;
+                userFriendlyMessage = "غير مصرح لك بالقيام بهذا الإجراء.";
+            }
+            else if (exception is InvalidOperationException invalidOpEx)
+            {
+                userFriendlyMessage = invalidOpEx.Message;
+            }
+            else if (exception is ArgumentException argEx)
+            {
+                userFriendlyMessage = argEx.Message;
+            }
+            else
+            {
+                statusCode = HttpStatusCode.InternalServerError;
+                userFriendlyMessage = "حدث خطأ غير متوقع أثناء معالجة الطلب. تم تسجيل تفاصيل الخطأ بنجاح.";
+            }
+
+            context.Response.StatusCode = (int)statusCode;
 
             var response = new SingleObjectResponseModel
             {
                 IsDone = false,
-                ReturnMessage = message
+                ReturnMessage = userFriendlyMessage
             };
 
             var json = JsonSerializer.Serialize(response);

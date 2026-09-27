@@ -1,4 +1,19 @@
-﻿Scaffold-DbContext "Data Source=200.200.201.126/orcl; Persist Security Info = True ; User Id=HALLS;Password=halls;" Oracle.EntityFrameworkCore -UseDatabaseNames -outputdir Models -context dbContext -contextdir Models -DataAnnotations -Force
+Scaffold-DbContext "Data Source=200.200.201.126/orcl; Persist Security Info = True ; User Id=HALLS;Password=halls;" Oracle.EntityFrameworkCore -UseDatabaseNames -outputdir Models -context dbContext -contextdir Models -DataAnnotations -Force
 
 
-     
+--- SqlServer ---
+
+Add-Migration <MigrationName> -Context SqlServerContext -Project Entities -StartupProject Service_API
+
+Update-Database -Context SqlServerContext -Project Entities -StartupProject Service_API
+
+
+--- Postgres ---
+
+Add-Migration <MigrationName> -Context PostgresContext -Project Entities -StartupProject Service_API
+
+Update-Database -Context PostgresContext -Project Entities -StartupProject Service_API
+
+
+
+Add-Migration seeddata-newpage -Context SqlServerContext -Project Entities -StartupProject Service_API

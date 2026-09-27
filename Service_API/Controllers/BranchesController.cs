@@ -28,12 +28,16 @@ public class BranchesController : BaseController<Branch, BranchDto, BranchCreate
     {
         var response = await _repositoryWrapper.Branches.FindAll(pageNumber, pageSize);
         var dtos = (response as ListOfObjectsResponseModel<BranchDto>)?.Objects;
-        if (dtos != null)
+        if (dtos != null && dtos.Any())
         {
+            var branchIds = dtos.Select(dto => dto.Id).ToList();
+            var userCounts = await _repositoryWrapper.Branches.GetActiveUserCountsByBranchIdsAsync(branchIds);
+            var productCounts = await _repositoryWrapper.Branches.GetActiveProductCountsByBranchIdsAsync(branchIds);
+
             foreach (var dto in dtos)
             {
-                dto.CurrentUserCount = await _repositoryWrapper.Branches.GetActiveUserCountAsync(dto.Id);
-                dto.CurrentProductCount = await _repositoryWrapper.Branches.GetActiveProductCountAsync(dto.Id);
+                dto.CurrentUserCount = userCounts.TryGetValue(dto.Id, out int uc) ? uc : 0;
+                dto.CurrentProductCount = productCounts.TryGetValue(dto.Id, out int pc) ? pc : 0;
             }
         }
         return HandleResponse(response);

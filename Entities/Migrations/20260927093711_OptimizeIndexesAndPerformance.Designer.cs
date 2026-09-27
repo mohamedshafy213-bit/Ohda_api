@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Entities.Migrations
 {
     [DbContext(typeof(SqlServerContext))]
-    [Migration("20260826130623_AddDepartmentsAndStates")]
-    partial class AddDepartmentsAndStates
+    [Migration("20260927093711_OptimizeIndexesAndPerformance")]
+    partial class OptimizeIndexesAndPerformance
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -32,6 +32,9 @@ namespace Entities.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BranchId")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("DeleteDate")
                         .HasColumnType("datetime2");
@@ -68,9 +71,120 @@ namespace Entities.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BranchId");
+
                     b.HasIndex("UserGroupId");
 
                     b.ToTable("ApprovalConfigs");
+                });
+
+            modelBuilder.Entity("Entities.Models.Tables.Branch", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("ContactEmail")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ContactName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ContactPhone")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)")
+                        .HasDefaultValue("SAR");
+
+                    b.Property<string>("DefaultLanguage")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)")
+                        .HasDefaultValue("ar");
+
+                    b.Property<DateTime?>("DeleteDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DeleteUserCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("IndustryTemplate")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasDefaultValue("General");
+
+                    b.Property<DateTime?>("InsertDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("InsertUserCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("LastUpdate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("LogoUrl")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("MaxProducts")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MaxStorageMB")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MaxUsers")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<DateTime?>("SuspendedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("TimeZone")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasDefaultValue("Asia/Riyadh");
+
+                    b.Property<string>("UpdateUserCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("IsActive");
+
+                    b.HasIndex("IsDeleted");
+
+                    b.ToTable("Branches");
                 });
 
             modelBuilder.Entity("Entities.Models.Tables.Category", b =>
@@ -80,6 +194,9 @@ namespace Entities.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BranchId")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("DeleteDate")
                         .HasColumnType("datetime2");
@@ -111,6 +228,10 @@ namespace Entities.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("IsDeleted");
+
                     b.ToTable("Categories");
                 });
 
@@ -121,6 +242,9 @@ namespace Entities.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BranchId")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("DeleteDate")
                         .HasColumnType("datetime2");
@@ -186,7 +310,11 @@ namespace Entities.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BranchId");
+
                     b.HasIndex("DepartmentId");
+
+                    b.HasIndex("InsertDate");
 
                     b.HasIndex("ProductEntryRequestId");
 
@@ -204,6 +332,9 @@ namespace Entities.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BranchId")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("DeleteDate")
                         .HasColumnType("datetime2");
@@ -235,6 +366,10 @@ namespace Entities.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("IsDeleted");
+
                     b.ToTable("Departments");
                 });
 
@@ -245,6 +380,9 @@ namespace Entities.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BranchId")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("DeleteDate")
                         .HasColumnType("datetime2");
@@ -278,7 +416,11 @@ namespace Entities.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BranchId");
+
                     b.HasIndex("GrantedByUserId");
+
+                    b.HasIndex("IsDeleted");
 
                     b.HasIndex("PageId");
 
@@ -294,6 +436,12 @@ namespace Entities.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("BinId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("BranchId")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("DeleteDate")
                         .HasColumnType("datetime2");
@@ -330,7 +478,15 @@ namespace Entities.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BinId");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("IsDeleted");
+
                     b.HasIndex("ProductId");
+
+                    b.HasIndex("BranchId", "ProductId");
 
                     b.ToTable("Inventories");
                 });
@@ -342,6 +498,9 @@ namespace Entities.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BranchId")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("DeleteDate")
                         .HasColumnType("datetime2");
@@ -391,7 +550,15 @@ namespace Entities.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("IsDeleted");
+
+                    b.HasIndex("IsRead");
+
                     b.HasIndex("UserId");
+
+                    b.HasIndex("UserId", "IsRead", "IsDeleted");
 
                     b.ToTable("Notifications");
                 });
@@ -403,6 +570,9 @@ namespace Entities.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BranchId")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("DeleteDate")
                         .HasColumnType("datetime2");
@@ -437,6 +607,8 @@ namespace Entities.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BranchId");
+
                     b.HasIndex("UserId");
 
                     b.ToTable("Orders");
@@ -449,6 +621,9 @@ namespace Entities.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BranchId")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("DeleteDate")
                         .HasColumnType("datetime2");
@@ -485,6 +660,8 @@ namespace Entities.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
 
                     b.HasIndex("OrderId");
 
@@ -547,7 +724,7 @@ namespace Entities.Migrations
                         {
                             Id = 1,
                             Icon = "dashboard",
-                            InsertDate = new DateTime(2026, 8, 26, 13, 6, 22, 197, DateTimeKind.Utc).AddTicks(7685),
+                            InsertDate = new DateTime(2026, 9, 27, 9, 37, 10, 740, DateTimeKind.Utc).AddTicks(2537),
                             IsDeleted = false,
                             Path = "/dashboard",
                             SortOrder = 1,
@@ -557,7 +734,7 @@ namespace Entities.Migrations
                         {
                             Id = 2,
                             Icon = "inventory_2",
-                            InsertDate = new DateTime(2026, 8, 26, 13, 6, 22, 197, DateTimeKind.Utc).AddTicks(9613),
+                            InsertDate = new DateTime(2026, 9, 27, 9, 37, 10, 740, DateTimeKind.Utc).AddTicks(8793),
                             IsDeleted = false,
                             Path = "/products",
                             SortOrder = 2,
@@ -567,7 +744,7 @@ namespace Entities.Migrations
                         {
                             Id = 3,
                             Icon = "warehouse",
-                            InsertDate = new DateTime(2026, 8, 26, 13, 6, 22, 197, DateTimeKind.Utc).AddTicks(9617),
+                            InsertDate = new DateTime(2026, 9, 27, 9, 37, 10, 740, DateTimeKind.Utc).AddTicks(8797),
                             IsDeleted = false,
                             Path = "/inventory",
                             SortOrder = 3,
@@ -577,7 +754,7 @@ namespace Entities.Migrations
                         {
                             Id = 4,
                             Icon = "qr_code_scanner",
-                            InsertDate = new DateTime(2026, 8, 26, 13, 6, 22, 197, DateTimeKind.Utc).AddTicks(9619),
+                            InsertDate = new DateTime(2026, 9, 27, 9, 37, 10, 740, DateTimeKind.Utc).AddTicks(8799),
                             IsDeleted = false,
                             Path = "/scan",
                             SortOrder = 4,
@@ -587,7 +764,7 @@ namespace Entities.Migrations
                         {
                             Id = 5,
                             Icon = "assignment_return",
-                            InsertDate = new DateTime(2026, 8, 26, 13, 6, 22, 197, DateTimeKind.Utc).AddTicks(9620),
+                            InsertDate = new DateTime(2026, 9, 27, 9, 37, 10, 740, DateTimeKind.Utc).AddTicks(8800),
                             IsDeleted = false,
                             Path = "/exit-requests",
                             SortOrder = 5,
@@ -597,7 +774,7 @@ namespace Entities.Migrations
                         {
                             Id = 6,
                             Icon = "shopping_cart",
-                            InsertDate = new DateTime(2026, 8, 26, 13, 6, 22, 197, DateTimeKind.Utc).AddTicks(9622),
+                            InsertDate = new DateTime(2026, 9, 27, 9, 37, 10, 740, DateTimeKind.Utc).AddTicks(8827),
                             IsDeleted = false,
                             Path = "/orders",
                             SortOrder = 6,
@@ -607,7 +784,7 @@ namespace Entities.Migrations
                         {
                             Id = 7,
                             Icon = "category",
-                            InsertDate = new DateTime(2026, 8, 26, 13, 6, 22, 197, DateTimeKind.Utc).AddTicks(9624),
+                            InsertDate = new DateTime(2026, 9, 27, 9, 37, 10, 740, DateTimeKind.Utc).AddTicks(8828),
                             IsDeleted = false,
                             Path = "/categories",
                             SortOrder = 7,
@@ -617,7 +794,7 @@ namespace Entities.Migrations
                         {
                             Id = 8,
                             Icon = "local_shipping",
-                            InsertDate = new DateTime(2026, 8, 26, 13, 6, 22, 197, DateTimeKind.Utc).AddTicks(9625),
+                            InsertDate = new DateTime(2026, 9, 27, 9, 37, 10, 740, DateTimeKind.Utc).AddTicks(8830),
                             IsDeleted = false,
                             Path = "/suppliers",
                             SortOrder = 8,
@@ -627,7 +804,7 @@ namespace Entities.Migrations
                         {
                             Id = 9,
                             Icon = "group",
-                            InsertDate = new DateTime(2026, 8, 26, 13, 6, 22, 197, DateTimeKind.Utc).AddTicks(9626),
+                            InsertDate = new DateTime(2026, 9, 27, 9, 37, 10, 740, DateTimeKind.Utc).AddTicks(8831),
                             IsDeleted = false,
                             Path = "/users",
                             SortOrder = 9,
@@ -637,12 +814,77 @@ namespace Entities.Migrations
                         {
                             Id = 11,
                             Icon = "explore",
-                            InsertDate = new DateTime(2026, 8, 26, 13, 6, 22, 197, DateTimeKind.Utc).AddTicks(9629),
+                            InsertDate = new DateTime(2026, 9, 27, 9, 37, 10, 740, DateTimeKind.Utc).AddTicks(8832),
                             IsDeleted = false,
                             Path = "/compass",
                             SortOrder = 10,
                             Title = "Compass Log"
                         });
+                });
+
+            modelBuilder.Entity("Entities.Models.Tables.PlatformAuditLog", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int?>("BranchId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DeleteDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DeleteUserCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Details")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("InsertDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("InsertUserCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("LastUpdate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("Timestamp")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdateUserCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("Timestamp");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("PlatformAuditLogs");
                 });
 
             modelBuilder.Entity("Entities.Models.Tables.Product", b =>
@@ -661,6 +903,9 @@ namespace Entities.Migrations
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("BranchId")
+                        .HasColumnType("int");
 
                     b.Property<int>("CategoryId")
                         .HasColumnType("int");
@@ -700,10 +945,10 @@ namespace Entities.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<int>("SupplierId")
+                    b.Property<int?>("SupplierId")
                         .HasColumnType("int");
 
-                    b.Property<decimal>("UnitPrice")
+                    b.Property<decimal?>("UnitPrice")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
@@ -712,15 +957,17 @@ namespace Entities.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Barcode")
-                        .IsUnique();
+                    b.HasIndex("BranchId");
 
                     b.HasIndex("CategoryId");
 
-                    b.HasIndex("SKU")
+                    b.HasIndex("SupplierId");
+
+                    b.HasIndex("BranchId", "Barcode")
                         .IsUnique();
 
-                    b.HasIndex("SupplierId");
+                    b.HasIndex("BranchId", "SKU")
+                        .IsUnique();
 
                     b.ToTable("Products");
                 });
@@ -733,6 +980,9 @@ namespace Entities.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<int>("BranchId")
+                        .HasColumnType("int");
+
                     b.Property<DateTime?>("DeleteDate")
                         .HasColumnType("datetime2");
 
@@ -740,9 +990,6 @@ namespace Entities.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<int?>("DepartmentId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("EnteredQuantity")
                         .HasColumnType("int");
 
                     b.Property<string>("FromSource")
@@ -773,9 +1020,6 @@ namespace Entities.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
-                    b.Property<int>("ProductId")
-                        .HasColumnType("int");
-
                     b.Property<int?>("ProductStateId")
                         .HasColumnType("int");
 
@@ -796,19 +1040,91 @@ namespace Entities.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BranchId");
+
                     b.HasIndex("DepartmentId");
 
-                    b.HasIndex("ManagerId");
+                    b.HasIndex("InsertDate");
 
-                    b.HasIndex("ProductId");
+                    b.HasIndex("ManagerId");
 
                     b.HasIndex("ProductStateId");
 
                     b.HasIndex("ReceivedByUserId");
 
+                    b.HasIndex("Status");
+
                     b.HasIndex("SupervisorId");
 
                     b.ToTable("ProductEntryRequests");
+                });
+
+            modelBuilder.Entity("Entities.Models.Tables.ProductEntryRequestItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("BinId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("BranchId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DeleteDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DeleteUserCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("InsertDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("InsertUserCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("LastUpdate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("ProductEntryRequestId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ProductId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ProductStateId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<string>("UpdateUserCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BinId");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("ProductEntryRequestId");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("ProductStateId");
+
+                    b.ToTable("ProductEntryRequestItems");
                 });
 
             modelBuilder.Entity("Entities.Models.Tables.ProductExitRequest", b =>
@@ -818,6 +1134,9 @@ namespace Entities.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BranchId")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("DeleteDate")
                         .HasColumnType("datetime2");
@@ -843,16 +1162,9 @@ namespace Entities.Migrations
                     b.Property<int?>("ManagerId")
                         .HasColumnType("int");
 
-                    b.Property<int>("ProductId")
-                        .HasColumnType("int");
-
                     b.Property<string>("Purpose")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("RecipientDepartment")
-                        .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
 
                     b.Property<string>("RecipientName")
                         .IsRequired()
@@ -863,9 +1175,6 @@ namespace Entities.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("RequestedByUserId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("RequestedQuantity")
                         .HasColumnType("int");
 
                     b.Property<int>("Status")
@@ -879,17 +1188,79 @@ namespace Entities.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BranchId");
+
                     b.HasIndex("DepartmentId");
+
+                    b.HasIndex("InsertDate");
 
                     b.HasIndex("ManagerId");
 
-                    b.HasIndex("ProductId");
-
                     b.HasIndex("RequestedByUserId");
+
+                    b.HasIndex("Status");
 
                     b.HasIndex("SupervisorId");
 
                     b.ToTable("ProductExitRequests");
+                });
+
+            modelBuilder.Entity("Entities.Models.Tables.ProductExitRequestItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BranchId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DeleteDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DeleteUserCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("InsertDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("InsertUserCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("LastUpdate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("ProductExitRequestId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ProductId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<string>("UpdateUserCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("ProductExitRequestId");
+
+                    b.HasIndex("ProductId");
+
+                    b.ToTable("ProductExitRequestItems");
                 });
 
             modelBuilder.Entity("Entities.Models.Tables.ProductItem", b =>
@@ -899,6 +1270,12 @@ namespace Entities.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("BinId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("BranchId")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("DeleteDate")
                         .HasColumnType("datetime2");
@@ -954,12 +1331,22 @@ namespace Entities.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BinId");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("IsDeleted");
+
                     b.HasIndex("ProductExitRequestId");
 
                     b.HasIndex("ProductId");
 
-                    b.HasIndex("SerialNumber")
+                    b.HasIndex("Status");
+
+                    b.HasIndex("BranchId", "SerialNumber")
                         .IsUnique();
+
+                    b.HasIndex("ProductId", "Status");
 
                     b.ToTable("ProductItems");
                 });
@@ -971,6 +1358,9 @@ namespace Entities.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BranchId")
+                        .HasColumnType("int");
 
                     b.Property<string>("Code")
                         .HasColumnType("nvarchar(max)");
@@ -1002,6 +1392,10 @@ namespace Entities.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("IsDeleted");
+
                     b.ToTable("ProductStates");
                 });
 
@@ -1016,6 +1410,9 @@ namespace Entities.Migrations
                     b.Property<string>("BarcodeScanned")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("BranchId")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("DeleteDate")
                         .HasColumnType("datetime2");
@@ -1051,6 +1448,8 @@ namespace Entities.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
 
                     b.HasIndex("ProductId");
 
@@ -1132,6 +1531,9 @@ namespace Entities.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<int>("BranchId")
+                        .HasColumnType("int");
+
                     b.Property<string>("CompanyName")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -1168,16 +1570,21 @@ namespace Entities.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("IsDeleted");
+
                     b.ToTable("Suppliers");
                 });
 
             modelBuilder.Entity("Entities.Models.Tables.User", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
+                    b.Property<int>("MilitaryNumber")
+                        .HasColumnType("int")
+                        .HasColumnName("id");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+                    b.Property<int?>("BranchId")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("DeleteDate")
                         .HasColumnType("datetime2");
@@ -1202,6 +1609,9 @@ namespace Entities.Migrations
                     b.Property<DateTime?>("LastUpdate")
                         .HasColumnType("datetime2");
 
+                    b.Property<bool>("MustChangePassword")
+                        .HasColumnType("bit");
+
                     b.Property<string>("PasswordHash")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -1223,7 +1633,9 @@ namespace Entities.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.HasKey("Id");
+                    b.HasKey("MilitaryNumber");
+
+                    b.HasIndex("BranchId");
 
                     b.HasIndex("Email")
                         .IsUnique();
@@ -1243,6 +1655,9 @@ namespace Entities.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BranchId")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("DeleteDate")
                         .HasColumnType("datetime2");
@@ -1276,6 +1691,10 @@ namespace Entities.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("IsDeleted");
+
                     b.ToTable("UserGroups");
                 });
 
@@ -1286,6 +1705,9 @@ namespace Entities.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BranchId")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("DeleteDate")
                         .HasColumnType("datetime2");
@@ -1319,28 +1741,128 @@ namespace Entities.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BranchId");
+
                     b.HasIndex("GrantedByUserId");
+
+                    b.HasIndex("IsDeleted");
 
                     b.HasIndex("PageId");
 
                     b.HasIndex("UserId");
 
+                    b.HasIndex("UserId", "PageId", "IsDeleted");
+
                     b.ToTable("UserPagePermissions");
+                });
+
+            modelBuilder.Entity("Entities.Models.Tables.WarehouseBin", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Aisle")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("BranchId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("Capacity")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("DeleteDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DeleteUserCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("DepartmentId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("InsertDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("InsertUserCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("LastUpdate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Shelf")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("UpdateUserCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("DepartmentId");
+
+                    b.HasIndex("IsDeleted");
+
+                    b.ToTable("WarehouseBins");
                 });
 
             modelBuilder.Entity("Entities.Models.Tables.ApprovalConfig", b =>
                 {
+                    b.HasOne("Entities.Models.Tables.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("Entities.Models.Tables.UserGroup", "UserGroup")
                         .WithMany()
                         .HasForeignKey("UserGroupId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.Navigation("Branch");
+
                     b.Navigation("UserGroup");
+                });
+
+            modelBuilder.Entity("Entities.Models.Tables.Category", b =>
+                {
+                    b.HasOne("Entities.Models.Tables.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Branch");
                 });
 
             modelBuilder.Entity("Entities.Models.Tables.Compass", b =>
                 {
+                    b.HasOne("Entities.Models.Tables.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("Entities.Models.Tables.Department", "Department")
                         .WithMany()
                         .HasForeignKey("DepartmentId");
@@ -1358,6 +1880,8 @@ namespace Entities.Migrations
                         .WithMany()
                         .HasForeignKey("ProductStateId");
 
+                    b.Navigation("Branch");
+
                     b.Navigation("Department");
 
                     b.Navigation("ProductEntryRequest");
@@ -1367,8 +1891,25 @@ namespace Entities.Migrations
                     b.Navigation("ProductState");
                 });
 
+            modelBuilder.Entity("Entities.Models.Tables.Department", b =>
+                {
+                    b.HasOne("Entities.Models.Tables.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Branch");
+                });
+
             modelBuilder.Entity("Entities.Models.Tables.GroupPagePermission", b =>
                 {
+                    b.HasOne("Entities.Models.Tables.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("Entities.Models.Tables.User", "GrantedByUser")
                         .WithMany()
                         .HasForeignKey("GrantedByUserId")
@@ -1386,6 +1927,8 @@ namespace Entities.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.Navigation("Branch");
+
                     b.Navigation("GrantedByUser");
 
                     b.Navigation("Page");
@@ -1395,39 +1938,75 @@ namespace Entities.Migrations
 
             modelBuilder.Entity("Entities.Models.Tables.Inventory", b =>
                 {
+                    b.HasOne("Entities.Models.Tables.WarehouseBin", "Bin")
+                        .WithMany()
+                        .HasForeignKey("BinId");
+
+                    b.HasOne("Entities.Models.Tables.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("Entities.Models.Tables.Product", "Product")
                         .WithMany()
                         .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.Navigation("Bin");
+
+                    b.Navigation("Branch");
+
                     b.Navigation("Product");
                 });
 
             modelBuilder.Entity("Entities.Models.Tables.Notification", b =>
                 {
+                    b.HasOne("Entities.Models.Tables.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("Entities.Models.Tables.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.Navigation("Branch");
+
                     b.Navigation("User");
                 });
 
             modelBuilder.Entity("Entities.Models.Tables.Order", b =>
                 {
+                    b.HasOne("Entities.Models.Tables.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("Entities.Models.Tables.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.Navigation("Branch");
+
                     b.Navigation("User");
                 });
 
             modelBuilder.Entity("Entities.Models.Tables.OrderDetail", b =>
                 {
+                    b.HasOne("Entities.Models.Tables.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("Entities.Models.Tables.Order", "Order")
                         .WithMany("OrderDetails")
                         .HasForeignKey("OrderId")
@@ -1440,13 +2019,38 @@ namespace Entities.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.Navigation("Branch");
+
                     b.Navigation("Order");
 
                     b.Navigation("Product");
                 });
 
+            modelBuilder.Entity("Entities.Models.Tables.PlatformAuditLog", b =>
+                {
+                    b.HasOne("Entities.Models.Tables.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Entities.Models.Tables.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Branch");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Entities.Models.Tables.Product", b =>
                 {
+                    b.HasOne("Entities.Models.Tables.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("Entities.Models.Tables.Category", "Category")
                         .WithMany()
                         .HasForeignKey("CategoryId")
@@ -1456,8 +2060,9 @@ namespace Entities.Migrations
                     b.HasOne("Entities.Models.Tables.Supplier", "Supplier")
                         .WithMany()
                         .HasForeignKey("SupplierId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Branch");
 
                     b.Navigation("Category");
 
@@ -1466,6 +2071,12 @@ namespace Entities.Migrations
 
             modelBuilder.Entity("Entities.Models.Tables.ProductEntryRequest", b =>
                 {
+                    b.HasOne("Entities.Models.Tables.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("Entities.Models.Tables.Department", "Department")
                         .WithMany()
                         .HasForeignKey("DepartmentId");
@@ -1474,12 +2085,6 @@ namespace Entities.Migrations
                         .WithMany()
                         .HasForeignKey("ManagerId")
                         .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("Entities.Models.Tables.Product", "Product")
-                        .WithMany()
-                        .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
 
                     b.HasOne("Entities.Models.Tables.ProductState", "ProductState")
                         .WithMany()
@@ -1496,11 +2101,11 @@ namespace Entities.Migrations
                         .HasForeignKey("SupervisorId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.Navigation("Branch");
+
                     b.Navigation("Department");
 
                     b.Navigation("Manager");
-
-                    b.Navigation("Product");
 
                     b.Navigation("ProductState");
 
@@ -1509,8 +2114,54 @@ namespace Entities.Migrations
                     b.Navigation("Supervisor");
                 });
 
+            modelBuilder.Entity("Entities.Models.Tables.ProductEntryRequestItem", b =>
+                {
+                    b.HasOne("Entities.Models.Tables.WarehouseBin", "Bin")
+                        .WithMany()
+                        .HasForeignKey("BinId");
+
+                    b.HasOne("Entities.Models.Tables.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Entities.Models.Tables.ProductEntryRequest", "ProductEntryRequest")
+                        .WithMany("Items")
+                        .HasForeignKey("ProductEntryRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Entities.Models.Tables.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Entities.Models.Tables.ProductState", "ProductState")
+                        .WithMany()
+                        .HasForeignKey("ProductStateId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Bin");
+
+                    b.Navigation("Branch");
+
+                    b.Navigation("Product");
+
+                    b.Navigation("ProductEntryRequest");
+
+                    b.Navigation("ProductState");
+                });
+
             modelBuilder.Entity("Entities.Models.Tables.ProductExitRequest", b =>
                 {
+                    b.HasOne("Entities.Models.Tables.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("Entities.Models.Tables.Department", "Department")
                         .WithMany()
                         .HasForeignKey("DepartmentId");
@@ -1519,12 +2170,6 @@ namespace Entities.Migrations
                         .WithMany()
                         .HasForeignKey("ManagerId")
                         .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("Entities.Models.Tables.Product", "Product")
-                        .WithMany()
-                        .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
 
                     b.HasOne("Entities.Models.Tables.User", "RequestedByUser")
                         .WithMany()
@@ -1537,19 +2182,56 @@ namespace Entities.Migrations
                         .HasForeignKey("SupervisorId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.Navigation("Branch");
+
                     b.Navigation("Department");
 
                     b.Navigation("Manager");
-
-                    b.Navigation("Product");
 
                     b.Navigation("RequestedByUser");
 
                     b.Navigation("Supervisor");
                 });
 
+            modelBuilder.Entity("Entities.Models.Tables.ProductExitRequestItem", b =>
+                {
+                    b.HasOne("Entities.Models.Tables.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Entities.Models.Tables.ProductExitRequest", "ProductExitRequest")
+                        .WithMany("Items")
+                        .HasForeignKey("ProductExitRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Entities.Models.Tables.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Branch");
+
+                    b.Navigation("Product");
+
+                    b.Navigation("ProductExitRequest");
+                });
+
             modelBuilder.Entity("Entities.Models.Tables.ProductItem", b =>
                 {
+                    b.HasOne("Entities.Models.Tables.WarehouseBin", "Bin")
+                        .WithMany()
+                        .HasForeignKey("BinId");
+
+                    b.HasOne("Entities.Models.Tables.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("Entities.Models.Tables.ProductExitRequest", "ProductExitRequest")
                         .WithMany()
                         .HasForeignKey("ProductExitRequestId")
@@ -1561,32 +2243,90 @@ namespace Entities.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.Navigation("Bin");
+
+                    b.Navigation("Branch");
+
                     b.Navigation("Product");
 
                     b.Navigation("ProductExitRequest");
                 });
 
+            modelBuilder.Entity("Entities.Models.Tables.ProductState", b =>
+                {
+                    b.HasOne("Entities.Models.Tables.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Branch");
+                });
+
             modelBuilder.Entity("Entities.Models.Tables.ScanTransaction", b =>
                 {
+                    b.HasOne("Entities.Models.Tables.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("Entities.Models.Tables.Product", "Product")
                         .WithMany()
                         .HasForeignKey("ProductId");
 
+                    b.Navigation("Branch");
+
                     b.Navigation("Product");
+                });
+
+            modelBuilder.Entity("Entities.Models.Tables.Supplier", b =>
+                {
+                    b.HasOne("Entities.Models.Tables.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Branch");
                 });
 
             modelBuilder.Entity("Entities.Models.Tables.User", b =>
                 {
+                    b.HasOne("Entities.Models.Tables.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Entities.Models.Tables.UserGroup", "UserGroup")
                         .WithMany("Users")
                         .HasForeignKey("UserGroupId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.Navigation("Branch");
+
                     b.Navigation("UserGroup");
+                });
+
+            modelBuilder.Entity("Entities.Models.Tables.UserGroup", b =>
+                {
+                    b.HasOne("Entities.Models.Tables.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Branch");
                 });
 
             modelBuilder.Entity("Entities.Models.Tables.UserPagePermission", b =>
                 {
+                    b.HasOne("Entities.Models.Tables.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("Entities.Models.Tables.User", "GrantedByUser")
                         .WithMany()
                         .HasForeignKey("GrantedByUserId")
@@ -1601,8 +2341,10 @@ namespace Entities.Migrations
                     b.HasOne("Entities.Models.Tables.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Branch");
 
                     b.Navigation("GrantedByUser");
 
@@ -1611,9 +2353,37 @@ namespace Entities.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Entities.Models.Tables.WarehouseBin", b =>
+                {
+                    b.HasOne("Entities.Models.Tables.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Entities.Models.Tables.Department", "Department")
+                        .WithMany()
+                        .HasForeignKey("DepartmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Branch");
+
+                    b.Navigation("Department");
+                });
+
             modelBuilder.Entity("Entities.Models.Tables.Order", b =>
                 {
                     b.Navigation("OrderDetails");
+                });
+
+            modelBuilder.Entity("Entities.Models.Tables.ProductEntryRequest", b =>
+                {
+                    b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("Entities.Models.Tables.ProductExitRequest", b =>
+                {
+                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("Entities.Models.Tables.UserGroup", b =>

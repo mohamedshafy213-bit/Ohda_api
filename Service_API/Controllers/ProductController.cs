@@ -27,12 +27,13 @@ public class ProductController : BaseController<Product, ProductDto, ProductCrea
     {
         var response = await _repositoryWrapper.Products.FindAll(pageNumber, pageSize);
         var dtos = (response as ListOfObjectsResponseModel<ProductDto>)?.Objects;
-        if (dtos != null)
+        if (dtos != null && dtos.Any())
         {
+            var productIds = dtos.Select(d => d.Id).ToList();
+            var quantities = await _repositoryWrapper.Inventories.GetQuantitiesByProductIdsAsync(productIds);
             foreach (var dto in dtos)
             {
-                var inventory = await _repositoryWrapper.Inventories.GetByProductIdAsync(dto.Id);
-                int qty = inventory?.Quantity ?? 0;
+                int qty = quantities.TryGetValue(dto.Id, out int q) ? q : 0;
                 dto.Amount = qty;
                 dto.Quantity = qty;
             }
@@ -83,8 +84,24 @@ public class ProductController : BaseController<Product, ProductDto, ProductCrea
                     MaxStock = 500
                 });
 
-                // Generate individual ProductItems
-                for (int u = 1; u <= initialAmount; u++)
+                // Generate or assign individual ProductItems
+                var customSerials = createDto.SerialNumbers?.Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s.Trim()).ToList() ?? new List<string>();
+                int assignedCount = 0;
+
+                foreach (var customSerial in customSerials)
+                {
+                    assignedCount++;
+                    string qrCode = $"QR-{customSerial}";
+                    await _repositoryWrapper.ProductItems.Create(new Contracts.DTOs.ProductItem.ProductItemCreateDto
+                    {
+                        ProductId = createdProduct.Id,
+                        SerialNumber = customSerial,
+                        QRCode = qrCode,
+                        Status = ProductItemStatus.InStock
+                    });
+                }
+
+                for (int u = assignedCount + 1; u <= initialAmount; u++)
                 {
                     string guidSuffix = Guid.NewGuid().ToString().Substring(0, 8).ToUpper();
                     string serialNumber = $"SN-{createdProduct.SKU}-{u}-{guidSuffix}";

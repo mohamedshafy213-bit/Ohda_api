@@ -24,11 +24,12 @@ public class UserRepository
 
     public async Task<User?> GetByUsernameAsync(string username)
     {
+        var cleanUsername = username.Trim();
         return await RepositoryContext.Users
             .IgnoreQueryFilters()
             .Include(u => u.UserGroup)
             .Include(u => u.Branch)
-            .FirstOrDefaultAsync(u => u.Username.ToLower() == username.ToLower() && !u.IsDeleted);
+            .FirstOrDefaultAsync(u => u.Username == cleanUsername && !u.IsDeleted);
     }
 
     public async Task<User?> GetByIdWithGroupAsync(int id)
@@ -44,10 +45,8 @@ public class UserRepository
     {
         var query = RepositoryContext.Users
             .IgnoreQueryFilters()
-            .Where(u => !u.IsDeleted)
-            .Include(u => u.Branch)
-            .Include(u => u.UserGroup)
-            .AsNoTracking();
+            .AsNoTracking()
+            .Where(u => !u.IsDeleted);
 
         if (!isSuperAdmin)
         {

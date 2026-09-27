@@ -7,6 +7,7 @@ using LoggerService;
 using MapsterMapper;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Repositories.Repositories;
 
 namespace Repositories.Models;
@@ -23,16 +24,38 @@ public class UserPagePermissionRepository
     {
     }
 
+    private void InvalidateUserPermissionCache(int userId)
+    {
+        var cache = MemoryCache;
+        if (cache != null)
+        {
+            cache.Remove($"UserAllowedPages_{userId}");
+        }
+    }
+
     public async Task<List<PageDto>> GetAllowedPagesForUserAsync(int userId)
     {
-        var user = await RepositoryContext.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.MilitaryNumber == userId);
+        var cache = MemoryCache;
+        string cacheKey = $"UserAllowedPages_{userId}";
+        if (cache != null && cache.TryGetValue(cacheKey, out List<PageDto>? cachedPages) && cachedPages != null)
+        {
+            return cachedPages;
+        }
+
+        var user = await RepositoryContext.Users
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.MilitaryNumber == userId);
+
         if (user == null)
             return new List<PageDto>();
+
+        List<PageDto> result;
 
         if (user.Role == Entities.Models.Enums.UserRole.SuperAdmin)
         {
             // SuperAdmin gets access to all active pages including branch platform management
-            return await RepositoryContext.Pages
+            result = await RepositoryContext.Pages
                 .IgnoreQueryFilters()
                 .AsNoTracking()
                 .Where(p => !p.IsDeleted)
@@ -47,33 +70,13 @@ public class UserPagePermissionRepository
                 })
                 .ToListAsync();
         }
-
-        // 1. Direct user-specific page permissions
-        var directUserPages = await RepositoryContext.UserPagePermissions
-            .IgnoreQueryFilters()
-            .AsNoTracking()
-            .Where(p => p.UserId == userId && !p.IsDeleted && p.Page != null && !p.Page.IsDeleted)
-            .OrderBy(p => p.Page!.SortOrder)
-            .Select(p => new PageDto
-            {
-                Id = p.Page!.Id,
-                Title = p.Page.Title,
-                Path = p.Page.Path,
-                Icon = p.Page.Icon,
-                SortOrder = p.Page.SortOrder
-            })
-            .ToListAsync();
-
-        if (directUserPages.Any())
-            return directUserPages;
-
-        // 2. User group permissions if assigned
-        if (user.UserGroupId.HasValue)
+        else
         {
-            var groupPages = await RepositoryContext.GroupPagePermissions
+            // 1. Direct user-specific page permissions
+            var directUserPages = await RepositoryContext.UserPagePermissions
                 .IgnoreQueryFilters()
                 .AsNoTracking()
-                .Where(p => p.UserGroupId == user.UserGroupId.Value && !p.IsDeleted && p.Page != null && !p.Page.IsDeleted)
+                .Where(p => p.UserId == userId && !p.IsDeleted && p.Page != null && !p.Page.IsDeleted)
                 .OrderBy(p => p.Page!.SortOrder)
                 .Select(p => new PageDto
                 {
@@ -85,44 +88,111 @@ public class UserPagePermissionRepository
                 })
                 .ToListAsync();
 
-            if (groupPages.Any())
-                return groupPages;
-        }
-
-        // 3. Fallback for branch Admin without specific group
-        if (user.Role == Entities.Models.Enums.UserRole.Admin)
-        {
-            return await RepositoryContext.Pages
-                .IgnoreQueryFilters()
-                .AsNoTracking()
-                .Where(p => !p.IsDeleted && p.Path != "/branches" && p.Path != "/branches-dashboard" && p.Path != "/ohda/branches" && p.Path != "/ohda/branches-dashboard")
-                .OrderBy(p => p.SortOrder)
-                .Select(p => new PageDto
-                {
-                    Id = p.Id,
-                    Title = p.Title,
-                    Path = p.Path,
-                    Icon = p.Icon,
-                    SortOrder = p.SortOrder
-                })
-                .ToListAsync();
-        }
-
-        // 4. Default minimal fallback for other users
-        return await RepositoryContext.Pages
-            .IgnoreQueryFilters()
-            .AsNoTracking()
-            .Where(p => !p.IsDeleted && (p.Path == "/dashboard" || p.Path == "/ohda/dashboard"))
-            .OrderBy(p => p.SortOrder)
-            .Select(p => new PageDto
+            if (directUserPages.Any())
             {
-                Id = p.Id,
-                Title = p.Title,
-                Path = p.Path,
-                Icon = p.Icon,
-                SortOrder = p.SortOrder
-            })
-            .ToListAsync();
+                result = directUserPages;
+            }
+            else if (user.UserGroupId.HasValue)
+            {
+                // 2. User group permissions if assigned
+                var groupPages = await RepositoryContext.GroupPagePermissions
+                    .IgnoreQueryFilters()
+                    .AsNoTracking()
+                    .Where(p => p.UserGroupId == user.UserGroupId.Value && !p.IsDeleted && p.Page != null && !p.Page.IsDeleted)
+                    .OrderBy(p => p.Page!.SortOrder)
+                    .Select(p => new PageDto
+                    {
+                        Id = p.Page!.Id,
+                        Title = p.Page.Title,
+                        Path = p.Page.Path,
+                        Icon = p.Page.Icon,
+                        SortOrder = p.Page.SortOrder
+                    })
+                    .ToListAsync();
+
+                if (groupPages.Any())
+                {
+                    result = groupPages;
+                }
+                else if (user.Role == Entities.Models.Enums.UserRole.Admin)
+                {
+                    // 3. Fallback for branch Admin without specific group
+                    result = await RepositoryContext.Pages
+                        .IgnoreQueryFilters()
+                        .AsNoTracking()
+                        .Where(p => !p.IsDeleted && p.Path != "/branches" && p.Path != "/branches-dashboard" && p.Path != "/ohda/branches" && p.Path != "/ohda/branches-dashboard")
+                        .OrderBy(p => p.SortOrder)
+                        .Select(p => new PageDto
+                        {
+                            Id = p.Id,
+                            Title = p.Title,
+                            Path = p.Path,
+                            Icon = p.Icon,
+                            SortOrder = p.SortOrder
+                        })
+                        .ToListAsync();
+                }
+                else
+                {
+                    // 4. Default minimal fallback for other users
+                    result = await RepositoryContext.Pages
+                        .IgnoreQueryFilters()
+                        .AsNoTracking()
+                        .Where(p => !p.IsDeleted && (p.Path == "/dashboard" || p.Path == "/ohda/dashboard"))
+                        .OrderBy(p => p.SortOrder)
+                        .Select(p => new PageDto
+                        {
+                            Id = p.Id,
+                            Title = p.Title,
+                            Path = p.Path,
+                            Icon = p.Icon,
+                            SortOrder = p.SortOrder
+                        })
+                        .ToListAsync();
+                }
+            }
+            else if (user.Role == Entities.Models.Enums.UserRole.Admin)
+            {
+                result = await RepositoryContext.Pages
+                    .IgnoreQueryFilters()
+                    .AsNoTracking()
+                    .Where(p => !p.IsDeleted && p.Path != "/branches" && p.Path != "/branches-dashboard" && p.Path != "/ohda/branches" && p.Path != "/ohda/branches-dashboard")
+                    .OrderBy(p => p.SortOrder)
+                    .Select(p => new PageDto
+                    {
+                        Id = p.Id,
+                        Title = p.Title,
+                        Path = p.Path,
+                        Icon = p.Icon,
+                        SortOrder = p.SortOrder
+                    })
+                    .ToListAsync();
+            }
+            else
+            {
+                result = await RepositoryContext.Pages
+                    .IgnoreQueryFilters()
+                    .AsNoTracking()
+                    .Where(p => !p.IsDeleted && (p.Path == "/dashboard" || p.Path == "/ohda/dashboard"))
+                    .OrderBy(p => p.SortOrder)
+                    .Select(p => new PageDto
+                    {
+                        Id = p.Id,
+                        Title = p.Title,
+                        Path = p.Path,
+                        Icon = p.Icon,
+                        SortOrder = p.SortOrder
+                    })
+                    .ToListAsync();
+            }
+        }
+
+        if (cache != null)
+        {
+            cache.Set(cacheKey, result, TimeSpan.FromMinutes(10));
+        }
+
+        return result;
     }
 
     public async Task<bool> GrantPermissionAsync(int userId, int pageId, int grantedByUserId)
@@ -150,6 +220,7 @@ public class UserPagePermissionRepository
 
         await RepositoryContext.UserPagePermissions.AddAsync(permission);
         await RepositoryContext.SaveChangesAsync();
+        InvalidateUserPermissionCache(userId);
         return true;
     }
 
@@ -164,6 +235,7 @@ public class UserPagePermissionRepository
         existing.IsDeleted = true;
         existing.DeleteDate = DateTime.UtcNow;
         await RepositoryContext.SaveChangesAsync();
+        InvalidateUserPermissionCache(userId);
         return true;
     }
 
@@ -174,5 +246,6 @@ public class UserPagePermissionRepository
         {
             await GrantPermissionAsync(userId, page.Id, grantedByUserId);
         }
+        InvalidateUserPermissionCache(userId);
     }
 }

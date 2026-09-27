@@ -13,7 +13,7 @@ public class WarehouseBinDto : BaseDto
     public string? Description { get; set; }
     public bool IsActive { get; set; } = true;
 
-    public int DepartmentId { get; set; }
+    public int? DepartmentId { get; set; }
     public string? DepartmentName { get; set; }
     public int ItemsCount { get; set; }
     public DateTime? InsertDate { get; set; }
@@ -29,7 +29,7 @@ public class WarehouseBinCreateDto : BaseCreateDto
     public int? Capacity { get; set; }
     public string? Description { get; set; }
     public bool IsActive { get; set; } = true;
-    public int DepartmentId { get; set; }
+    public int? DepartmentId { get; set; }
 }
 
 public class WarehouseBinUpdateDto : BaseUpdateDto
@@ -41,7 +41,7 @@ public class WarehouseBinUpdateDto : BaseUpdateDto
     public int? Capacity { get; set; }
     public string? Description { get; set; }
     public bool IsActive { get; set; } = true;
-    public int DepartmentId { get; set; }
+    public int? DepartmentId { get; set; }
 }
 
 public class WarehouseBinItemDto

@@ -5,6 +5,7 @@ using Entities.Models.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace Service_API.Controllers;
 
@@ -14,35 +15,59 @@ namespace Service_API.Controllers;
 public class DashboardController : ControllerBase
 {
     private readonly RepositoryContext _context;
+    private readonly IMemoryCache _memoryCache;
 
-    public DashboardController(RepositoryContext context)
+    public DashboardController(RepositoryContext context, IMemoryCache memoryCache)
     {
         _context = context;
+        _memoryCache = memoryCache;
     }
 
     [HttpGet]
     [HttpGet("product-status")]
     public async Task<IActionResult> GetProductStatusDashboard()
     {
-        var totalProducts = await _context.Products.CountAsync(p => !p.IsDeleted);
-        var totalCategories = await _context.Categories.CountAsync(c => !c.IsDeleted);
-        var totalSuppliers = await _context.Suppliers.CountAsync(s => !s.IsDeleted);
+        var branchId = _context.CurrentBranchId ?? 0;
+        var cacheKey = $"Dashboard_ProductStatus_{branchId}";
 
-        var inventories = await _context.Inventories
-            .Include(i => i.Product)
+        if (_memoryCache.TryGetValue(cacheKey, out ProductDashboardDto? cachedDto) && cachedDto != null)
+        {
+            return Ok(new SingleObjectResponseModel<ProductDashboardDto>
+            {
+                IsDone = true,
+                ReturnMessage = "Product and inventory status dashboard retrieved successfully.",
+                SingleObject = cachedDto
+            });
+        }
+
+        var totalProducts = await _context.Products.AsNoTracking().CountAsync(p => !p.IsDeleted);
+        var totalCategories = await _context.Categories.AsNoTracking().CountAsync(c => !c.IsDeleted);
+        var totalSuppliers = await _context.Suppliers.AsNoTracking().CountAsync(s => !s.IsDeleted);
+
+        var inventoryStats = await _context.Inventories
+            .AsNoTracking()
             .Where(i => !i.IsDeleted && i.Product != null && !i.Product.IsDeleted)
-            .ToListAsync();
+            .GroupBy(i => 1)
+            .Select(g => new
+            {
+                TotalStockQuantity = g.Sum(i => i.Quantity),
+                TotalStockValue = g.Sum(i => (decimal?)i.Quantity * (i.Product!.UnitPrice ?? 0)) ?? 0,
+                LowStockCount = g.Count(i => i.Quantity <= i.MinStock && i.Quantity > 0),
+                OutOfStockCount = g.Count(i => i.Quantity == 0)
+            })
+            .FirstOrDefaultAsync();
 
-        int totalStockQuantity = inventories.Sum(i => i.Quantity);
-        decimal totalStockValue = inventories.Sum(i => i.Quantity * (i.Product!.UnitPrice ?? 0));
-
-        int lowStockCount = inventories.Count(i => i.Quantity <= i.MinStock && i.Quantity > 0);
-        int outOfStockCount = inventories.Count(i => i.Quantity == 0);
+        int totalStockQuantity = inventoryStats?.TotalStockQuantity ?? 0;
+        decimal totalStockValue = inventoryStats?.TotalStockValue ?? 0;
+        int lowStockCount = inventoryStats?.LowStockCount ?? 0;
+        int outOfStockCount = inventoryStats?.OutOfStockCount ?? 0;
 
         int pendingExitRequestsCount = await _context.ProductExitRequests
+            .AsNoTracking()
             .CountAsync(r => !r.IsDeleted && r.Status == RequestStatus.Pending);
 
         var categoryDistribution = await _context.Products
+            .AsNoTracking()
             .Where(p => !p.IsDeleted && p.Category != null)
             .GroupBy(p => p.Category!.Name)
             .Select(g => new CategoryCountDto
@@ -53,6 +78,7 @@ public class DashboardController : ControllerBase
             .ToListAsync();
 
         var supplierDistribution = await _context.Products
+            .AsNoTracking()
             .Where(p => !p.IsDeleted && p.Supplier != null)
             .GroupBy(p => p.Supplier!.CompanyName)
             .Select(g => new SupplierCountDto
@@ -62,8 +88,11 @@ public class DashboardController : ControllerBase
             })
             .ToListAsync();
 
-        var lowStockAlerts = inventories
-            .Where(i => i.Quantity <= i.MinStock)
+        var lowStockAlerts = await _context.Inventories
+            .AsNoTracking()
+            .Where(i => !i.IsDeleted && i.Product != null && !i.Product.IsDeleted && i.Quantity <= i.MinStock)
+            .OrderBy(i => i.Quantity)
+            .Take(50)
             .Select(i => new LowStockItemDto
             {
                 ProductId = i.ProductId,
@@ -73,8 +102,7 @@ public class DashboardController : ControllerBase
                 CurrentQuantity = i.Quantity,
                 MinStock = i.MinStock
             })
-            .OrderBy(i => i.CurrentQuantity)
-            .ToList();
+            .ToListAsync();
 
         var dashboardDto = new ProductDashboardDto
         {
@@ -90,6 +118,8 @@ public class DashboardController : ControllerBase
             ProductsBySupplier = supplierDistribution,
             LowStockAlerts = lowStockAlerts
         };
+
+        _memoryCache.Set(cacheKey, dashboardDto, TimeSpan.FromSeconds(30));
 
         return Ok(new SingleObjectResponseModel<ProductDashboardDto>
         {

@@ -10,6 +10,11 @@ public class ApprovalConfigConfiguration : IEntityTypeConfiguration<ApprovalConf
     {
         builder.HasKey(a => a.Id);
 
+        builder.HasOne(a => a.Branch)
+            .WithMany()
+            .HasForeignKey(a => a.BranchId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasOne(a => a.UserGroup)
             .WithMany()
             .HasForeignKey(a => a.UserGroupId)

@@ -28,4 +28,18 @@ public class InventoryRepository
             .Include(i => i.Product)
             .FirstOrDefaultAsync(i => i.ProductId == productId && !i.IsDeleted);
     }
+
+    public async Task<Dictionary<int, int>> GetQuantitiesByProductIdsAsync(IEnumerable<int> productIds)
+    {
+        var ids = productIds.Distinct().ToList();
+        if (!ids.Any())
+            return new Dictionary<int, int>();
+
+        return await RepositoryContext.Inventories
+            .AsNoTracking()
+            .Where(i => ids.Contains(i.ProductId) && !i.IsDeleted)
+            .GroupBy(i => i.ProductId)
+            .Select(g => new { ProductId = g.Key, Quantity = g.Sum(x => x.Quantity) })
+            .ToDictionaryAsync(x => x.ProductId, x => x.Quantity);
+    }
 }

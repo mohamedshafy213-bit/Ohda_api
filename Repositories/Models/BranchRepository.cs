@@ -128,29 +128,32 @@ public class BranchRepository : RepositoryBase<Branch, BranchDto, BranchCreateDt
                 .OrderBy(b => b.Name)
                 .ToListAsync();
 
-            var statsList = new List<BranchStatsDto>();
-
-            foreach (var b in branches)
+            if (!branches.Any())
             {
-                var userCount = await RepositoryContext.Users
-                    .IgnoreQueryFilters()
-                    .CountAsync(u => u.BranchId == b.Id && !u.IsDeleted);
-
-                var productCount = await RepositoryContext.Products
-                    .IgnoreQueryFilters()
-                    .CountAsync(p => p.BranchId == b.Id && !p.IsDeleted);
-
-                statsList.Add(new BranchStatsDto
+                return new ListOfObjectsResponseModel<BranchStatsDto>
                 {
-                    BranchId = b.Id,
-                    BranchName = b.Name,
-                    BranchCode = b.Code,
-                    TotalUsers = userCount,
-                    TotalProducts = productCount,
-                    MaxUsers = b.MaxUsers,
-                    MaxProducts = b.MaxProducts
-                });
+                    ErrorCode = ErrorCatalog.noError,
+                    IsDone = true,
+                    ReturnMessage = "Branch stats loaded successfully",
+                    Objects = new List<BranchStatsDto>(),
+                    TotalCount = 0
+                };
             }
+
+            var branchIds = branches.Select(b => b.Id).ToList();
+            var userCounts = await GetActiveUserCountsByBranchIdsAsync(branchIds);
+            var productCounts = await GetActiveProductCountsByBranchIdsAsync(branchIds);
+
+            var statsList = branches.Select(b => new BranchStatsDto
+            {
+                BranchId = b.Id,
+                BranchName = b.Name,
+                BranchCode = b.Code,
+                TotalUsers = userCounts.TryGetValue(b.Id, out int uc) ? uc : 0,
+                TotalProducts = productCounts.TryGetValue(b.Id, out int pc) ? pc : 0,
+                MaxUsers = b.MaxUsers,
+                MaxProducts = b.MaxProducts
+            }).ToList();
 
             return new ListOfObjectsResponseModel<BranchStatsDto>
             {
@@ -213,19 +216,23 @@ public class BranchRepository : RepositoryBase<Branch, BranchDto, BranchCreateDt
             await RepositoryContext.Branches.AddAsync(branch);
             await RepositoryContext.SaveChangesAsync();
 
-            // 3. Create Admin User Group for this Branch
+            // 3. Create Branch Manager User Group for this Branch
             var adminGroup = new UserGroup
             {
                 BranchId = branch.Id,
-                Name = "إدارة الفرع",
-                Description = $"مجموعة مسؤولي فرع {branch.Name}"
+                Name = "مدير الفرع",
+                Description = $"مجموعة صلاحيات مدير فرع {branch.Name}"
             };
             await RepositoryContext.UserGroups.AddAsync(adminGroup);
             await RepositoryContext.SaveChangesAsync();
 
-            // Grant all system pages to this admin group
-            var allPages = await RepositoryContext.Pages.AsNoTracking().ToListAsync();
-            foreach (var page in allPages)
+            // Grant operational branch pages to Branch Manager (excluding SuperAdmin platform management pages)
+            var branchPages = await RepositoryContext.Pages
+                .Where(p => !p.IsDeleted && !p.Path.ToLower().Contains("/branches"))
+                .AsNoTracking()
+                .ToListAsync();
+
+            foreach (var page in branchPages)
             {
                 await RepositoryContext.GroupPagePermissions.AddAsync(new GroupPagePermission
                 {
@@ -236,8 +243,8 @@ public class BranchRepository : RepositoryBase<Branch, BranchDto, BranchCreateDt
             }
             await RepositoryContext.SaveChangesAsync();
 
-            // 4. Generate Branch Admin Account
-            var tempPassword = GenerateSecureTempPassword();
+            // 4. Generate Branch Admin Account with Default Secure Password (P@ssw0rd)
+            const string defaultPassword = "P@ssw0rd";
             var militaryNumber = dto.AdminMilitaryNumber ?? (branch.Id * 10000 + 1);
 
             // Ensure unique military number
@@ -257,7 +264,7 @@ public class BranchRepository : RepositoryBase<Branch, BranchDto, BranchCreateDt
                 UserGroupId = adminGroup.Id,
                 MustChangePassword = true
             };
-            adminUser.PasswordHash = _passwordHasher.HashPassword(adminUser, tempPassword);
+            adminUser.PasswordHash = _passwordHasher.HashPassword(adminUser, defaultPassword);
 
             await RepositoryContext.Users.AddAsync(adminUser);
             await RepositoryContext.SaveChangesAsync();
@@ -273,13 +280,13 @@ public class BranchRepository : RepositoryBase<Branch, BranchDto, BranchCreateDt
             {
                 ErrorCode = ErrorCatalog.noError,
                 IsDone = true,
-                ReturnMessage = "Branch and Initial Admin created successfully",
+                ReturnMessage = "Branch and Initial Admin created successfully with default password",
                 SingleObject = new BranchCreatedResultDto
                 {
                     Branch = branchDto,
                     AdminUsername = adminUser.Username,
                     AdminMilitaryNumber = adminUser.MilitaryNumber,
-                    TemporaryPassword = tempPassword
+                    TemporaryPassword = defaultPassword
                 }
             };
         }
@@ -366,6 +373,32 @@ public class BranchRepository : RepositoryBase<Branch, BranchDto, BranchCreateDt
         return await RepositoryContext.Products
             .IgnoreQueryFilters()
             .CountAsync(p => p.BranchId == branchId && !p.IsDeleted);
+    }
+
+    public async Task<Dictionary<int, int>> GetActiveUserCountsByBranchIdsAsync(IEnumerable<int> branchIds)
+    {
+        var ids = branchIds.Distinct().ToList();
+        if (!ids.Any()) return new Dictionary<int, int>();
+
+        return await RepositoryContext.Users
+            .IgnoreQueryFilters()
+            .Where(u => u.BranchId.HasValue && ids.Contains(u.BranchId.Value) && !u.IsDeleted)
+            .GroupBy(u => u.BranchId!.Value)
+            .Select(g => new { BranchId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.BranchId, x => x.Count);
+    }
+
+    public async Task<Dictionary<int, int>> GetActiveProductCountsByBranchIdsAsync(IEnumerable<int> branchIds)
+    {
+        var ids = branchIds.Distinct().ToList();
+        if (!ids.Any()) return new Dictionary<int, int>();
+
+        return await RepositoryContext.Products
+            .IgnoreQueryFilters()
+            .Where(p => ids.Contains(p.BranchId) && !p.IsDeleted)
+            .GroupBy(p => p.BranchId)
+            .Select(g => new { BranchId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.BranchId, x => x.Count);
     }
 
     private static string GenerateSecureTempPassword()

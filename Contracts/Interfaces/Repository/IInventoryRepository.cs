@@ -7,4 +7,5 @@ namespace Contracts.Interfaces.Repository;
 public interface IInventoryRepository : IRepositoryBase<Inventory, InventoryDto, InventoryCreateDto, InventoryUpdateDto>
 {
     Task<Inventory?> GetByProductIdAsync(int productId);
+    Task<Dictionary<int, int>> GetQuantitiesByProductIdsAsync(IEnumerable<int> productIds);
 }

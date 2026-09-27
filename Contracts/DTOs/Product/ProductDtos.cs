@@ -33,6 +33,8 @@ public class ProductCreateDto : BaseCreateDto
     public decimal? AssetValue { get; set; }
     public int Amount { get; set; }
     public int Quantity { get; set; }
+    public List<string>? SerialNumbers { get; set; }
+    public bool HasCustomSerials { get; set; } = false;
 }
 
 public class ProductUpdateDto : BaseUpdateDto
@@ -48,4 +50,5 @@ public class ProductUpdateDto : BaseUpdateDto
     public decimal? AssetValue { get; set; }
     public int Amount { get; set; }
     public int Quantity { get; set; }
+    public List<string>? SerialNumbers { get; set; }
 }

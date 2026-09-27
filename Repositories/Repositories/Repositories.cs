@@ -17,6 +17,7 @@ using System.Linq.Expressions;
 using Microsoft.Extensions.Caching.Memory;
 using Entities.Models.Tables;
 using System.Reflection;
+using Entities.Models.Interfaces;
 
 
 namespace Repositories.Repositories
@@ -45,10 +46,21 @@ namespace Repositories.Repositories
         protected IMemoryCache? MemoryCache => 
             _httpContextAccessor.HttpContext?.RequestServices.GetService(typeof(IMemoryCache)) as IMemoryCache;
 
+        private static bool IsCacheableType =>
+            typeof(T) == typeof(Department) ||
+            typeof(T) == typeof(Product) ||
+            typeof(T) == typeof(Category) ||
+            typeof(T) == typeof(ProductState) ||
+            typeof(T) == typeof(Supplier) ||
+            typeof(T) == typeof(Page) ||
+            typeof(T) == typeof(UserGroup) ||
+            typeof(T) == typeof(ApprovalConfig) ||
+            typeof(T) == typeof(WarehouseBin);
+
         private void InvalidateCache()
         {
             var cache = MemoryCache;
-            if (cache != null && (typeof(T) == typeof(Department) || typeof(T) == typeof(Product)))
+            if (cache != null && IsCacheableType)
             {
                 var branchId = RepositoryContext.CurrentBranchId ?? 0;
                 var versionKey = $"CacheVersion_{typeof(T).Name}_{branchId}";
@@ -95,7 +107,7 @@ namespace Repositories.Repositories
                 int version = 0;
                 var branchId = RepositoryContext.CurrentBranchId ?? 0;
                 var cacheKey = $"FindAll_{typeof(T).Name}_{branchId}_{version}_{pageNumber}_{pageSize}";
-                if (cache != null && (typeof(T) == typeof(Department) || typeof(T) == typeof(Product)))
+                if (cache != null && IsCacheableType)
                 {
                     var versionKey = $"CacheVersion_{typeof(T).Name}_{branchId}";
                     if (!cache.TryGetValue(versionKey, out version))
@@ -135,7 +147,7 @@ namespace Repositories.Repositories
                     PageSize = pageSize
                 };
 
-                if (cache != null && (typeof(T) == typeof(Department) || typeof(T) == typeof(Product)))
+                if (cache != null && IsCacheableType)
                 {
                     cache.Set(cacheKey, response, TimeSpan.FromMinutes(10));
                 }
@@ -248,9 +260,26 @@ namespace Repositories.Repositories
                     };
                 }
 
+                var propertyInfo = typeof(T).GetProperty(keyName);
+                var originalKeyValue = propertyInfo?.GetValue(entity);
+
                 entityUpdate.Adapt(entity);
 
-                RepositoryContext.Set<T>().Update(entity);
+                // Ensure primary key is preserved and never modified by DTO mapping
+                if (propertyInfo != null && originalKeyValue != null)
+                {
+                    propertyInfo.SetValue(entity, originalKeyValue);
+                }
+
+                var entry = RepositoryContext.Entry(entity);
+                entry.Property(keyName).IsModified = false;
+
+                if (entity is ITenantEntity)
+                {
+                    var branchIdProp = entry.Property(nameof(ITenantEntity.BranchId));
+                    branchIdProp.IsModified = false;
+                }
+
                 await RepositoryContext.SaveChangesAsync();
                 InvalidateCache();
 

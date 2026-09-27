@@ -72,6 +72,15 @@ public class InventoryConfiguration : IEntityTypeConfiguration<Inventory>
     public void Configure(EntityTypeBuilder<Inventory> builder)
     {
         builder.HasKey(i => i.Id);
+        builder.HasIndex(i => i.ProductId);
+        builder.HasIndex(i => i.BranchId);
+        builder.HasIndex(i => i.IsDeleted);
+        builder.HasIndex(i => new { i.BranchId, i.ProductId });
+
+        builder.HasOne(i => i.Branch)
+            .WithMany()
+            .HasForeignKey(i => i.BranchId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(i => i.Product)
             .WithMany()
@@ -86,6 +95,11 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
     {
         builder.HasKey(o => o.Id);
         builder.Property(o => o.TotalAmount).HasPrecision(18, 2);
+
+        builder.HasOne(o => o.Branch)
+            .WithMany()
+            .HasForeignKey(o => o.BranchId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(o => o.User)
             .WithMany()
@@ -106,6 +120,11 @@ public class OrderDetailConfiguration : IEntityTypeConfiguration<OrderDetail>
         builder.HasKey(d => d.Id);
         builder.Property(d => d.UnitPrice).HasPrecision(18, 2);
 
+        builder.HasOne(d => d.Branch)
+            .WithMany()
+            .HasForeignKey(d => d.BranchId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasOne(d => d.Product)
             .WithMany()
             .HasForeignKey(d => d.ProductId)
@@ -121,6 +140,11 @@ public class ProductExitRequestConfiguration : IEntityTypeConfiguration<ProductE
 
         builder.Property(r => r.RecipientName).IsRequired().HasMaxLength(150);
         builder.Property(r => r.Purpose).HasMaxLength(500);
+
+        builder.HasOne(r => r.Branch)
+            .WithMany()
+            .HasForeignKey(r => r.BranchId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(r => r.RequestedByUser)
             .WithMany()
@@ -149,6 +173,11 @@ public class ProductExitRequestItemConfiguration : IEntityTypeConfiguration<Prod
     {
         builder.HasKey(i => i.Id);
         
+        builder.HasOne(i => i.Branch)
+            .WithMany()
+            .HasForeignKey(i => i.BranchId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasOne(i => i.ProductExitRequest)
             .WithMany(r => r.Items)
             .HasForeignKey(i => i.ProductExitRequestId)
@@ -173,6 +202,11 @@ public class ProductEntryRequestConfiguration : IEntityTypeConfiguration<Product
         builder.Property(r => r.FromSource).IsRequired().HasMaxLength(200);
         builder.Property(r => r.InvoiceNumber).HasMaxLength(100);
         builder.Property(r => r.Notes).HasMaxLength(500);
+
+        builder.HasOne(r => r.Branch)
+            .WithMany()
+            .HasForeignKey(r => r.BranchId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(r => r.ReceivedByUser)
             .WithMany()
@@ -201,6 +235,11 @@ public class ProductEntryRequestItemConfiguration : IEntityTypeConfiguration<Pro
     {
         builder.HasKey(i => i.Id);
 
+        builder.HasOne(i => i.Branch)
+            .WithMany()
+            .HasForeignKey(i => i.BranchId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasOne(i => i.ProductEntryRequest)
             .WithMany(r => r.Items)
             .HasForeignKey(i => i.ProductEntryRequestId)
@@ -227,11 +266,21 @@ public class UserPagePermissionConfiguration : IEntityTypeConfiguration<UserPage
     public void Configure(EntityTypeBuilder<UserPagePermission> builder)
     {
         builder.HasKey(p => p.Id);
+        builder.HasIndex(p => p.UserId);
+        builder.HasIndex(p => p.PageId);
+        builder.HasIndex(p => p.BranchId);
+        builder.HasIndex(p => p.IsDeleted);
+        builder.HasIndex(p => new { p.UserId, p.PageId, p.IsDeleted });
+
+        builder.HasOne(p => p.Branch)
+            .WithMany()
+            .HasForeignKey(p => p.BranchId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(p => p.User)
             .WithMany()
             .HasForeignKey(p => p.UserId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(p => p.Page)
             .WithMany()
@@ -250,9 +299,19 @@ public class NotificationConfiguration : IEntityTypeConfiguration<Notification>
     public void Configure(EntityTypeBuilder<Notification> builder)
     {
         builder.HasKey(n => n.Id);
+        builder.HasIndex(n => n.UserId);
+        builder.HasIndex(n => n.BranchId);
+        builder.HasIndex(n => n.IsRead);
+        builder.HasIndex(n => n.IsDeleted);
+        builder.HasIndex(n => new { n.UserId, n.IsRead, n.IsDeleted });
 
         builder.Property(n => n.Title).IsRequired().HasMaxLength(200);
         builder.Property(n => n.Message).IsRequired().HasMaxLength(1000);
+
+        builder.HasOne(n => n.Branch)
+            .WithMany()
+            .HasForeignKey(n => n.BranchId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(n => n.User)
             .WithMany()
@@ -266,8 +325,16 @@ public class UserGroupConfiguration : IEntityTypeConfiguration<UserGroup>
     public void Configure(EntityTypeBuilder<UserGroup> builder)
     {
         builder.HasKey(g => g.Id);
+        builder.HasIndex(g => g.BranchId);
+        builder.HasIndex(g => g.IsDeleted);
+
         builder.Property(g => g.Name).IsRequired().HasMaxLength(100);
         builder.Property(g => g.Description).HasMaxLength(250);
+
+        builder.HasOne(g => g.Branch)
+            .WithMany()
+            .HasForeignKey(g => g.BranchId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }
 
@@ -276,6 +343,15 @@ public class GroupPagePermissionConfiguration : IEntityTypeConfiguration<GroupPa
     public void Configure(EntityTypeBuilder<GroupPagePermission> builder)
     {
         builder.HasKey(p => p.Id);
+        builder.HasIndex(p => p.UserGroupId);
+        builder.HasIndex(p => p.PageId);
+        builder.HasIndex(p => p.BranchId);
+        builder.HasIndex(p => p.IsDeleted);
+
+        builder.HasOne(p => p.Branch)
+            .WithMany()
+            .HasForeignKey(p => p.BranchId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(p => p.UserGroup)
             .WithMany(g => g.GroupPagePermissions)
@@ -339,6 +415,11 @@ public class CompassConfiguration : IEntityTypeConfiguration<Compass>
         builder.Property(c => c.RecipientName).IsRequired().HasMaxLength(150);
         builder.Property(c => c.Place).IsRequired().HasMaxLength(150);
 
+        builder.HasOne(c => c.Branch)
+            .WithMany()
+            .HasForeignKey(c => c.BranchId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasOne(c => c.ProductExitRequest)
             .WithMany()
             .HasForeignKey(c => c.ProductExitRequestId)
@@ -346,6 +427,88 @@ public class CompassConfiguration : IEntityTypeConfiguration<Compass>
 
         builder.HasIndex(c => c.DepartmentId);
         builder.HasIndex(c => c.InsertDate);
+    }
+}
+
+public class DepartmentConfiguration : IEntityTypeConfiguration<Department>
+{
+    public void Configure(EntityTypeBuilder<Department> builder)
+    {
+        builder.HasKey(d => d.Id);
+        builder.HasIndex(d => d.BranchId);
+        builder.HasIndex(d => d.IsDeleted);
+
+        builder.HasOne(d => d.Branch)
+            .WithMany()
+            .HasForeignKey(d => d.BranchId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public class WarehouseBinConfiguration : IEntityTypeConfiguration<WarehouseBin>
+{
+    public void Configure(EntityTypeBuilder<WarehouseBin> builder)
+    {
+        builder.HasKey(w => w.Id);
+        builder.HasIndex(w => w.BranchId);
+        builder.HasIndex(w => w.DepartmentId);
+        builder.HasIndex(w => w.IsDeleted);
+
+        builder.HasOne(w => w.Branch)
+            .WithMany()
+            .HasForeignKey(w => w.BranchId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(w => w.Department)
+            .WithMany()
+            .HasForeignKey(w => w.DepartmentId)
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public class CategoryConfiguration : IEntityTypeConfiguration<Category>
+{
+    public void Configure(EntityTypeBuilder<Category> builder)
+    {
+        builder.HasKey(c => c.Id);
+        builder.HasIndex(c => c.BranchId);
+        builder.HasIndex(c => c.IsDeleted);
+
+        builder.HasOne(c => c.Branch)
+            .WithMany()
+            .HasForeignKey(c => c.BranchId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public class ProductStateConfiguration : IEntityTypeConfiguration<ProductState>
+{
+    public void Configure(EntityTypeBuilder<ProductState> builder)
+    {
+        builder.HasKey(s => s.Id);
+        builder.HasIndex(s => s.BranchId);
+        builder.HasIndex(s => s.IsDeleted);
+
+        builder.HasOne(s => s.Branch)
+            .WithMany()
+            .HasForeignKey(s => s.BranchId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public class SupplierConfiguration : IEntityTypeConfiguration<Supplier>
+{
+    public void Configure(EntityTypeBuilder<Supplier> builder)
+    {
+        builder.HasKey(s => s.Id);
+        builder.HasIndex(s => s.BranchId);
+        builder.HasIndex(s => s.IsDeleted);
+
+        builder.HasOne(s => s.Branch)
+            .WithMany()
+            .HasForeignKey(s => s.BranchId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }
 
