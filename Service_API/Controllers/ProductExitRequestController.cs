@@ -15,6 +15,8 @@ using Service_API.BaseControllers;
 using Service_API.Helpers;
 using System.Security.Claims;
 
+using Service_API.Services;
+
 namespace Service_API.Controllers;
 
 [Authorize]
@@ -24,12 +26,17 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
 {
     private readonly IRepositoryWrapper _repositoryWrapper;
     private readonly RepositoryContext _context;
+    private readonly IBackgroundTaskQueue _backgroundQueue;
 
-    public ProductExitRequestController(IRepositoryWrapper repositoryWrapper, RepositoryContext context)
+    public ProductExitRequestController(
+        IRepositoryWrapper repositoryWrapper,
+        RepositoryContext context,
+        IBackgroundTaskQueue backgroundQueue)
     {
         _repositoryWrapper = repositoryWrapper;
         _context = context;
         _repository = repositoryWrapper.ProductExitRequests;
+        _backgroundQueue = backgroundQueue;
     }
 
     [HttpPost("request")]
@@ -139,28 +146,34 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
                 newReqId = typedResp.SingleObject.Id;
             }
 
-            // Step 1 -> Step 2: Notify Reviewers / Managers about new exit request
-            await NotificationHelper.NotifyWorkflowStepUsersAsync(
-                _repositoryWrapper,
-                _context,
-                RequestType.Exit,
-                WorkflowRole.Reviewer,
-                "طلب صرف عهدة جديد بانتظار المراجعة والتدقيق",
-                $"تم تقديم طلب صرف عهدة جديد برقم #{newReqId} من قبل المستخدم #{userId}. يرجى مراجعة الطلب.",
-                newReqId,
-                "ProductExitRequest"
-            );
+            var newExitReqId = newReqId;
+            var currentUserId = userId;
+            await _backgroundQueue.QueueBackgroundWorkItemAsync(async (sp, ct) =>
+            {
+                var repo = sp.GetRequiredService<IRepositoryWrapper>();
+                var db = sp.GetRequiredService<RepositoryContext>();
 
-            // Notify Requester (confirmation)
-            await NotificationHelper.SendNotificationToUserAsync(
-                _repositoryWrapper,
-                userId,
-                "تم تسجيل طلب صرف العهدة بنجاح",
-                $"تم تسجيل طلب صرف العهدة #{newReqId} بنجاح وهو الآن في مرحلة مراجعة وتدقيق المدير.",
-                NotificationType.ExitRequest,
-                newReqId,
-                "ProductExitRequest"
-            );
+                await NotificationHelper.NotifyWorkflowStepUsersAsync(
+                    repo,
+                    db,
+                    RequestType.Exit,
+                    WorkflowRole.Reviewer,
+                    "طلب صرف عهدة جديد بانتظار المراجعة والتدقيق",
+                    $"تم تقديم طلب صرف عهدة جديد برقم #{newExitReqId} من قبل المستخدم #{currentUserId}. يرجى مراجعة الطلب.",
+                    newExitReqId,
+                    "ProductExitRequest"
+                );
+
+                await NotificationHelper.SendNotificationToUserAsync(
+                    repo,
+                    currentUserId,
+                    "تم تسجيل طلب صرف العهدة بنجاح",
+                    $"تم تسجيل طلب صرف العهدة #{newExitReqId} بنجاح وهو الآن في مرحلة مراجعة وتدقيق المدير.",
+                    NotificationType.ExitRequest,
+                    newExitReqId,
+                    "ProductExitRequest"
+                );
+            });
         }
 
         return HandleResponse(response);
@@ -181,7 +194,7 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
         }
 
         int managerId = GetCurrentUserId();
-        var request = await _repositoryWrapper.ProductExitRequests.GetByIdAsync(id);
+        var request = await _repositoryWrapper.ProductExitRequests.GetByIdAsync(id, trackChanges: true);
         if (request == null)
         {
             return Ok(new SingleObjectResponseModel
@@ -233,46 +246,53 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
 
         await _repositoryWrapper.SaveAsync();
 
+        // Offload notifications to background worker to ensure instantaneous response
+        var reqId = id;
+        var reqUserId = request.RequestedByUserId;
+        var reqStatus = request.Status;
+        var rejReason = request.RejectionReason;
 
-
-        // Notify
-        if (request.Status == RequestStatus.Rejected)
+        await _backgroundQueue.QueueBackgroundWorkItemAsync(async (sp, ct) =>
         {
-            await NotificationHelper.SendNotificationToUserAsync(
-                _repositoryWrapper,
-                request.RequestedByUserId,
-                "تم رفض طلب صرف العهدة",
-                $"تم رفض طلب صرف العهدة #{id} من قبل المدير. السبب: {request.RejectionReason}",
-                NotificationType.Warning,
-                id,
-                "ProductExitRequest"
-            );
-        }
-        else
-        {
-            // Step 2 -> Step 3: Notify Approvers / Supervisors
-            await NotificationHelper.NotifyWorkflowStepUsersAsync(
-                _repositoryWrapper,
-                _context,
-                RequestType.Exit,
-                WorkflowRole.Approver,
-                "طلب صرف معتمد من المدير بانتظار التوثيق والصرف النهائي",
-                $"تمت موافقة المدير على طلب صرف العهدة #{id}. يرجى التوثيق والاعتماد النهائي وصرف الأصناف للمستفيد.",
-                id,
-                "ProductExitRequest"
-            );
+            var repo = sp.GetRequiredService<IRepositoryWrapper>();
+            var db = sp.GetRequiredService<RepositoryContext>();
 
-            // Notify Requester
-            await NotificationHelper.SendNotificationToUserAsync(
-                _repositoryWrapper,
-                request.RequestedByUserId,
-                "موافقة المدير على طلب صرف العهدة",
-                $"تمت مراجعة واعتماد طلب صرف العهدة #{id} من قبل المدير. بانتظار التوثيق والصرف النهائي من المشرف.",
-                NotificationType.ExitRequest,
-                id,
-                "ProductExitRequest"
-            );
-        }
+            if (reqStatus == RequestStatus.Rejected)
+            {
+                await NotificationHelper.SendNotificationToUserAsync(
+                    repo,
+                    reqUserId,
+                    "تم رفض طلب صرف العهدة",
+                    $"تم رفض طلب صرف العهدة #{reqId} من قبل المدير. السبب: {rejReason}",
+                    NotificationType.Warning,
+                    reqId,
+                    "ProductExitRequest"
+                );
+            }
+            else
+            {
+                await NotificationHelper.NotifyWorkflowStepUsersAsync(
+                    repo,
+                    db,
+                    RequestType.Exit,
+                    WorkflowRole.Approver,
+                    "طلب صرف معتمد من المدير بانتظار التوثيق والصرف النهائي",
+                    $"تمت موافقة المدير على طلب صرف العهدة #{reqId}. يرجى التوثيق والاعتماد النهائي وصرف الأصناف للمستفيد.",
+                    reqId,
+                    "ProductExitRequest"
+                );
+
+                await NotificationHelper.SendNotificationToUserAsync(
+                    repo,
+                    reqUserId,
+                    "موافقة المدير على طلب صرف العهدة",
+                    $"تمت مراجعة واعتماد طلب صرف العهدة #{reqId} من قبل المدير. بانتظار التوثيق والصرف النهائي من المشرف.",
+                    NotificationType.ExitRequest,
+                    reqId,
+                    "ProductExitRequest"
+                );
+            }
+        });
 
         return Ok(new SingleObjectResponseModel
         {
@@ -295,7 +315,7 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
         }
 
         int supervisorId = GetCurrentUserId();
-        var request = await _repositoryWrapper.ProductExitRequests.GetByIdAsync(id);
+        var request = await _repositoryWrapper.ProductExitRequests.GetByIdAsync(id, trackChanges: true);
         if (request == null)
         {
             return Ok(new SingleObjectResponseModel
@@ -345,14 +365,20 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
             request.RejectionReason = "All items rejected by Supervisor.";
             await _repositoryWrapper.SaveAsync();
 
-            await _repositoryWrapper.Notifications.Create(new NotificationCreateDto
+            var reqId = id;
+            var reqUserId = request.RequestedByUserId;
+            await _backgroundQueue.QueueBackgroundWorkItemAsync(async (sp, ct) =>
             {
-                UserId = request.RequestedByUserId,
-                Title = "Exit Request Rejected",
-                Message = $"Your exit request (ID: {id}) was rejected by the Supervisor.",
-                Type = NotificationType.Warning,
-                ReferenceId = id,
-                ReferenceType = "ProductExitRequest"
+                var repo = sp.GetRequiredService<IRepositoryWrapper>();
+                await repo.Notifications.Create(new NotificationCreateDto
+                {
+                    UserId = reqUserId,
+                    Title = "Exit Request Rejected",
+                    Message = $"Your exit request (ID: {reqId}) was rejected by the Supervisor.",
+                    Type = NotificationType.Warning,
+                    ReferenceId = reqId,
+                    ReferenceType = "ProductExitRequest"
+                });
             });
 
             return Ok(new SingleObjectResponseModel { IsDone = true, ReturnMessage = "Request rejected because all items were rejected." });
@@ -475,18 +501,24 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
 
         await _repositoryWrapper.SaveAsync();
 
-
-
         // Notify Requester that request is fully approved and stock updated
-        await NotificationHelper.SendNotificationToUserAsync(
-            _repositoryWrapper,
-            request.RequestedByUserId,
-            "اكتمال وتوثيق صرف العهدة بنجاح",
-            $"تم توثيق طلب صرف العهدة #{id} من قبل المشرف وصرف الأصناف إلى {request.RecipientName} بنجاح.",
-            NotificationType.ExitRequest,
-            id,
-            "ProductExitRequest"
-        );
+        var completedReqId = id;
+        var completedUserId = request.RequestedByUserId;
+        var completedRecipient = request.RecipientName;
+
+        await _backgroundQueue.QueueBackgroundWorkItemAsync(async (sp, ct) =>
+        {
+            var repo = sp.GetRequiredService<IRepositoryWrapper>();
+            await NotificationHelper.SendNotificationToUserAsync(
+                repo,
+                completedUserId,
+                "اكتمال وتوثيق صرف العهدة بنجاح",
+                $"تم توثيق طلب صرف العهدة #{completedReqId} من قبل المشرف وصرف الأصناف إلى {completedRecipient} بنجاح.",
+                NotificationType.ExitRequest,
+                completedReqId,
+                "ProductExitRequest"
+            );
+        });
 
         return Ok(new SingleObjectResponseModel { IsDone = true, ReturnMessage = "Request approved by Supervisor." });
     }
@@ -495,7 +527,7 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
     [Authorize]
     public async Task<IActionResult> Reject([FromRoute] int id, [FromBody] RejectRequestDto rejectDto)
     {
-        var request = await _repositoryWrapper.ProductExitRequests.GetByIdAsync(id);
+        var request = await _repositoryWrapper.ProductExitRequests.GetByIdAsync(id, trackChanges: true);
         if (request == null)
         {
             return Ok(new SingleObjectResponseModel
@@ -527,17 +559,23 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
 
         await _repositoryWrapper.SaveAsync();
 
+        // Notify employee of rejection in background
+        var rejectedReqId = id;
+        var rejectedUserId = request.RequestedByUserId;
+        var reason = rejectDto.RejectionReason;
 
-
-        // Notify employee of rejection
-        await _repositoryWrapper.Notifications.Create(new NotificationCreateDto
+        await _backgroundQueue.QueueBackgroundWorkItemAsync(async (sp, ct) =>
         {
-            UserId = request.RequestedByUserId,
-            Title = $"تم إرجاع / رفض طلب الصرف (رقم #{id})",
-            Message = $"تم إرجاع طلب الصرف الخاص بك. سبب الإرجاع: {rejectDto.RejectionReason}",
-            Type = NotificationType.Warning,
-            ReferenceId = id,
-            ReferenceType = "ProductExitRequest"
+            var repo = sp.GetRequiredService<IRepositoryWrapper>();
+            await repo.Notifications.Create(new NotificationCreateDto
+            {
+                UserId = rejectedUserId,
+                Title = $"تم إرجاع / رفض طلب الصرف (رقم #{rejectedReqId})",
+                Message = $"تم إرجاع طلب الصرف الخاص بك. سبب الإرجاع: {reason}",
+                Type = NotificationType.Warning,
+                ReferenceId = rejectedReqId,
+                ReferenceType = "ProductExitRequest"
+            });
         });
 
         return Ok(new SingleObjectResponseModel { IsDone = true, ReturnMessage = "Request rejected." });
@@ -548,27 +586,62 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
     {
         var response = await _repositoryWrapper.ProductExitRequests.FindAll(pageNumber, pageSize);
         var dtos = (response as ListOfObjectsResponseModel<ProductExitRequestDto>)?.Objects;
-        if (dtos != null)
+        if (dtos != null && dtos.Any())
         {
             int userId = GetCurrentUserId();
-            var user = await _repositoryWrapper.Users.GetByIdWithGroupAsync(userId);
-            if (user != null && user.Role != UserRole.Admin)
+
+            // Read role and user group from JWT claims — avoids a DB roundtrip on every poll
+            var roleClaim = User.FindFirst(ClaimTypes.Role)?.Value;
+            var userRole = Enum.TryParse<UserRole>(roleClaim, out var parsedRole) ? parsedRole : UserRole.Employee;
+            int? userGroupId = int.TryParse(User.FindFirst("user_group_id")?.Value, out var gid) && gid > 0 ? gid : null;
+
+            if (userRole != UserRole.Admin && userRole != UserRole.SuperAdmin)
             {
-                if (user.UserGroup?.Name == "Supervisors" || user.Role == UserRole.Supervisor)
+                bool isReviewer = userGroupId != null && await _repositoryWrapper.ApprovalConfigs.IsActionAllowedAsync(RequestType.Exit, userGroupId.Value, WorkflowRole.Reviewer);
+                bool isApprover = userGroupId != null && await _repositoryWrapper.ApprovalConfigs.IsActionAllowedAsync(RequestType.Exit, userGroupId.Value, WorkflowRole.Approver);
+
+                if (isReviewer)
                 {
+                    // Manager / Reviewer: Can see all requests submitted in their branch (including Pending)
+                }
+                else if (isApprover)
+                {
+                    // Supervisor / Approver: Can see requests that passed Manager stage (or all if both)
                     dtos = dtos.Where(d => d.Status != RequestStatus.Pending).ToList();
                 }
-                else if (user.UserGroup?.Name == "Employees" || user.Role == UserRole.Employee)
+                else
                 {
+                    // Regular Requester: Can only see their own requests
                     dtos = dtos.Where(d => d.RequestedByUserId == userId).ToList();
                 }
             }
 
-            foreach (var dto in dtos)
+            // High-performance batch loading of associated ProductItem IDs & Serials (1 query instead of N queries)
+            var requestIds = dtos.Select(d => d.Id).ToList();
+            if (requestIds.Any())
             {
-                var items = await _repositoryWrapper.ProductItems.GetByExitRequestIdAsync(dto.Id);
-                dto.SelectedProductItemIds = items.Select(i => i.Id).ToList();
-                dto.SelectedSerials = items.Select(i => i.SerialNumber).ToList();
+                var allItems = await _context.ProductItems
+                    .AsNoTracking()
+                    .Where(pi => pi.ProductExitRequestId != null && requestIds.Contains(pi.ProductExitRequestId.Value) && !pi.IsDeleted)
+                    .Select(pi => new { pi.ProductExitRequestId, pi.Id, pi.SerialNumber })
+                    .ToListAsync();
+
+                var groupedItems = allItems.GroupBy(pi => pi.ProductExitRequestId!.Value)
+                    .ToDictionary(g => g.Key, g => g.ToList());
+
+                foreach (var dto in dtos)
+                {
+                    if (groupedItems.TryGetValue(dto.Id, out var items))
+                    {
+                        dto.SelectedProductItemIds = items.Select(i => i.Id).ToList();
+                        dto.SelectedSerials = items.Select(i => i.SerialNumber).ToList();
+                    }
+                    else
+                    {
+                        dto.SelectedProductItemIds = new List<int>();
+                        dto.SelectedSerials = new List<string>();
+                    }
+                }
             }
 
             if (response is ListOfObjectsResponseModel<ProductExitRequestDto> listResponse)
@@ -624,6 +697,26 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
         dto.SelectedProductItemIds = items.Select(i => i.Id).ToList();
         dto.SelectedSerials = items.Select(i => i.SerialNumber).ToList();
 
+        var missingProductIds = dto.Items
+            .Where(itm => !items.Any(x => x.ProductId == itm.ProductId && x.BinId != null))
+            .Select(itm => itm.ProductId)
+            .Distinct()
+            .ToList();
+
+        Dictionary<int, (int? BinId, string? BinCode, string? BinName)> inStockBins = new();
+        if (missingProductIds.Any())
+        {
+            var stockItems = await _context.ProductItems
+                .AsNoTracking()
+                .Include(pi => pi.Bin)
+                .Where(pi => missingProductIds.Contains(pi.ProductId) && pi.Status == ProductItemStatus.InStock && pi.BinId != null && !pi.IsDeleted)
+                .ToListAsync();
+
+            inStockBins = stockItems
+                .GroupBy(pi => pi.ProductId)
+                .ToDictionary(g => g.Key, g => (g.First().BinId, g.First().Bin?.Code, g.First().Bin?.Name));
+        }
+
         foreach (var itm in dto.Items)
         {
             var assigned = items.FirstOrDefault(x => x.ProductId == itm.ProductId && x.BinId != null);
@@ -633,15 +726,11 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
                 itm.BinCode = assigned.Bin?.Code;
                 itm.BinName = assigned.Bin?.Name;
             }
-            else
+            else if (inStockBins.TryGetValue(itm.ProductId, out var binInfo))
             {
-                var inStock = (await _repositoryWrapper.ProductItems.GetInStockByProductIdAsync(itm.ProductId)).FirstOrDefault(x => x.BinId != null);
-                if (inStock != null)
-                {
-                    itm.BinId = inStock.BinId;
-                    itm.BinCode = inStock.Bin?.Code;
-                    itm.BinName = inStock.Bin?.Name;
-                }
+                itm.BinId = binInfo.BinId;
+                itm.BinCode = binInfo.BinCode;
+                itm.BinName = binInfo.BinName;
             }
         }
 
@@ -670,19 +759,28 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
 
     private async Task<bool> CheckPermissionAsync(RequestType type, WorkflowRole role)
     {
-        int userId = GetCurrentUserId();
-        var user = await _repositoryWrapper.Users.GetByIdWithGroupAsync(userId);
-        if (user == null) return false;
-        if (user.Role == UserRole.Admin || user.Role == UserRole.SuperAdmin) return true;
-        if (user.UserGroupId == null) return false;
+        var roleClaim = User.FindFirst(ClaimTypes.Role)?.Value;
+        if (roleClaim == "Admin" || roleClaim == "SuperAdmin" || User.IsInRole("Admin") || User.IsInRole("SuperAdmin"))
+            return true;
+
+        int? userGroupId = int.TryParse(User.FindFirst("user_group_id")?.Value, out var gid) && gid > 0 ? gid : null;
+        if (userGroupId == null)
+        {
+            int userId = GetCurrentUserId();
+            var user = await _repositoryWrapper.Users.GetByIdWithGroupAsync(userId);
+            if (user == null) return false;
+            if (user.Role == UserRole.Admin || user.Role == UserRole.SuperAdmin) return true;
+            if (user.UserGroupId == null) return false;
+            userGroupId = user.UserGroupId;
+        }
 
         if (role == WorkflowRole.Reviewer)
         {
-            return await _repositoryWrapper.ApprovalConfigs.IsActionAllowedAsync(type, user.UserGroupId.Value, WorkflowRole.Reviewer) ||
-                   await _repositoryWrapper.ApprovalConfigs.IsActionAllowedAsync(type, user.UserGroupId.Value, WorkflowRole.Approver);
+            return await _repositoryWrapper.ApprovalConfigs.IsActionAllowedAsync(type, userGroupId.Value, WorkflowRole.Reviewer) ||
+                   await _repositoryWrapper.ApprovalConfigs.IsActionAllowedAsync(type, userGroupId.Value, WorkflowRole.Approver);
         }
 
-        return await _repositoryWrapper.ApprovalConfigs.IsActionAllowedAsync(type, user.UserGroupId.Value, role);
+        return await _repositoryWrapper.ApprovalConfigs.IsActionAllowedAsync(type, userGroupId.Value, role);
     }
 }
 

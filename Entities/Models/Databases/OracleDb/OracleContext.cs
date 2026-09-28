@@ -1,4 +1,4 @@
-﻿using Entities.Models.Extensions;
+using Entities.Models.Extensions;
 using Entities.Models.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -8,8 +8,24 @@ namespace Entities.Models.Databases.OracleDb
 {
     public partial class OracleContext : RepositoryContext
     {
-        public OracleContext(IConfiguration configuration, IHttpContextAccessor httpContextAccessor, ITenantService? tenantService = null) 
-            : base(configuration, httpContextAccessor, tenantService)
+        public OracleContext(
+            IConfiguration configuration,
+            IHttpContextAccessor? httpContextAccessor = null,
+            ICurrentTenant? currentTenant = null,
+            ITenantService? tenantService = null,
+            ICurrentBranch? currentBranch = null) 
+            : base(configuration, httpContextAccessor, currentTenant, tenantService, currentBranch)
+        {
+        }
+
+        public OracleContext(
+            DbContextOptions<OracleContext> options,
+            IConfiguration configuration,
+            IHttpContextAccessor? httpContextAccessor = null,
+            ICurrentTenant? currentTenant = null,
+            ITenantService? tenantService = null,
+            ICurrentBranch? currentBranch = null) 
+            : base(options, configuration, httpContextAccessor, currentTenant, tenantService, currentBranch)
         {
         }
 
@@ -28,12 +44,7 @@ namespace Entities.Models.Databases.OracleDb
             var namespaces = new[] { "Entities.Models.Configurations", "Entities.Models.Databases.OracleDb.Configurations" };
             ApplyConfiguration(modelBuilder, namespaces);
 
-            // Apply global query filters for soft delete and multi-tenancy
-            //modelBuilder.ApplyGlobalFilters(_tenantService);
-
-            //modelBuilder.Entity<MEMOS_FROM>()
-            //   .Property(e => e.MEMO_ID)
-            //   .HasDefaultValueSql("seq_example.NEXTVAL");
+            modelBuilder.ApplyGlobalFilters(this);
         }
     }
 }

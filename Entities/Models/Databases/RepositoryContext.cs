@@ -38,32 +38,29 @@ public class RepositoryContext : DbContext
     public virtual DbSet<WarehouseBin> WarehouseBins { get; set; } = null!;
 
     protected readonly IConfiguration _configuration;
-    protected readonly IHttpContextAccessor _httpContextAccessor;
+    protected readonly IHttpContextAccessor? _httpContextAccessor;
+    protected readonly ICurrentTenant? _currentTenant;
     protected readonly ITenantService? _tenantService;
     protected readonly ICurrentBranch? _currentBranch;
 
-    public int? CurrentBranchId
-    {
-        get
-        {
-            if (_httpContextAccessor == null) return null;
-            var id = GlobalQueryFilterExtensions.ResolveBranchId(_httpContextAccessor);
-            return id != 0 ? id : null;
-        }
-    }
+    public bool IsDesignOrSeeding { get; set; }
+
+    public int? CurrentBranchId => _currentTenant?.BranchId;
 
     public int BranchFilterId => CurrentBranchId ?? 0;
 
-    public bool HasSupportAccess => _httpContextAccessor != null && GlobalQueryFilterExtensions.CheckSupportAccess(_httpContextAccessor);
+    public bool HasSupportAccess => _currentTenant?.IsSuperAdmin ?? false;
 
     public RepositoryContext(
         IConfiguration configuration,
-        IHttpContextAccessor httpContextAccessor,
+        IHttpContextAccessor? httpContextAccessor = null,
+        ICurrentTenant? currentTenant = null,
         ITenantService? tenantService = null,
         ICurrentBranch? currentBranch = null)
     {
         _configuration = configuration;
         _httpContextAccessor = httpContextAccessor;
+        _currentTenant = currentTenant;
         _tenantService = tenantService;
         _currentBranch = currentBranch;
     }
@@ -71,13 +68,15 @@ public class RepositoryContext : DbContext
     public RepositoryContext(
         DbContextOptions options,
         IConfiguration configuration,
-        IHttpContextAccessor httpContextAccessor,
+        IHttpContextAccessor? httpContextAccessor = null,
+        ICurrentTenant? currentTenant = null,
         ITenantService? tenantService = null,
         ICurrentBranch? currentBranch = null)
         : base(options)
     {
         _configuration = configuration;
         _httpContextAccessor = httpContextAccessor;
+        _currentTenant = currentTenant;
         _tenantService = tenantService;
         _currentBranch = currentBranch;
     }
@@ -101,7 +100,8 @@ public class RepositoryContext : DbContext
     {
         var entries = ChangeTracker.Entries().ToList();
         var currentBranchId = CurrentBranchId;
-        var userCode = _httpContextAccessor?.HttpContext?.User?.Identity?.Name;
+        var userCode = _currentTenant?.UserId?.ToString() ?? _httpContextAccessor?.HttpContext?.User?.Identity?.Name;
+        bool isSuperAdmin = HasSupportAccess;
 
         foreach (var entry in entries)
         {
@@ -111,9 +111,12 @@ public class RepositoryContext : DbContext
                 {
                     if (tenantEntity.BranchId == 0)
                     {
-                        tenantEntity.BranchId = currentBranchId.HasValue && currentBranchId.Value > 0 ? currentBranchId.Value : 1;
+                        if (currentBranchId.HasValue && currentBranchId.Value > 0)
+                        {
+                            tenantEntity.BranchId = currentBranchId.Value;
+                        }
                     }
-                    else if (currentBranchId.HasValue && currentBranchId.Value > 0 && !GlobalQueryFilterExtensions.CheckSupportAccess(_httpContextAccessor!))
+                    else if (currentBranchId.HasValue && currentBranchId.Value > 0 && !isSuperAdmin)
                     {
                         if (tenantEntity.BranchId != currentBranchId.Value)
                         {
@@ -124,7 +127,7 @@ public class RepositoryContext : DbContext
                 else if (entry.State == EntityState.Modified)
                 {
                     var branchIdProp = entry.Property(nameof(ITenantEntity.BranchId));
-                    if (branchIdProp.IsModified && !Equals(branchIdProp.OriginalValue, branchIdProp.CurrentValue))
+                    if (branchIdProp.IsModified && !Equals(branchIdProp.OriginalValue, branchIdProp.CurrentValue) && !isSuperAdmin)
                     {
                         throw new InvalidOperationException("Altering BranchId of an existing record is prohibited.");
                     }

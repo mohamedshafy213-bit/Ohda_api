@@ -114,6 +114,65 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
         }
     }
 
+    [HttpGet("bootstrap")]
+    [HttpGet("me")]
+    [Authorize]
+    public async Task<IActionResult> GetBootstrap()
+    {
+        try
+        {
+            var militaryNumberClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(militaryNumberClaim, out var militaryNumber))
+                return Unauthorized();
+
+            var user = await _repositoryWrapper.Users.GetByIdWithGroupAsync(militaryNumber);
+            if (user == null)
+            {
+                return NotFound(new SingleObjectResponseModel
+                {
+                    IsDone = false,
+                    ReturnMessage = "المستخدم غير موجود"
+                });
+            }
+
+            var allowedPages = await _repositoryWrapper.UserPagePermissions.GetAllowedPagesForUserAsync(user.MilitaryNumber);
+
+            var userDto = new UserDto
+            {
+                MilitaryNumber = user.MilitaryNumber,
+                Username = user.Username,
+                Email = user.Email,
+                Role = user.Role,
+                PersonName = user.PersonName,
+                UserGroupId = user.UserGroupId,
+                UserGroupName = user.UserGroup?.Name,
+                BranchId = user.BranchId,
+                BranchName = user.Branch?.Name,
+                MustChangePassword = user.MustChangePassword
+            };
+
+            return Ok(new SingleObjectResponseModel<BootstrapResponseDto>
+            {
+                IsDone = true,
+                ReturnMessage = "بيانات الجلسة والصلاحيات تم تحميلها بنجاح",
+                SingleObject = new BootstrapResponseDto
+                {
+                    User = userDto,
+                    AllowedPages = allowedPages
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Error in GetBootstrap: {ex}");
+            return StatusCode(StatusCodes.Status500InternalServerError, new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = "حدث خطأ أثناء تحميل بيانات المستخدم والصلاحيات."
+            });
+        }
+    }
+
     [HttpPost("change-password")]
     [Authorize]
     public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto dto)
@@ -398,10 +457,26 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
 
             await _repositoryWrapper.SaveAsync();
 
-            return Ok(new SingleObjectResponseModel
+            var updatedUser = await _repositoryWrapper.Users.GetByIdWithGroupAsync(militaryNumber);
+            var updatedUserDto = new UserDto
+            {
+                MilitaryNumber = updatedUser!.MilitaryNumber,
+                Username = updatedUser.Username,
+                Email = updatedUser.Email,
+                Role = updatedUser.Role,
+                PersonName = updatedUser.PersonName,
+                UserGroupId = updatedUser.UserGroupId,
+                UserGroupName = updatedUser.UserGroup?.Name,
+                BranchId = updatedUser.BranchId,
+                BranchName = updatedUser.Branch?.Name,
+                MustChangePassword = updatedUser.MustChangePassword
+            };
+
+            return Ok(new SingleObjectResponseModel<UserDto>
             {
                 IsDone = true,
-                ReturnMessage = "تم تحديث بيانات المستخدم بنجاح"
+                ReturnMessage = "تم تحديث بيانات المستخدم بنجاح",
+                SingleObject = updatedUserDto
             });
         }
         catch (DbUpdateException dbEx)

@@ -11,4 +11,6 @@ public interface IWarehouseBinRepository : IRepositoryBase<WarehouseBin, Warehou
     Task<WarehouseBin?> GetByIdAsync(int id);
     Task<IEnumerable<WarehouseBin>> GetAllWithDetailsAsync(int? departmentId = null);
     Task<IEnumerable<ProductItem>> GetItemsByBinIdAsync(int binId);
+    Task<List<WarehouseBinDto>> GetBinsWithCountsAsync(int? departmentId = null);
+    Task<List<WarehouseBinItemDto>> GetBinItemsDtoAsync(int binId);
 }

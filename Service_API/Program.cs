@@ -60,24 +60,19 @@ public class Program
             c.DocExpansion(Swashbuckle.AspNetCore.SwaggerUI.DocExpansion.None);
         });
 
-        // Slow request logging middleware (logs requests exceeding 500ms)
-        app.Use(async (context, next) =>
-        {
-            var sw = System.Diagnostics.Stopwatch.StartNew();
-            await next();
-            sw.Stop();
-            if (sw.ElapsedMilliseconds > 500)
-            {
-                var logger = context.RequestServices.GetService<ILogger<Program>>();
-                logger?.LogWarning("[SLOW REQUEST] {Method} {Path} returned {StatusCode} in {Elapsed}ms",
-                    context.Request.Method, context.Request.Path, context.Response.StatusCode, sw.ElapsedMilliseconds);
-            }
-        });
+        // Centralized performance and request timing middleware
+        app.UseMiddleware<PerformanceMonitoringMiddleware>();
 
         app.UseMiddleware<ExceptionMiddleware>();
 
         app.UseResponseCompression();
-        app.UseHttpsRedirection();
+
+        // Avoid HTTPS redirection warning in local development HTTP runs
+        if (!app.Environment.IsDevelopment())
+        {
+            app.UseHttpsRedirection();
+        }
+
         app.UseCors();
 
         app.UseAuthentication();

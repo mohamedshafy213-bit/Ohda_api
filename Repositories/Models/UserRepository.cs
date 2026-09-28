@@ -27,6 +27,7 @@ public class UserRepository
         var cleanUsername = username.Trim();
         return await RepositoryContext.Users
             .IgnoreQueryFilters()
+            .AsNoTracking()
             .Include(u => u.UserGroup)
             .Include(u => u.Branch)
             .FirstOrDefaultAsync(u => u.Username == cleanUsername && !u.IsDeleted);
@@ -36,6 +37,7 @@ public class UserRepository
     {
         return await RepositoryContext.Users
             .IgnoreQueryFilters()
+            .AsNoTracking()
             .Include(u => u.UserGroup)
             .Include(u => u.Branch)
             .FirstOrDefaultAsync(u => u.MilitaryNumber == id && !u.IsDeleted);

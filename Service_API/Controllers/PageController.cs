@@ -20,6 +20,35 @@ public class PageController : BaseController<Page, PageDto, PageCreateDto, PageU
         _repository = repositoryWrapper.Pages;
     }
 
+    [HttpGet]
+    public override async Task<IActionResult> GetAll([FromQuery] int? pageNumber = null, [FromQuery] int? pageSize = null)
+    {
+        try
+        {
+            var roleClaim = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+            bool isSuperAdmin = roleClaim == "SuperAdmin" || User.IsInRole("SuperAdmin");
+
+            var pages = await _repositoryWrapper.Pages.GetPagesFilteredAsync(isSuperAdmin);
+
+            return Ok(new Contracts.Responses.ListOfObjectsResponseModel<PageDto>
+            {
+                IsDone = true,
+                ErrorCode = Contracts.enums.ErrorCatalog.noError,
+                ReturnMessage = "Pages loaded successfully",
+                Objects = pages,
+                TotalCount = pages.Count
+            });
+        }
+        catch (Exception)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError, new Contracts.Responses.SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = "حدث خطأ أثناء جلب صفحات النظام."
+            });
+        }
+    }
+
     [HttpPost]
     [Authorize(Roles = "Admin")]
     public override async Task<IActionResult> Create([FromBody] PageCreateDto createDto)

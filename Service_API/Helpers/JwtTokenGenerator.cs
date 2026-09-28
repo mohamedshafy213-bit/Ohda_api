@@ -45,6 +45,11 @@ public class JwtTokenGenerator : IJwtTokenGenerator
             claims.Add(new Claim("BranchId", user.BranchId.Value.ToString()));
         }
 
+        if (user.UserGroupId.HasValue)
+        {
+            claims.Add(new Claim("user_group_id", user.UserGroupId.Value.ToString()));
+        }
+
         var expiresAt = DateTime.UtcNow.AddMinutes(expiryMinutes);
 
         var tokenDescriptor = new SecurityTokenDescriptor

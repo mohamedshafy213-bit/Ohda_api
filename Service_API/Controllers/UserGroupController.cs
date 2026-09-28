@@ -20,6 +20,43 @@ public class UserGroupController : BaseController<UserGroup, UserGroupDto, UserG
         _repository = repositoryWrapper.UserGroups;
     }
 
+    [HttpGet]
+    public override async Task<IActionResult> GetAll([FromQuery] int? pageNumber = null, [FromQuery] int? pageSize = null)
+    {
+        try
+        {
+            int? branchId = null;
+            if (HttpContext.Request.Query.TryGetValue("branchId", out var branchIdVal) && int.TryParse(branchIdVal, out var parsedBranchId))
+            {
+                branchId = parsedBranchId;
+            }
+
+            var roleClaim = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+            bool isSuperAdmin = roleClaim == "SuperAdmin" || User.IsInRole("SuperAdmin");
+            var branchClaim = User.FindFirst("branch_id")?.Value ?? User.FindFirst("BranchId")?.Value;
+            int? userBranchId = int.TryParse(branchClaim, out var bId) && bId > 0 ? bId : null;
+
+            var groups = await _repositoryWrapper.UserGroups.GetGroupsFilteredAsync(branchId, isSuperAdmin, userBranchId);
+
+            return Ok(new Contracts.Responses.ListOfObjectsResponseModel<UserGroupDto>
+            {
+                IsDone = true,
+                ErrorCode = Contracts.enums.ErrorCatalog.noError,
+                ReturnMessage = "User groups loaded successfully",
+                Objects = groups,
+                TotalCount = groups.Count
+            });
+        }
+        catch (Exception)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError, new Contracts.Responses.SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = "حدث خطأ أثناء جلب مجموعات الصلاحيات."
+            });
+        }
+    }
+
     [HttpPost]
     [Authorize(Roles = "Admin,SuperAdmin")]
     public override async Task<IActionResult> Create([FromBody] UserGroupCreateDto createDto)

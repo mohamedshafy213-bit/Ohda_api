@@ -6,5 +6,5 @@ namespace Contracts.Interfaces.Repository;
 
 public interface IProductEntryRequestRepository : IRepositoryBase<ProductEntryRequest, ProductEntryRequestDto, ProductEntryCreateDto, ProductEntryUpdateDto>
 {
-    Task<ProductEntryRequest?> GetByIdAsync(int id);
+    Task<ProductEntryRequest?> GetByIdAsync(int id, bool trackChanges = false);
 }

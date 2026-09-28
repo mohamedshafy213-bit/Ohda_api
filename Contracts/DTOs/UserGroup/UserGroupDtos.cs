@@ -6,6 +6,8 @@ public class UserGroupDto : BaseDto
 {
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
+    public int BranchId { get; set; }
+    public string? BranchName { get; set; }
 }
 
 public class UserGroupCreateDto : BaseCreateDto

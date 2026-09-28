@@ -22,9 +22,13 @@ public class ProductEntryRequestRepository
     {
     }
 
-    public async Task<ProductEntryRequest?> GetByIdAsync(int id)
+    public async Task<ProductEntryRequest?> GetByIdAsync(int id, bool trackChanges = false)
     {
-        return await RepositoryContext.ProductEntryRequests
+        var query = RepositoryContext.ProductEntryRequests.AsQueryable();
+        if (!trackChanges)
+            query = query.AsNoTracking();
+
+        return await query
             .Include(r => r.Items)
                 .ThenInclude(i => i.Product)
             .Include(r => r.Items)

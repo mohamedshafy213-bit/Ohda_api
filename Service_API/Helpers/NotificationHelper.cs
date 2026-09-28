@@ -39,36 +39,52 @@ public static class NotificationHelper
         int? referenceId = null,
         string? referenceType = null)
     {
-        // 1. Find user groups assigned to this approval step
-        var targetGroupIds = await context.ApprovalConfigs
-            .Where(c => c.IsActive && c.RequestType == requestType && c.WorkflowRole == role)
-            .Select(c => c.UserGroupId)
-            .Distinct()
-            .ToListAsync();
-
-        // 2. Find all active users belonging to these groups or system Admins/SuperAdmins
-        var targetUsers = await context.Users
-            .Where(u => !u.IsDeleted && (
-                (u.UserGroupId != null && targetGroupIds.Contains(u.UserGroupId.Value)) ||
-                u.Role == UserRole.Admin ||
-                u.Role == UserRole.SuperAdmin
-            ))
-            .Select(u => u.MilitaryNumber)
-            .Distinct()
-            .ToListAsync();
-
-        // 3. Send notification to each user
-        foreach (var userMilitaryNumber in targetUsers)
+        try
         {
-            await repositoryWrapper.Notifications.Create(new NotificationCreateDto
+            // 1. Find user groups assigned to this approval step
+            var targetGroupIds = await context.ApprovalConfigs
+                .AsNoTracking()
+                .Where(c => c.IsActive && c.RequestType == requestType && c.WorkflowRole == role && !c.IsDeleted)
+                .Select(c => c.UserGroupId)
+                .Distinct()
+                .ToListAsync();
+
+            // 2. Find all active users belonging to these groups or system Admins/SuperAdmins
+            var targetUserIds = await context.Users
+                .AsNoTracking()
+                .Where(u => !u.IsDeleted && (
+                    (u.UserGroupId != null && targetGroupIds.Contains(u.UserGroupId.Value)) ||
+                    u.Role == UserRole.Admin ||
+                    u.Role == UserRole.SuperAdmin
+                ))
+                .Select(u => u.MilitaryNumber)
+                .Distinct()
+                .ToListAsync();
+
+            // 3. Send notifications in a single batch
+            if (targetUserIds.Any())
             {
-                UserId = userMilitaryNumber,
-                Title = title,
-                Message = message,
-                Type = requestType == RequestType.Entry ? NotificationType.EntryRequest : NotificationType.ExitRequest,
-                ReferenceId = referenceId,
-                ReferenceType = referenceType
-            });
+                var notifications = targetUserIds.Select(userId => new Entities.Models.Tables.Notification
+                {
+                    UserId = userId,
+                    Title = title,
+                    Message = message,
+                    Type = requestType == RequestType.Entry ? NotificationType.EntryRequest : NotificationType.ExitRequest,
+                    ReferenceId = referenceId,
+                    ReferenceType = referenceType,
+                    IsRead = false,
+                    InsertDate = DateTime.UtcNow,
+                    IsDeleted = false
+                }).ToList();
+
+                await context.Notifications.AddRangeAsync(notifications);
+                await context.SaveChangesAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            // Log without failing parent workflow operation
+            Console.WriteLine($"[NotificationHelper] Warning: Failed to broadcast notifications: {ex.Message}");
         }
     }
 }

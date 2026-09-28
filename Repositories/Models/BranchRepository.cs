@@ -19,6 +19,8 @@ namespace Repositories.Models;
 public class BranchRepository : RepositoryBase<Branch, BranchDto, BranchCreateDto, BranchUpdateDto>, IBranchRepository
 {
     private readonly PasswordHasher<User> _passwordHasher = new();
+    private readonly ILoggerManager _logger;
+    private readonly IHttpContextAccessor _httpContextAccessor;
 
     public BranchRepository(
         ILoggerManager logger,
@@ -27,6 +29,8 @@ public class BranchRepository : RepositoryBase<Branch, BranchDto, BranchCreateDt
         IMapper mapper)
         : base(logger, repositoryContext, httpContextAccessor, mapper)
     {
+        _logger = logger;
+        _httpContextAccessor = httpContextAccessor;
     }
 
     public async Task<Branch?> GetByIdAsync(int id)
@@ -412,5 +416,79 @@ public class BranchRepository : RepositoryBase<Branch, BranchDto, BranchCreateDt
         RandomNumberGenerator.Fill(bytes);
 
         return $"{upper[bytes[0] % upper.Length]}{lower[bytes[1] % lower.Length]}{lower[bytes[2] % lower.Length]}{digits[bytes[3] % digits.Length]}{special[bytes[4] % special.Length]}{digits[bytes[5] % digits.Length]}{lower[bytes[6] % lower.Length]}";
+    }
+
+    public override async Task<SingleObjectResponseModel> Delete(object key)
+    {
+        try
+        {
+            int branchId = Convert.ToInt32(key);
+            var branch = await RepositoryContext.Branches
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(b => b.Id == branchId && !b.IsDeleted);
+
+            if (branch == null)
+            {
+                return new SingleObjectResponseModel
+                {
+                    ErrorCode = ErrorCatalog.ObjectNotFound,
+                    IsDone = false,
+                    ReturnMessage = "الفرع غير موجود"
+                };
+            }
+
+            var now = DateTime.UtcNow;
+            var userCode = _httpContextAccessor.HttpContext?.User?.Identity?.Name;
+
+            // 1. Soft delete the branch
+            branch.IsDeleted = true;
+            branch.DeleteDate = now;
+            branch.DeleteUserCode = userCode;
+
+            // 2. Cascade soft delete UserGroups belonging to this branch
+            var groups = await RepositoryContext.UserGroups
+                .IgnoreQueryFilters()
+                .Where(g => g.BranchId == branchId && !g.IsDeleted)
+                .ToListAsync();
+
+            foreach (var g in groups)
+            {
+                g.IsDeleted = true;
+                g.DeleteDate = now;
+                g.DeleteUserCode = userCode;
+            }
+
+            // 3. Cascade soft delete Users belonging to this branch
+            var users = await RepositoryContext.Users
+                .IgnoreQueryFilters()
+                .Where(u => u.BranchId == branchId && !u.IsDeleted)
+                .ToListAsync();
+
+            foreach (var u in users)
+            {
+                u.IsDeleted = true;
+                u.DeleteDate = now;
+                u.DeleteUserCode = userCode;
+            }
+
+            await RepositoryContext.SaveChangesAsync();
+
+            return new SingleObjectResponseModel
+            {
+                ErrorCode = ErrorCatalog.noError,
+                IsDone = true,
+                ReturnMessage = "تم حذف الفرع وكافة مجموعاته ومستخدميه بنجاح"
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.logErrorWithException(ex, "BranchRepository ===> Delete");
+            return new SingleObjectResponseModel
+            {
+                ErrorCode = ErrorCatalog.DataBaseFauiler,
+                IsDone = false,
+                ReturnMessage = ex.Message
+            };
+        }
     }
 }

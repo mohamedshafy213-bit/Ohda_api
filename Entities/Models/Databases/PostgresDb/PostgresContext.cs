@@ -9,8 +9,24 @@ namespace Entities.Models.Databases.PostgresDb
 {
     public partial class PostgresContext : RepositoryContext
     {
-        public PostgresContext(IConfiguration configuration, IHttpContextAccessor httpContextAccessor, ITenantService? tenantService = null) 
-            : base(configuration, httpContextAccessor, tenantService)
+        public PostgresContext(
+            IConfiguration configuration,
+            IHttpContextAccessor? httpContextAccessor = null,
+            ICurrentTenant? currentTenant = null,
+            ITenantService? tenantService = null,
+            ICurrentBranch? currentBranch = null) 
+            : base(configuration, httpContextAccessor, currentTenant, tenantService, currentBranch)
+        {
+        }
+
+        public PostgresContext(
+            DbContextOptions<PostgresContext> options,
+            IConfiguration configuration,
+            IHttpContextAccessor? httpContextAccessor = null,
+            ICurrentTenant? currentTenant = null,
+            ITenantService? tenantService = null,
+            ICurrentBranch? currentBranch = null) 
+            : base(options, configuration, httpContextAccessor, currentTenant, tenantService, currentBranch)
         {
         }
 
@@ -30,7 +46,7 @@ namespace Entities.Models.Databases.PostgresDb
             var namespaces = new[] { "Entities.Models.Configurations", "Entities.Models.Databases.PostgresDb.Configurations" };
             ApplyConfiguration(modelBuilder, namespaces);
 
-            modelBuilder.ApplyGlobalFilters(_httpContextAccessor);
+            modelBuilder.ApplyGlobalFilters(this);
 
             OnModelCreatingPartial(modelBuilder);
         }

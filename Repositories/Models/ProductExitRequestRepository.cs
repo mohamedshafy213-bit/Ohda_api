@@ -22,9 +22,13 @@ public class ProductExitRequestRepository
     {
     }
 
-    public async Task<ProductExitRequest?> GetByIdAsync(int id)
+    public async Task<ProductExitRequest?> GetByIdAsync(int id, bool trackChanges = false)
     {
-        return await RepositoryContext.ProductExitRequests
+        var query = RepositoryContext.ProductExitRequests.AsQueryable();
+        if (!trackChanges)
+            query = query.AsNoTracking();
+
+        return await query
             .Include(r => r.Items)
                 .ThenInclude(i => i.Product)
             .Include(r => r.RequestedByUser)

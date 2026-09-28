@@ -10,49 +10,45 @@ namespace LoggerService
 
         public LoggerManager(string dataBaseProvider, string dataBaseConnectionString)
         {
-            // Always start with a non-null fallback logger to avoid NullReferenceException
-            // if database sink configuration fails (bad provider, missing connection string, DB down, etc.).
-            logger = new LoggerConfiguration()
-                .MinimumLevel.Verbose()
-                .WriteTo.Console()
-                .CreateLogger();
-
             try
             {
                 var provider = (dataBaseProvider ?? string.Empty).Trim();
                 var conn = (dataBaseConnectionString ?? string.Empty).Trim();
 
-                if (string.IsNullOrWhiteSpace(provider) || string.IsNullOrWhiteSpace(conn))
-                {
-                    logger.Warning("Logger database sink disabled: DatabaseProvider/connection string not set.");
-                    return;
-                }
-
-                if (provider.Equals("Oracle", StringComparison.OrdinalIgnoreCase))
+                if (provider.Equals("Oracle", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(conn))
                 {
                     logger = new LoggerConfiguration()
-                        .MinimumLevel.Verbose()
-                        .WriteTo.Database(DBType.Oracle, conn, "SerLogs", Serilog.Events.LogEventLevel.Verbose, false, 1)
+                        .MinimumLevel.Information()
+                        .WriteTo.Console()
+                        .WriteTo.Database(DBType.Oracle, conn, "SerLogs", Serilog.Events.LogEventLevel.Warning, false, 1)
                         .CreateLogger();
                     return;
                 }
 
-                if (provider.Equals("Postgres", StringComparison.OrdinalIgnoreCase) ||
-                    provider.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase))
+                if ((provider.Equals("Postgres", StringComparison.OrdinalIgnoreCase) ||
+                     provider.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase)) && !string.IsNullOrWhiteSpace(conn))
                 {
                     logger = new LoggerConfiguration()
-                        .MinimumLevel.Verbose()
-                        .WriteTo.Database(DBType.PostgreSQL, conn, "SerLogs", Serilog.Events.LogEventLevel.Verbose, false, 1)
+                        .MinimumLevel.Information()
+                        .WriteTo.Console()
+                        .WriteTo.Database(DBType.PostgreSQL, conn, "SerLogs", Serilog.Events.LogEventLevel.Warning, false, 1)
                         .CreateLogger();
                     return;
                 }
 
-                logger.Warning("Logger database sink disabled: unsupported DatabaseProvider '{Provider}'.", provider);
+                // SqlServer and default fallback: clean, high-performance console logging
+                logger = new LoggerConfiguration()
+                    .MinimumLevel.Information()
+                    .WriteTo.Console()
+                    .CreateLogger();
             }
             catch (Exception ex)
             {
-                // Keep fallback logger alive; surface the failure for diagnostics.
-                logger.Error(ex, "Failed to configure logger database sink; using console fallback.");
+                logger = new LoggerConfiguration()
+                    .MinimumLevel.Information()
+                    .WriteTo.Console()
+                    .CreateLogger();
+                logger.Error(ex, "Failed to initialize logger; using console fallback.");
             }
         }
 

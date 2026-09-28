@@ -44,7 +44,7 @@ namespace Repositories.Repositories
         }
 
         protected IMemoryCache? MemoryCache => 
-            _httpContextAccessor.HttpContext?.RequestServices.GetService(typeof(IMemoryCache)) as IMemoryCache;
+            _httpContextAccessor.HttpContext?.RequestServices?.GetService(typeof(IMemoryCache)) as IMemoryCache;
 
         private static bool IsCacheableType =>
             typeof(T) == typeof(Department) ||

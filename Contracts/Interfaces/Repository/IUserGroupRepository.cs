@@ -6,4 +6,5 @@ namespace Contracts.Interfaces.Repository;
 
 public interface IUserGroupRepository : IRepositoryBase<UserGroup, UserGroupDto, UserGroupCreateDto, UserGroupUpdateDto>
 {
+    Task<List<UserGroupDto>> GetGroupsFilteredAsync(int? branchId, bool isSuperAdmin, int? userBranchId);
 }

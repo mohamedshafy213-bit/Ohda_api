@@ -16,6 +16,8 @@ using Service_API.BaseControllers;
 using Service_API.Helpers;
 using System.Security.Claims;
 
+using Service_API.Services;
+
 namespace Service_API.Controllers;
 
 [Authorize]
@@ -25,12 +27,17 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
 {
     private readonly IRepositoryWrapper _repositoryWrapper;
     private readonly RepositoryContext _context;
+    private readonly IBackgroundTaskQueue _backgroundQueue;
 
-    public ProductEntryRequestController(IRepositoryWrapper repositoryWrapper, RepositoryContext context)
+    public ProductEntryRequestController(
+        IRepositoryWrapper repositoryWrapper,
+        RepositoryContext context,
+        IBackgroundTaskQueue backgroundQueue)
     {
         _repositoryWrapper = repositoryWrapper;
         _context = context;
         _repository = repositoryWrapper.ProductEntryRequests;
+        _backgroundQueue = backgroundQueue;
     }
 
     [HttpPost("request")]
@@ -88,28 +95,34 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
                 newReqId = typedResp.SingleObject.Id;
             }
 
-            // Step 1 -> Step 2: Notify Reviewers / Managers about new entry request
-            await NotificationHelper.NotifyWorkflowStepUsersAsync(
-                _repositoryWrapper,
-                _context,
-                RequestType.Entry,
-                WorkflowRole.Reviewer,
-                "طلب توريد جديد بانتظار المراجعة والتدقيق",
-                $"تم تقديم طلب توريد مخزون جديد برقم #{newReqId} من قبل المستخدم #{userId}. يرجى المراجعة والتدقيق.",
-                newReqId,
-                "ProductEntryRequest"
-            );
+            var newEntryReqId = newReqId;
+            var currentUserId = userId;
+            await _backgroundQueue.QueueBackgroundWorkItemAsync(async (sp, ct) =>
+            {
+                var repo = sp.GetRequiredService<IRepositoryWrapper>();
+                var db = sp.GetRequiredService<RepositoryContext>();
 
-            // Notify Requester (confirmation)
-            await NotificationHelper.SendNotificationToUserAsync(
-                _repositoryWrapper,
-                userId,
-                "تم تسجيل طلب التوريد بنجاح",
-                $"تم تسجيل طلب التوريد #{newReqId} بنجاح وهو الآن في مرحلة مراجعة وتدقيق المدير.",
-                NotificationType.EntryRequest,
-                newReqId,
-                "ProductEntryRequest"
-            );
+                await NotificationHelper.NotifyWorkflowStepUsersAsync(
+                    repo,
+                    db,
+                    RequestType.Entry,
+                    WorkflowRole.Reviewer,
+                    "طلب توريد جديد بانتظار المراجعة والتدقيق",
+                    $"تم تقديم طلب توريد مخزون جديد برقم #{newEntryReqId} من قبل المستخدم #{currentUserId}. يرجى المراجعة والتدقيق.",
+                    newEntryReqId,
+                    "ProductEntryRequest"
+                );
+
+                await NotificationHelper.SendNotificationToUserAsync(
+                    repo,
+                    currentUserId,
+                    "تم تسجيل طلب التوريد بنجاح",
+                    $"تم تسجيل طلب التوريد #{newEntryReqId} بنجاح وهو الآن في مرحلة مراجعة وتدقيق المدير.",
+                    NotificationType.EntryRequest,
+                    newEntryReqId,
+                    "ProductEntryRequest"
+                );
+            });
         }
 
         return HandleResponse(response);
@@ -129,7 +142,7 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
         }
 
         int managerId = GetCurrentUserId();
-        var request = await _repositoryWrapper.ProductEntryRequests.GetByIdAsync(id);
+        var request = await _repositoryWrapper.ProductEntryRequests.GetByIdAsync(id, trackChanges: true);
         if (request == null)
         {
             return Ok(new SingleObjectResponseModel
@@ -181,46 +194,53 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
 
         await _repositoryWrapper.SaveAsync();
 
+        // Offload notifications to background queue
+        var reqId = id;
+        var reqUserId = request.ReceivedByUserId;
+        var reqStatus = request.Status;
+        var rejReason = request.RejectionReason;
 
-
-        // Notify
-        if (request.Status == RequestStatus.Rejected)
+        await _backgroundQueue.QueueBackgroundWorkItemAsync(async (sp, ct) =>
         {
-            await NotificationHelper.SendNotificationToUserAsync(
-                _repositoryWrapper,
-                request.ReceivedByUserId,
-                "تم رفض طلب التوريد",
-                $"تم رفض طلب التوريد #{id} من قبل المدير. السبب: {request.RejectionReason}",
-                NotificationType.Warning,
-                id,
-                "ProductEntryRequest"
-            );
-        }
-        else
-        {
-            // Step 2 -> Step 3: Notify Approvers / Supervisors
-            await NotificationHelper.NotifyWorkflowStepUsersAsync(
-                _repositoryWrapper,
-                _context,
-                RequestType.Entry,
-                WorkflowRole.Approver,
-                "طلب توريد معتمد من المدير بانتظار التوثيق النهائي",
-                $"تمت موافقة المدير على طلب التوريد #{id}. يرجى توثيق الطلب وإدخال الأصناف للمخزن.",
-                id,
-                "ProductEntryRequest"
-            );
+            var repo = sp.GetRequiredService<IRepositoryWrapper>();
+            var db = sp.GetRequiredService<RepositoryContext>();
 
-            // Notify Requester
-            await NotificationHelper.SendNotificationToUserAsync(
-                _repositoryWrapper,
-                request.ReceivedByUserId,
-                "موافقة المدير على طلب التوريد",
-                $"تمت مراجعة واعتماد طلب التوريد #{id} من قبل المدير. بانتظار التوثيق والاعتماد النهائي من المشرف.",
-                NotificationType.EntryRequest,
-                id,
-                "ProductEntryRequest"
-            );
-        }
+            if (reqStatus == RequestStatus.Rejected)
+            {
+                await NotificationHelper.SendNotificationToUserAsync(
+                    repo,
+                    reqUserId,
+                    "تم رفض طلب التوريد",
+                    $"تم رفض طلب التوريد #{reqId} من قبل المدير. السبب: {rejReason}",
+                    NotificationType.Warning,
+                    reqId,
+                    "ProductEntryRequest"
+                );
+            }
+            else
+            {
+                await NotificationHelper.NotifyWorkflowStepUsersAsync(
+                    repo,
+                    db,
+                    RequestType.Entry,
+                    WorkflowRole.Approver,
+                    "طلب توريد معتمد من المدير بانتظار التوثيق النهائي",
+                    $"تمت موافقة المدير على طلب التوريد #{reqId}. يرجى توثيق الطلب وإدخال الأصناف للمخزن.",
+                    reqId,
+                    "ProductEntryRequest"
+                );
+
+                await NotificationHelper.SendNotificationToUserAsync(
+                    repo,
+                    reqUserId,
+                    "موافقة المدير على طلب التوريد",
+                    $"تمت مراجعة واعتماد طلب التوريد #{reqId} من قبل المدير. بانتظار التوثيق والاعتماد النهائي من المشرف.",
+                    NotificationType.EntryRequest,
+                    reqId,
+                    "ProductEntryRequest"
+                );
+            }
+        });
 
         return Ok(new SingleObjectResponseModel
         {
@@ -243,7 +263,7 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
         }
 
         int supervisorId = GetCurrentUserId();
-        var request = await _repositoryWrapper.ProductEntryRequests.GetByIdAsync(id);
+        var request = await _repositoryWrapper.ProductEntryRequests.GetByIdAsync(id, trackChanges: true);
         if (request == null)
         {
             return Ok(new SingleObjectResponseModel
@@ -293,14 +313,20 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
             request.RejectionReason = "All items rejected by Supervisor.";
             await _repositoryWrapper.SaveAsync();
 
-            await _repositoryWrapper.Notifications.Create(new NotificationCreateDto
+            var reqId = id;
+            var reqUserId = request.ReceivedByUserId;
+            await _backgroundQueue.QueueBackgroundWorkItemAsync(async (sp, ct) =>
             {
-                UserId = request.ReceivedByUserId,
-                Title = "Entry Request Rejected",
-                Message = $"Your entry request (ID: {id}) was rejected by the Supervisor.",
-                Type = NotificationType.Warning,
-                ReferenceId = id,
-                ReferenceType = "ProductEntryRequest"
+                var repo = sp.GetRequiredService<IRepositoryWrapper>();
+                await repo.Notifications.Create(new NotificationCreateDto
+                {
+                    UserId = reqUserId,
+                    Title = "Entry Request Rejected",
+                    Message = $"Your entry request (ID: {reqId}) was rejected by the Supervisor.",
+                    Type = NotificationType.Warning,
+                    ReferenceId = reqId,
+                    ReferenceType = "ProductEntryRequest"
+                });
             });
 
             return Ok(new SingleObjectResponseModel { IsDone = true, ReturnMessage = "Request rejected because all items were rejected." });
@@ -454,15 +480,22 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
         await _repositoryWrapper.SaveAsync();
 
         // Notify Requester that request is fully approved and stock added
-        await NotificationHelper.SendNotificationToUserAsync(
-            _repositoryWrapper,
-            request.ReceivedByUserId,
-            "اكتمال وتوثيق طلب التوريد بنجاح",
-            $"تم توثيق طلب التوريد #{id} من قبل المشرف وإضافة الأصناف إلى رصيد المخزن بنجاح.",
-            NotificationType.EntryRequest,
-            id,
-            "ProductEntryRequest"
-        );
+        var completedReqId = id;
+        var completedUserId = request.ReceivedByUserId;
+
+        await _backgroundQueue.QueueBackgroundWorkItemAsync(async (sp, ct) =>
+        {
+            var repo = sp.GetRequiredService<IRepositoryWrapper>();
+            await NotificationHelper.SendNotificationToUserAsync(
+                repo,
+                completedUserId,
+                "اكتمال وتوثيق طلب التوريد بنجاح",
+                $"تم توثيق طلب التوريد #{completedReqId} من قبل المشرف وإضافة الأصناف إلى رصيد المخزن بنجاح.",
+                NotificationType.EntryRequest,
+                completedReqId,
+                "ProductEntryRequest"
+            );
+        });
 
         return Ok(new SingleObjectResponseModel { IsDone = true, ReturnMessage = "Request approved by Supervisor." });
     }
@@ -471,7 +504,7 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
     [Authorize]
     public async Task<IActionResult> Reject([FromRoute] int id, [FromBody] RejectRequestDto rejectDto)
     {
-        var request = await _repositoryWrapper.ProductEntryRequests.GetByIdAsync(id);
+        var request = await _repositoryWrapper.ProductEntryRequests.GetByIdAsync(id, trackChanges: true);
         if (request == null)
         {
             return Ok(new SingleObjectResponseModel
@@ -503,20 +536,67 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
 
         await _repositoryWrapper.SaveAsync();
 
+        // Notify employee of rejection in background
+        var rejReqId = id;
+        var rejUserId = request.ReceivedByUserId;
+        var reason = rejectDto.RejectionReason;
 
-
-        // Notify employee of rejection
-        await _repositoryWrapper.Notifications.Create(new NotificationCreateDto
+        await _backgroundQueue.QueueBackgroundWorkItemAsync(async (sp, ct) =>
         {
-            UserId = request.ReceivedByUserId,
-            Title = $"تم إرجاع / رفض طلب إدخال المخزون (رقم #{id})",
-            Message = $"تم إرجاع طلب التوريد الخاص بك. سبب الإرجاع: {rejectDto.RejectionReason}",
-            Type = NotificationType.Warning,
-            ReferenceId = id,
-            ReferenceType = "ProductEntryRequest"
+            var repo = sp.GetRequiredService<IRepositoryWrapper>();
+            await repo.Notifications.Create(new NotificationCreateDto
+            {
+                UserId = rejUserId,
+                Title = $"تم إرجاع / رفض طلب إدخال المخزون (رقم #{rejReqId})",
+                Message = $"تم إرجاع طلب التوريد الخاص بك. سبب الإرجاع: {reason}",
+                Type = NotificationType.Warning,
+                ReferenceId = rejReqId,
+                ReferenceType = "ProductEntryRequest"
+            });
         });
 
         return Ok(new SingleObjectResponseModel { IsDone = true, ReturnMessage = "Request rejected." });
+    }
+
+    [HttpGet]
+    public override async Task<IActionResult> GetAll([FromQuery] int? pageNumber = null, [FromQuery] int? pageSize = null)
+    {
+        var response = await _repositoryWrapper.ProductEntryRequests.FindAll(pageNumber, pageSize);
+        var dtos = (response as ListOfObjectsResponseModel<ProductEntryRequestDto>)?.Objects;
+        if (dtos != null && dtos.Any())
+        {
+            int userId = GetCurrentUserId();
+            var roleClaim = User.FindFirst(ClaimTypes.Role)?.Value;
+            var userRole = Enum.TryParse<UserRole>(roleClaim, out var parsedRole) ? parsedRole : UserRole.Employee;
+            int? userGroupId = int.TryParse(User.FindFirst("user_group_id")?.Value, out var gid) && gid > 0 ? gid : null;
+
+            if (userRole != UserRole.Admin && userRole != UserRole.SuperAdmin)
+            {
+                bool isReviewer = userGroupId != null && await _repositoryWrapper.ApprovalConfigs.IsActionAllowedAsync(RequestType.Entry, userGroupId.Value, WorkflowRole.Reviewer);
+                bool isApprover = userGroupId != null && await _repositoryWrapper.ApprovalConfigs.IsActionAllowedAsync(RequestType.Entry, userGroupId.Value, WorkflowRole.Approver);
+
+                if (isReviewer)
+                {
+                    // Manager / Reviewer: Can see all entry requests in their branch (including Pending)
+                }
+                else if (isApprover)
+                {
+                    // Supervisor / Approver: Can see requests that passed Manager stage (or all if both)
+                    dtos = dtos.Where(d => d.Status != RequestStatus.Pending).ToList();
+                }
+                else
+                {
+                    // Regular Requester: Can only see their own requests
+                    dtos = dtos.Where(d => d.ReceivedByUserId == userId).ToList();
+                }
+            }
+
+            if (response is ListOfObjectsResponseModel<ProductEntryRequestDto> listResponse)
+            {
+                listResponse.Objects = dtos;
+            }
+        }
+        return HandleResponse(response);
     }
 
     [HttpGet("{id}")]
@@ -590,18 +670,27 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
 
     private async Task<bool> CheckPermissionAsync(RequestType type, WorkflowRole role)
     {
-        int userId = GetCurrentUserId();
-        var user = await _repositoryWrapper.Users.GetByIdWithGroupAsync(userId);
-        if (user == null) return false;
-        if (user.Role == UserRole.Admin || user.Role == UserRole.SuperAdmin) return true;
-        if (user.UserGroupId == null) return false;
+        var roleClaim = User.FindFirst(ClaimTypes.Role)?.Value;
+        if (roleClaim == "Admin" || roleClaim == "SuperAdmin" || User.IsInRole("Admin") || User.IsInRole("SuperAdmin"))
+            return true;
+
+        int? userGroupId = int.TryParse(User.FindFirst("user_group_id")?.Value, out var gid) && gid > 0 ? gid : null;
+        if (userGroupId == null)
+        {
+            int userId = GetCurrentUserId();
+            var user = await _repositoryWrapper.Users.GetByIdWithGroupAsync(userId);
+            if (user == null) return false;
+            if (user.Role == UserRole.Admin || user.Role == UserRole.SuperAdmin) return true;
+            if (user.UserGroupId == null) return false;
+            userGroupId = user.UserGroupId;
+        }
 
         if (role == WorkflowRole.Reviewer)
         {
-            return await _repositoryWrapper.ApprovalConfigs.IsActionAllowedAsync(type, user.UserGroupId.Value, WorkflowRole.Reviewer) ||
-                   await _repositoryWrapper.ApprovalConfigs.IsActionAllowedAsync(type, user.UserGroupId.Value, WorkflowRole.Approver);
+            return await _repositoryWrapper.ApprovalConfigs.IsActionAllowedAsync(type, userGroupId.Value, WorkflowRole.Reviewer) ||
+                   await _repositoryWrapper.ApprovalConfigs.IsActionAllowedAsync(type, userGroupId.Value, WorkflowRole.Approver);
         }
 
-        return await _repositoryWrapper.ApprovalConfigs.IsActionAllowedAsync(type, user.UserGroupId.Value, role);
+        return await _repositoryWrapper.ApprovalConfigs.IsActionAllowedAsync(type, userGroupId.Value, role);
     }
 }

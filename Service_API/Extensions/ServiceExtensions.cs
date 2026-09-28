@@ -107,12 +107,15 @@ public static class ServiceExtensions
                 break;
             case "SqlServer":
             default:
+                services.AddSingleton<Service_API.Middleware.QueryCounterInterceptor>();
                 services.AddDbContext<RepositoryContext, SqlServerContext>((serviceProvider, options) =>
                 {
+                    var interceptor = serviceProvider.GetRequiredService<Service_API.Middleware.QueryCounterInterceptor>();
+                    options.AddInterceptors(interceptor);
                     options.UseSqlServer(Configuration.GetConnectionString("SqlServerConnection"), b =>
                     {
                         b.MigrationsAssembly("Entities");
-                        b.EnableRetryOnFailure(maxRetryCount: 5, maxRetryDelay: TimeSpan.FromSeconds(10), errorNumbersToAdd: null);
+                        b.EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(3), errorNumbersToAdd: null);
                     });
                 });
                 break;
@@ -121,10 +124,16 @@ public static class ServiceExtensions
 
     public static void ConfigureRepositoryWrapper(this IServiceCollection services)
     {
-        services.AddScoped<ICurrentBranch, CurrentBranchService>();
-        services.AddScoped<ITenantService, CurrentBranchService>();
+        services.AddScoped<CurrentBranchService>();
+        services.AddScoped<ICurrentTenant>(sp => sp.GetRequiredService<CurrentBranchService>());
+        services.AddScoped<ICurrentBranch>(sp => sp.GetRequiredService<CurrentBranchService>());
+        services.AddScoped<ITenantService>(sp => sp.GetRequiredService<CurrentBranchService>());
         services.AddScoped<IRepositoryWrapper, RepositoryWrapper>();
         services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
+
+        // Background worker channel & hosted service
+        services.AddSingleton<Service_API.Services.IBackgroundTaskQueue, Service_API.Services.BackgroundTaskQueue>();
+        services.AddHostedService<Service_API.Services.QueuedHostedService>();
     }
 
     public static void ConfigureJwtBearer(this IServiceCollection services, IConfiguration configuration)

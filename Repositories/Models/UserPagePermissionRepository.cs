@@ -185,6 +185,11 @@ public class UserPagePermissionRepository
                     })
                     .ToListAsync();
             }
+
+            if (user.Role != Entities.Models.Enums.UserRole.SuperAdmin)
+            {
+                result = result.Where(p => !p.Path.ToLower().Contains("branches")).ToList();
+            }
         }
 
         if (cache != null)
@@ -197,13 +202,22 @@ public class UserPagePermissionRepository
 
     public async Task<bool> GrantPermissionAsync(int userId, int pageId, int grantedByUserId)
     {
-        var userExists = await RepositoryContext.Users.AnyAsync(u => u.MilitaryNumber == userId && !u.IsDeleted);
-        if (!userExists)
+        var user = await RepositoryContext.Users
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(u => u.MilitaryNumber == userId && !u.IsDeleted);
+        if (user == null)
             return false;
 
-        var pageExists = await RepositoryContext.Pages.AnyAsync(p => p.Id == pageId && !p.IsDeleted);
-        if (!pageExists)
+        var page = await RepositoryContext.Pages
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(p => p.Id == pageId && !p.IsDeleted);
+        if (page == null)
             return false;
+
+        if (user.Role != Entities.Models.Enums.UserRole.SuperAdmin && page.Path.ToLower().Contains("branches"))
+        {
+            return false;
+        }
 
         var existing = await RepositoryContext.UserPagePermissions
             .FirstOrDefaultAsync(p => p.UserId == userId && p.PageId == pageId && !p.IsDeleted);
@@ -241,7 +255,21 @@ public class UserPagePermissionRepository
 
     public async Task GrantAllPagesToUserAsync(int userId, int grantedByUserId)
     {
-        var allPages = await RepositoryContext.Pages.Where(p => !p.IsDeleted).ToListAsync();
+        var user = await RepositoryContext.Users
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(u => u.MilitaryNumber == userId && !u.IsDeleted);
+        if (user == null) return;
+
+        var query = RepositoryContext.Pages
+            .IgnoreQueryFilters()
+            .Where(p => !p.IsDeleted);
+
+        if (user.Role != Entities.Models.Enums.UserRole.SuperAdmin)
+        {
+            query = query.Where(p => !p.Path.ToLower().Contains("branches"));
+        }
+
+        var allPages = await query.ToListAsync();
         foreach (var page in allPages)
         {
             await GrantPermissionAsync(userId, page.Id, grantedByUserId);

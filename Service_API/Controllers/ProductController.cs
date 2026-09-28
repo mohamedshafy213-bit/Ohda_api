@@ -47,6 +47,63 @@ public class ProductController : BaseController<Product, ProductDto, ProductCrea
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
+        if (string.IsNullOrWhiteSpace(createDto.Name))
+        {
+            return BadRequest(new SingleObjectResponseModel
+            {
+                ErrorCode = Contracts.enums.ErrorCatalog.missingValues,
+                IsDone = false,
+                ReturnMessage = "اسم المنتج / الصنف مطلوب."
+            });
+        }
+
+        if (string.IsNullOrWhiteSpace(createDto.SKU))
+        {
+            return BadRequest(new SingleObjectResponseModel
+            {
+                ErrorCode = Contracts.enums.ErrorCatalog.missingValues,
+                IsDone = false,
+                ReturnMessage = "رمز الصنف (SKU) مطلوب."
+            });
+        }
+
+        if (createDto.CategoryId <= 0)
+        {
+            return BadRequest(new SingleObjectResponseModel
+            {
+                ErrorCode = Contracts.enums.ErrorCatalog.missingValues,
+                IsDone = false,
+                ReturnMessage = "يرجى اختيار تصنيف / فئة صالحة للمنتج."
+            });
+        }
+
+        // Check if SKU already exists
+        var existingSku = await _repositoryWrapper.Products.GetBySKUAsync(createDto.SKU.Trim());
+        if (existingSku != null)
+        {
+            return BadRequest(new SingleObjectResponseModel
+            {
+                ErrorCode = Contracts.enums.ErrorCatalog.missingValues,
+                IsDone = false,
+                ReturnMessage = $"رمز الصنف (SKU) '{createDto.SKU}' مستخدم بالفعل لمنتج آخر."
+            });
+        }
+
+        // Check if Barcode already exists (if provided)
+        if (!string.IsNullOrWhiteSpace(createDto.Barcode))
+        {
+            var existingBarcode = await _repositoryWrapper.Products.GetByBarcodeAsync(createDto.Barcode.Trim());
+            if (existingBarcode != null)
+            {
+                return BadRequest(new SingleObjectResponseModel
+                {
+                    ErrorCode = Contracts.enums.ErrorCatalog.missingValues,
+                    IsDone = false,
+                    ReturnMessage = $"الباركود '{createDto.Barcode}' مسجل مسبقاً لصنف آخر ({existingBarcode.Name})."
+                });
+            }
+        }
+
         // Enforce MaxProducts quota configured by SuperAdmin
         var branchClaim = User.FindFirst("branch_id")?.Value ?? User.FindFirst("BranchId")?.Value;
         bool isSuperAdmin = User.IsInRole("SuperAdmin");
@@ -68,60 +125,89 @@ public class ProductController : BaseController<Product, ProductDto, ProductCrea
             }
         }
 
-        var response = await _repositoryWrapper.Products.Create(createDto);
-        if (response.IsDone)
+        try
         {
-            var createdProduct = (response as SingleObjectResponseModel<ProductDto>)?.SingleObject;
-            if (createdProduct != null)
+            var response = await _repositoryWrapper.Products.Create(createDto);
+            if (response.IsDone)
             {
-                int initialAmount = createDto.Amount > 0 ? createDto.Amount : createDto.Quantity;
-                // Create corresponding Inventory record with initial amount
-                await _repositoryWrapper.Inventories.Create(new Contracts.DTOs.Inventory.InventoryCreateDto
+                var createdProduct = (response as SingleObjectResponseModel<ProductDto>)?.SingleObject;
+                if (createdProduct != null)
                 {
-                    ProductId = createdProduct.Id,
-                    Quantity = initialAmount,
-                    MinStock = 5,
-                    MaxStock = 500
-                });
+                    int initialAmount = createDto.Amount > 0 ? createDto.Amount : createDto.Quantity;
+                    if (initialAmount <= 0) initialAmount = 1;
 
-                // Generate or assign individual ProductItems
-                var customSerials = createDto.SerialNumbers?.Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s.Trim()).ToList() ?? new List<string>();
-                int assignedCount = 0;
-
-                foreach (var customSerial in customSerials)
-                {
-                    assignedCount++;
-                    string qrCode = $"QR-{customSerial}";
-                    await _repositoryWrapper.ProductItems.Create(new Contracts.DTOs.ProductItem.ProductItemCreateDto
+                    // Create corresponding Inventory record with initial amount
+                    await _repositoryWrapper.Inventories.Create(new Contracts.DTOs.Inventory.InventoryCreateDto
                     {
                         ProductId = createdProduct.Id,
-                        SerialNumber = customSerial,
-                        QRCode = qrCode,
-                        Status = ProductItemStatus.InStock
+                        Quantity = initialAmount,
+                        MinStock = 5,
+                        MaxStock = 500
                     });
-                }
 
-                for (int u = assignedCount + 1; u <= initialAmount; u++)
-                {
-                    string guidSuffix = Guid.NewGuid().ToString().Substring(0, 8).ToUpper();
-                    string serialNumber = $"SN-{createdProduct.SKU}-{u}-{guidSuffix}";
-                    string qrCode = $"QR-{serialNumber}";
+                    // Generate or assign individual ProductItems
+                    var customSerials = createDto.SerialNumbers?
+                        .Where(s => !string.IsNullOrWhiteSpace(s))
+                        .Select(s => s.Trim())
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList() ?? new List<string>();
+                    
+                    int assignedCount = 0;
 
-                    await _repositoryWrapper.ProductItems.Create(new Contracts.DTOs.ProductItem.ProductItemCreateDto
+                    foreach (var customSerial in customSerials)
                     {
-                        ProductId = createdProduct.Id,
-                        SerialNumber = serialNumber,
-                        QRCode = qrCode,
-                        Status = ProductItemStatus.InStock
-                    });
-                }
+                        assignedCount++;
+                        string qrCode = $"QR-{customSerial}";
+                        await _repositoryWrapper.ProductItems.Create(new Contracts.DTOs.ProductItem.ProductItemCreateDto
+                        {
+                            ProductId = createdProduct.Id,
+                            SerialNumber = customSerial,
+                            QRCode = qrCode,
+                            Status = ProductItemStatus.InStock
+                        });
+                    }
 
-                await _repositoryWrapper.SaveAsync();
-                createdProduct.Amount = initialAmount;
-                createdProduct.Quantity = initialAmount;
+                    for (int u = assignedCount + 1; u <= initialAmount; u++)
+                    {
+                        string guidSuffix = Guid.NewGuid().ToString().Substring(0, 8).ToUpper();
+                        string serialNumber = $"SN-{createdProduct.SKU}-{u}-{guidSuffix}";
+                        string qrCode = $"QR-{serialNumber}";
+
+                        await _repositoryWrapper.ProductItems.Create(new Contracts.DTOs.ProductItem.ProductItemCreateDto
+                        {
+                            ProductId = createdProduct.Id,
+                            SerialNumber = serialNumber,
+                            QRCode = qrCode,
+                            Status = ProductItemStatus.InStock
+                        });
+                    }
+
+                    await _repositoryWrapper.SaveAsync();
+                    createdProduct.Amount = initialAmount;
+                    createdProduct.Quantity = initialAmount;
+                }
             }
+            return HandleResponse(response);
         }
-        return HandleResponse(response);
+        catch (Microsoft.EntityFrameworkCore.DbUpdateException dbEx)
+        {
+            var innerMsg = dbEx.InnerException?.Message ?? dbEx.Message;
+            return BadRequest(new SingleObjectResponseModel
+            {
+                ErrorCode = Contracts.enums.ErrorCatalog.DataBaseFauiler,
+                IsDone = false,
+                ReturnMessage = $"تعذر حفظ الصنف: تأكد من عدم تكرار الباركود أو السيريال وصحة البيانات المدخلة ({innerMsg})"
+            });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new SingleObjectResponseModel
+            {
+                ErrorCode = Contracts.enums.ErrorCatalog.missingValues,
+                IsDone = false,
+                ReturnMessage = $"حدث خطأ أثناء حفظ المنتج: {ex.Message}"
+            });
+        }
     }
 
     [HttpPut("{id}")]

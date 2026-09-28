@@ -6,4 +6,5 @@ namespace Contracts.Interfaces.Repository;
 
 public interface IPageRepository : IRepositoryBase<Page, PageDto, PageCreateDto, PageUpdateDto>
 {
+    Task<List<PageDto>> GetPagesFilteredAsync(bool isSuperAdmin);
 }

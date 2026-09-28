@@ -40,18 +40,18 @@ public class DashboardController : ControllerBase
             });
         }
 
-        var totalProducts = await _context.Products.AsNoTracking().CountAsync(p => !p.IsDeleted);
         var totalCategories = await _context.Categories.AsNoTracking().CountAsync(c => !c.IsDeleted);
         var totalSuppliers = await _context.Suppliers.AsNoTracking().CountAsync(s => !s.IsDeleted);
+        var totalProducts = await _context.Products.AsNoTracking().CountAsync(p => !p.IsDeleted);
 
         var inventoryStats = await _context.Inventories
             .AsNoTracking()
-            .Where(i => !i.IsDeleted && i.Product != null && !i.Product.IsDeleted)
+            .Where(i => !i.IsDeleted)
             .GroupBy(i => 1)
             .Select(g => new
             {
                 TotalStockQuantity = g.Sum(i => i.Quantity),
-                TotalStockValue = g.Sum(i => (decimal?)i.Quantity * (i.Product!.UnitPrice ?? 0)) ?? 0,
+                TotalStockValue = g.Sum(i => (decimal?)i.Quantity * (i.Product != null ? i.Product.UnitPrice ?? 0 : 0)) ?? 0,
                 LowStockCount = g.Count(i => i.Quantity <= i.MinStock && i.Quantity > 0),
                 OutOfStockCount = g.Count(i => i.Quantity == 0)
             })
@@ -90,7 +90,7 @@ public class DashboardController : ControllerBase
 
         var lowStockAlerts = await _context.Inventories
             .AsNoTracking()
-            .Where(i => !i.IsDeleted && i.Product != null && !i.Product.IsDeleted && i.Quantity <= i.MinStock)
+            .Where(i => !i.IsDeleted && i.Quantity <= i.MinStock && i.Product != null && !i.Product.IsDeleted)
             .OrderBy(i => i.Quantity)
             .Take(50)
             .Select(i => new LowStockItemDto
@@ -119,7 +119,7 @@ public class DashboardController : ControllerBase
             LowStockAlerts = lowStockAlerts
         };
 
-        _memoryCache.Set(cacheKey, dashboardDto, TimeSpan.FromSeconds(30));
+        _memoryCache.Set(cacheKey, dashboardDto, TimeSpan.FromMinutes(2));
 
         return Ok(new SingleObjectResponseModel<ProductDashboardDto>
         {

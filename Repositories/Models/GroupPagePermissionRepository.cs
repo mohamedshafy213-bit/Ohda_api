@@ -25,9 +25,23 @@ public class GroupPagePermissionRepository
 
     public async Task<List<PageDto>> GetAllowedPagesForGroupAsync(int groupId)
     {
-        return await RepositoryContext.GroupPagePermissions
+        var group = await RepositoryContext.UserGroups
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(g => g.Id == groupId && !g.IsDeleted);
+
+        bool isBranchGroup = group != null && group.BranchId > 0;
+
+        var query = RepositoryContext.GroupPagePermissions
+            .IgnoreQueryFilters()
             .AsNoTracking()
-            .Where(p => p.UserGroupId == groupId && !p.IsDeleted && p.Page != null && !p.Page.IsDeleted)
+            .Where(p => p.UserGroupId == groupId && !p.IsDeleted && p.Page != null && !p.Page.IsDeleted);
+
+        if (isBranchGroup)
+        {
+            query = query.Where(p => !p.Page!.Path.ToLower().Contains("branches"));
+        }
+
+        return await query
             .OrderBy(p => p.Page!.SortOrder)
             .Select(p => new PageDto
             {
@@ -42,13 +56,23 @@ public class GroupPagePermissionRepository
 
     public async Task<bool> GrantPermissionAsync(int groupId, int pageId, int grantedByUserId)
     {
-        var groupExists = await RepositoryContext.UserGroups.AnyAsync(g => g.Id == groupId && !g.IsDeleted);
-        if (!groupExists)
+        var group = await RepositoryContext.UserGroups
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(g => g.Id == groupId && !g.IsDeleted);
+        if (group == null)
             return false;
 
-        var pageExists = await RepositoryContext.Pages.AnyAsync(p => p.Id == pageId && !p.IsDeleted);
-        if (!pageExists)
+        var page = await RepositoryContext.Pages
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(p => p.Id == pageId && !p.IsDeleted);
+        if (page == null)
             return false;
+
+        // Block SuperAdmin platform management pages from being granted to branch groups
+        if (group.BranchId > 0 && page.Path.ToLower().Contains("branches"))
+        {
+            return false;
+        }
 
         var existing = await RepositoryContext.GroupPagePermissions
             .FirstOrDefaultAsync(p => p.UserGroupId == groupId && p.PageId == pageId && !p.IsDeleted);
@@ -58,6 +82,7 @@ public class GroupPagePermissionRepository
 
         var permission = new GroupPagePermission
         {
+            BranchId = group.BranchId,
             UserGroupId = groupId,
             PageId = pageId,
             GrantedByUserId = grantedByUserId
@@ -84,7 +109,21 @@ public class GroupPagePermissionRepository
 
     public async Task GrantAllPagesToGroupAsync(int groupId, int grantedByUserId)
     {
-        var allPages = await RepositoryContext.Pages.Where(p => !p.IsDeleted).ToListAsync();
+        var group = await RepositoryContext.UserGroups
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(g => g.Id == groupId && !g.IsDeleted);
+        if (group == null) return;
+
+        var query = RepositoryContext.Pages
+            .IgnoreQueryFilters()
+            .Where(p => !p.IsDeleted);
+
+        if (group.BranchId > 0)
+        {
+            query = query.Where(p => !p.Path.ToLower().Contains("branches"));
+        }
+
+        var allPages = await query.ToListAsync();
         foreach (var page in allPages)
         {
             await GrantPermissionAsync(groupId, page.Id, grantedByUserId);

@@ -6,5 +6,5 @@ namespace Contracts.Interfaces.Repository;
 
 public interface IProductExitRequestRepository : IRepositoryBase<ProductExitRequest, ProductExitRequestDto, ProductExitCreateDto, ProductExitUpdateDto>
 {
-    Task<ProductExitRequest?> GetByIdAsync(int id);
+    Task<ProductExitRequest?> GetByIdAsync(int id, bool trackChanges = false);
 }

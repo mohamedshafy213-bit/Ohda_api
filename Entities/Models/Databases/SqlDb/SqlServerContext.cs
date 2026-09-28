@@ -9,8 +9,24 @@ namespace Entities.Models.Databases.SqlDb;
 
 public partial class SqlServerContext : RepositoryContext
 {
-    public SqlServerContext(IConfiguration configuration, IHttpContextAccessor httpContextAccessor, ITenantService? tenantService = null)
-        : base(configuration, httpContextAccessor, tenantService)
+    public SqlServerContext(
+        IConfiguration configuration,
+        IHttpContextAccessor? httpContextAccessor = null,
+        ICurrentTenant? currentTenant = null,
+        ITenantService? tenantService = null,
+        ICurrentBranch? currentBranch = null)
+        : base(configuration, httpContextAccessor, currentTenant, tenantService, currentBranch)
+    {
+    }
+
+    public SqlServerContext(
+        DbContextOptions<SqlServerContext> options,
+        IConfiguration configuration,
+        IHttpContextAccessor? httpContextAccessor = null,
+        ICurrentTenant? currentTenant = null,
+        ITenantService? tenantService = null,
+        ICurrentBranch? currentBranch = null)
+        : base(options, configuration, httpContextAccessor, currentTenant, tenantService, currentBranch)
     {
     }
 
@@ -22,7 +38,7 @@ public partial class SqlServerContext : RepositoryContext
             optionsBuilder.UseSqlServer(connectionString, b =>
             {
                 b.MigrationsAssembly("Entities");
-                b.EnableRetryOnFailure(maxRetryCount: 5, maxRetryDelay: TimeSpan.FromSeconds(10), errorNumbersToAdd: null);
+                b.EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(3), errorNumbersToAdd: null);
             });
             optionsBuilder.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
         }
@@ -42,7 +58,7 @@ public partial class SqlServerContext : RepositoryContext
             }
         }
 
-        modelBuilder.ApplyGlobalFilters(_httpContextAccessor);
+        modelBuilder.ApplyGlobalFilters(this);
 
         OnModelCreatingPartial(modelBuilder);
     }
