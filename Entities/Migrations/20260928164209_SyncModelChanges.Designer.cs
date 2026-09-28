@@ -4,6 +4,7 @@ using Entities.Models.Databases.SqlDb;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Entities.Migrations
 {
     [DbContext(typeof(SqlServerContext))]
-    partial class SqlServerContextModelSnapshot : ModelSnapshot
+    [Migration("20260928164209_SyncModelChanges")]
+    partial class SyncModelChanges
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -32,9 +35,6 @@ namespace Entities.Migrations
 
                     b.Property<int>("BranchId")
                         .HasColumnType("int");
-
-                    b.Property<string>("ColorHex")
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime?>("DeleteDate")
                         .HasColumnType("datetime2");
@@ -58,12 +58,6 @@ namespace Entities.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<int>("RequestType")
-                        .HasColumnType("int");
-
-                    b.Property<string>("StepName")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("StepOrder")
                         .HasColumnType("int");
 
                     b.Property<string>("UpdateUserCode")
@@ -730,7 +724,7 @@ namespace Entities.Migrations
                         {
                             Id = 1,
                             Icon = "dashboard",
-                            InsertDate = new DateTime(2026, 9, 28, 18, 23, 11, 733, DateTimeKind.Utc).AddTicks(1687),
+                            InsertDate = new DateTime(2026, 9, 28, 16, 42, 7, 804, DateTimeKind.Utc).AddTicks(1378),
                             IsDeleted = false,
                             Path = "/dashboard",
                             SortOrder = 1,
@@ -740,7 +734,7 @@ namespace Entities.Migrations
                         {
                             Id = 2,
                             Icon = "inventory_2",
-                            InsertDate = new DateTime(2026, 9, 28, 18, 23, 11, 733, DateTimeKind.Utc).AddTicks(3667),
+                            InsertDate = new DateTime(2026, 9, 28, 16, 42, 7, 804, DateTimeKind.Utc).AddTicks(3299),
                             IsDeleted = false,
                             Path = "/products",
                             SortOrder = 2,
@@ -750,7 +744,7 @@ namespace Entities.Migrations
                         {
                             Id = 3,
                             Icon = "warehouse",
-                            InsertDate = new DateTime(2026, 9, 28, 18, 23, 11, 733, DateTimeKind.Utc).AddTicks(3672),
+                            InsertDate = new DateTime(2026, 9, 28, 16, 42, 7, 804, DateTimeKind.Utc).AddTicks(3302),
                             IsDeleted = false,
                             Path = "/inventory",
                             SortOrder = 3,
@@ -760,7 +754,7 @@ namespace Entities.Migrations
                         {
                             Id = 4,
                             Icon = "qr_code_scanner",
-                            InsertDate = new DateTime(2026, 9, 28, 18, 23, 11, 733, DateTimeKind.Utc).AddTicks(3675),
+                            InsertDate = new DateTime(2026, 9, 28, 16, 42, 7, 804, DateTimeKind.Utc).AddTicks(3304),
                             IsDeleted = false,
                             Path = "/scan",
                             SortOrder = 4,
@@ -770,7 +764,7 @@ namespace Entities.Migrations
                         {
                             Id = 5,
                             Icon = "assignment_return",
-                            InsertDate = new DateTime(2026, 9, 28, 18, 23, 11, 733, DateTimeKind.Utc).AddTicks(3677),
+                            InsertDate = new DateTime(2026, 9, 28, 16, 42, 7, 804, DateTimeKind.Utc).AddTicks(3305),
                             IsDeleted = false,
                             Path = "/exit-requests",
                             SortOrder = 5,
@@ -780,7 +774,7 @@ namespace Entities.Migrations
                         {
                             Id = 6,
                             Icon = "shopping_cart",
-                            InsertDate = new DateTime(2026, 9, 28, 18, 23, 11, 733, DateTimeKind.Utc).AddTicks(3678),
+                            InsertDate = new DateTime(2026, 9, 28, 16, 42, 7, 804, DateTimeKind.Utc).AddTicks(3307),
                             IsDeleted = false,
                             Path = "/orders",
                             SortOrder = 6,
@@ -790,7 +784,7 @@ namespace Entities.Migrations
                         {
                             Id = 7,
                             Icon = "category",
-                            InsertDate = new DateTime(2026, 9, 28, 18, 23, 11, 733, DateTimeKind.Utc).AddTicks(3680),
+                            InsertDate = new DateTime(2026, 9, 28, 16, 42, 7, 804, DateTimeKind.Utc).AddTicks(3325),
                             IsDeleted = false,
                             Path = "/categories",
                             SortOrder = 7,
@@ -800,7 +794,7 @@ namespace Entities.Migrations
                         {
                             Id = 8,
                             Icon = "local_shipping",
-                            InsertDate = new DateTime(2026, 9, 28, 18, 23, 11, 733, DateTimeKind.Utc).AddTicks(3681),
+                            InsertDate = new DateTime(2026, 9, 28, 16, 42, 7, 804, DateTimeKind.Utc).AddTicks(3326),
                             IsDeleted = false,
                             Path = "/suppliers",
                             SortOrder = 8,
@@ -810,7 +804,7 @@ namespace Entities.Migrations
                         {
                             Id = 9,
                             Icon = "group",
-                            InsertDate = new DateTime(2026, 9, 28, 18, 23, 11, 733, DateTimeKind.Utc).AddTicks(3683),
+                            InsertDate = new DateTime(2026, 9, 28, 16, 42, 7, 804, DateTimeKind.Utc).AddTicks(3328),
                             IsDeleted = false,
                             Path = "/users",
                             SortOrder = 9,
@@ -820,7 +814,7 @@ namespace Entities.Migrations
                         {
                             Id = 11,
                             Icon = "explore",
-                            InsertDate = new DateTime(2026, 9, 28, 18, 23, 11, 733, DateTimeKind.Utc).AddTicks(3684),
+                            InsertDate = new DateTime(2026, 9, 28, 16, 42, 7, 804, DateTimeKind.Utc).AddTicks(3330),
                             IsDeleted = false,
                             Path = "/compass",
                             SortOrder = 10,
@@ -986,13 +980,7 @@ namespace Entities.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("ApprovalTrail")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<int>("BranchId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("CurrentStep")
                         .HasColumnType("int");
 
                     b.Property<DateTime?>("DeleteDate")
@@ -1022,9 +1010,6 @@ namespace Entities.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
-                    b.Property<bool>("IsRequesterConfirmed")
-                        .HasColumnType("bit");
-
                     b.Property<DateTime?>("LastUpdate")
                         .HasColumnType("datetime2");
 
@@ -1043,9 +1028,6 @@ namespace Entities.Migrations
 
                     b.Property<string>("RejectionReason")
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime?>("RequesterConfirmedDate")
-                        .HasColumnType("datetime2");
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
@@ -1153,13 +1135,7 @@ namespace Entities.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("ApprovalTrail")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<int>("BranchId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("CurrentStep")
                         .HasColumnType("int");
 
                     b.Property<DateTime?>("DeleteDate")
@@ -1178,9 +1154,6 @@ namespace Entities.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("IsRequesterConfirmed")
                         .HasColumnType("bit");
 
                     b.Property<DateTime?>("LastUpdate")
@@ -1203,9 +1176,6 @@ namespace Entities.Migrations
 
                     b.Property<int>("RequestedByUserId")
                         .HasColumnType("int");
-
-                    b.Property<DateTime?>("RequesterConfirmedDate")
-                        .HasColumnType("datetime2");
 
                     b.Property<int>("Status")
                         .HasColumnType("int");

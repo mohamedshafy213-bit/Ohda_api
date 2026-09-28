@@ -22,25 +22,34 @@ public class UserRepository
     {
     }
 
-    public async Task<User?> GetByUsernameAsync(string username)
+    public async Task<User?> GetByUsernameAsync(string username, bool trackChanges = false)
     {
         var cleanUsername = username.Trim();
-        return await RepositoryContext.Users
-            .IgnoreQueryFilters()
-            .AsNoTracking()
+        var query = RepositoryContext.Users.IgnoreQueryFilters();
+        if (!trackChanges)
+            query = query.AsNoTracking();
+
+        return await query
             .Include(u => u.UserGroup)
             .Include(u => u.Branch)
             .FirstOrDefaultAsync(u => u.Username == cleanUsername && !u.IsDeleted);
     }
 
-    public async Task<User?> GetByIdWithGroupAsync(int id)
+    public async Task<User?> GetByIdWithGroupAsync(int id, bool trackChanges = false)
     {
-        return await RepositoryContext.Users
-            .IgnoreQueryFilters()
-            .AsNoTracking()
+        var query = RepositoryContext.Users.IgnoreQueryFilters();
+        if (!trackChanges)
+            query = query.AsNoTracking();
+
+        return await query
             .Include(u => u.UserGroup)
             .Include(u => u.Branch)
             .FirstOrDefaultAsync(u => u.MilitaryNumber == id && !u.IsDeleted);
+    }
+
+    public void UpdateDirect(User user)
+    {
+        RepositoryContext.Users.Update(user);
     }
 
     public async Task<List<UserDto>> GetUsersFilteredAsync(int? branchId, bool isSuperAdmin, int? userBranchId)

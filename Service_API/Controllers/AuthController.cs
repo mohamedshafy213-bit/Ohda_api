@@ -183,7 +183,7 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
             if (!int.TryParse(militaryNumberClaim, out var militaryNumber))
                 return Unauthorized();
 
-            var user = await _repositoryWrapper.Users.GetByIdWithGroupAsync(militaryNumber);
+            var user = await _repositoryWrapper.Users.GetByIdWithGroupAsync(militaryNumber, trackChanges: true);
             if (user == null)
                 return NotFound();
 
@@ -199,6 +199,7 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
 
             user.PasswordHash = PasswordHasherHelper.HashPassword(user, dto.NewPassword);
             user.MustChangePassword = false;
+            _repositoryWrapper.Users.UpdateDirect(user);
             await _repositoryWrapper.SaveAsync();
 
             return Ok(new SingleObjectResponseModel
@@ -422,7 +423,7 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
             var branchClaim = User.FindFirst("branch_id")?.Value ?? User.FindFirst("BranchId")?.Value;
             int? userBranchId = int.TryParse(branchClaim, out var bId) && bId > 0 ? bId : null;
 
-            var existingUser = await _repositoryWrapper.Users.GetByIdWithGroupAsync(militaryNumber);
+            var existingUser = await _repositoryWrapper.Users.GetByIdWithGroupAsync(militaryNumber, trackChanges: true);
             if (existingUser == null)
                 return NotFound(new SingleObjectResponseModel { IsDone = false, ReturnMessage = "المستخدم غير موجود" });
 
@@ -455,6 +456,7 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
                 existingUser.PasswordHash = PasswordHasherHelper.HashPassword(existingUser, updateDto.Password);
             }
 
+            _repositoryWrapper.Users.UpdateDirect(existingUser);
             await _repositoryWrapper.SaveAsync();
 
             var updatedUser = await _repositoryWrapper.Users.GetByIdWithGroupAsync(militaryNumber);
@@ -513,7 +515,7 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
             var branchClaim = User.FindFirst("branch_id")?.Value ?? User.FindFirst("BranchId")?.Value;
             int? userBranchId = int.TryParse(branchClaim, out var bId) && bId > 0 ? bId : null;
 
-            var existingUser = await _repositoryWrapper.Users.GetByIdWithGroupAsync(militaryNumber);
+            var existingUser = await _repositoryWrapper.Users.GetByIdWithGroupAsync(militaryNumber, trackChanges: true);
             if (existingUser == null)
                 return NotFound(new SingleObjectResponseModel { IsDone = false, ReturnMessage = "المستخدم غير موجود" });
 
@@ -537,6 +539,7 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
 
             existingUser.IsDeleted = true;
             existingUser.DeleteDate = DateTime.UtcNow;
+            _repositoryWrapper.Users.UpdateDirect(existingUser);
             await _repositoryWrapper.SaveAsync();
 
             return Ok(new SingleObjectResponseModel

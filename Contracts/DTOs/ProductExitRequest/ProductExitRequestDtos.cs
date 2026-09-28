@@ -56,6 +56,11 @@ namespace Contracts.DTOs.ProductExitRequest
         public string? RejectionReason { get; set; }
         public DateTime? InsertDate { get; set; }
 
+        public int CurrentStep { get; set; } = 1;
+        public bool IsRequesterConfirmed { get; set; }
+        public DateTime? RequesterConfirmedDate { get; set; }
+        public string? ApprovalTrail { get; set; }
+
         public List<int> SelectedProductItemIds { get; set; } = new();
         public List<string> SelectedSerials { get; set; } = new();
     }
@@ -81,6 +86,10 @@ namespace Contracts.DTOs.ProductExitRequest
         public int? ManagerId { get; set; }
         public int? SupervisorId { get; set; }
         public string? RejectionReason { get; set; }
+        public int CurrentStep { get; set; } = 1;
+        public bool IsRequesterConfirmed { get; set; }
+        public DateTime? RequesterConfirmedDate { get; set; }
+        public string? ApprovalTrail { get; set; }
         public List<int> SelectedProductItemIds { get; set; } = new();
     }
 

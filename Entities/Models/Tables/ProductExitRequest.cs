@@ -23,4 +23,9 @@ public class ProductExitRequest : TenantBaseTable
     public User? Manager { get; set; }
 
     public string? RejectionReason { get; set; }
+
+    public int CurrentStep { get; set; } = 1;
+    public bool IsRequesterConfirmed { get; set; } = false;
+    public DateTime? RequesterConfirmedDate { get; set; }
+    public string? ApprovalTrail { get; set; }
 }

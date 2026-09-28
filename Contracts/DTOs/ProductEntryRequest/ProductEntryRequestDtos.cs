@@ -59,6 +59,11 @@ namespace Contracts.DTOs.ProductEntryRequest
 
         public string? RejectionReason { get; set; }
         public DateTime? InsertDate { get; set; }
+
+        public int CurrentStep { get; set; } = 1;
+        public bool IsRequesterConfirmed { get; set; }
+        public DateTime? RequesterConfirmedDate { get; set; }
+        public string? ApprovalTrail { get; set; }
     }
 
     public class ProductEntryCreateDto : BaseCreateDto
@@ -83,5 +88,9 @@ namespace Contracts.DTOs.ProductEntryRequest
         public int? ManagerId { get; set; }
         public int? SupervisorId { get; set; }
         public string? RejectionReason { get; set; }
+        public int CurrentStep { get; set; } = 1;
+        public bool IsRequesterConfirmed { get; set; }
+        public DateTime? RequesterConfirmedDate { get; set; }
+        public string? ApprovalTrail { get; set; }
     }
 }

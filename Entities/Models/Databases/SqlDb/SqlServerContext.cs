@@ -32,6 +32,8 @@ public partial class SqlServerContext : RepositoryContext
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
+        optionsBuilder.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
+
         if (!optionsBuilder.IsConfigured)
         {
             var connectionString = _configuration.GetConnectionString("SqlServerConnection");
@@ -40,7 +42,6 @@ public partial class SqlServerContext : RepositoryContext
                 b.MigrationsAssembly("Entities");
                 b.EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(3), errorNumbersToAdd: null);
             });
-            optionsBuilder.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
         }
     }
 

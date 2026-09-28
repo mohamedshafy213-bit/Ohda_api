@@ -146,6 +146,25 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
                 newReqId = typedResp.SingleObject.Id;
             }
 
+            var createdReq = await _repositoryWrapper.ProductExitRequests.GetByIdAsync(newReqId, trackChanges: true);
+            if (createdReq != null)
+            {
+                var userName = User.FindFirst(ClaimTypes.Name)?.Value ?? $"User #{userId}";
+                createdReq.CurrentStep = 2;
+                createdReq.ApprovalTrail = WorkflowHelper.AppendTrail(null, new WorkflowStepRecord
+                {
+                    StepOrder = 1,
+                    StepName = "مقدم الطلب",
+                    Role = "Requester",
+                    Action = "Created",
+                    UserId = userId,
+                    UserName = userName,
+                    Date = DateTime.UtcNow,
+                    Notes = requestDto.Purpose
+                });
+                await _repositoryWrapper.SaveAsync();
+            }
+
             var newExitReqId = newReqId;
             var currentUserId = userId;
             await _backgroundQueue.QueueBackgroundWorkItemAsync(async (sp, ct) =>
@@ -178,7 +197,6 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
 
         return HandleResponse(response);
     }
-
 
     [HttpPut("{id}/manager-approve")]
     [Authorize]
@@ -213,9 +231,22 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
             });
         }
 
+        var userName = User.FindFirst(ClaimTypes.Name)?.Value ?? $"Manager #{managerId}";
         request.Status = RequestStatus.ManagerApproved;
         request.ManagerId = managerId;
+        request.CurrentStep = 3;
         request.LastUpdate = DateTime.UtcNow;
+        request.ApprovalTrail = WorkflowHelper.AppendTrail(request.ApprovalTrail, new WorkflowStepRecord
+        {
+            StepOrder = 2,
+            StepName = "المراجعة والفحص الفني",
+            Role = "Reviewer",
+            Action = "Approved",
+            UserId = managerId,
+            UserName = userName,
+            Date = DateTime.UtcNow,
+            Notes = "تمت المراجعة والموافقة الفنية على بنود الطلب"
+        });
 
         if (approvalDto != null && approvalDto.Items != null && approvalDto.Items.Any())
         {
@@ -246,7 +277,6 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
 
         await _repositoryWrapper.SaveAsync();
 
-        // Offload notifications to background worker to ensure instantaneous response
         var reqId = id;
         var reqUserId = request.RequestedByUserId;
         var reqStatus = request.Status;
@@ -276,8 +306,8 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
                     db,
                     RequestType.Exit,
                     WorkflowRole.Approver,
-                    "طلب صرف معتمد من المدير بانتظار التوثيق والصرف النهائي",
-                    $"تمت موافقة المدير على طلب صرف العهدة #{reqId}. يرجى التوثيق والاعتماد النهائي وصرف الأصناف للمستفيد.",
+                    "طلب صرف معتمد من المدير بانتظار الاعتماد النهائي",
+                    $"تمت موافقة المدير على طلب صرف العهدة #{reqId}. بانتظار الاعتماد النهائي.",
                     reqId,
                     "ProductExitRequest"
                 );
@@ -286,7 +316,7 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
                     repo,
                     reqUserId,
                     "موافقة المدير على طلب صرف العهدة",
-                    $"تمت مراجعة واعتماد طلب صرف العهدة #{reqId} من قبل المدير. بانتظار التوثيق والصرف النهائي من المشرف.",
+                    $"تمت مراجعة واعتماد طلب صرف العهدة #{reqId} من قبل المدير. بانتظار الاعتماد النهائي.",
                     NotificationType.ExitRequest,
                     reqId,
                     "ProductExitRequest"
@@ -334,7 +364,6 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
             });
         }
 
-        // Apply item status updates
         if (approvalDto != null && approvalDto.Items != null && approvalDto.Items.Any())
         {
             foreach (var itemUpdate in approvalDto.Items)
@@ -359,10 +388,25 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
             }
         }
 
+        var userName = User.FindFirst(ClaimTypes.Name)?.Value ?? $"Supervisor #{supervisorId}";
+        request.SupervisorId = supervisorId;
+        request.LastUpdate = DateTime.UtcNow;
+
         if (request.Items.All(i => i.Status == RequestStatus.Rejected))
         {
             request.Status = RequestStatus.Rejected;
             request.RejectionReason = "All items rejected by Supervisor.";
+            request.ApprovalTrail = WorkflowHelper.AppendTrail(request.ApprovalTrail, new WorkflowStepRecord
+            {
+                StepOrder = 3,
+                StepName = "الاعتماد النهائي",
+                Role = "Approver",
+                Action = "Rejected",
+                UserId = supervisorId,
+                UserName = userName,
+                Date = DateTime.UtcNow,
+                Notes = request.RejectionReason
+            });
             await _repositoryWrapper.SaveAsync();
 
             var reqId = id;
@@ -384,9 +428,75 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
             return Ok(new SingleObjectResponseModel { IsDone = true, ReturnMessage = "Request rejected because all items were rejected." });
         }
 
-        var approvedItems = request.Items.Where(i => i.Status == RequestStatus.Approved).ToList();
+        // Fully approved by final step, now ready for Requester confirmation / release
+        request.Status = RequestStatus.SupervisorApproved;
+        request.CurrentStep = 4; // Ready for Requester Confirmation
+        request.ApprovalTrail = WorkflowHelper.AppendTrail(request.ApprovalTrail, new WorkflowStepRecord
+        {
+            StepOrder = 3,
+            StepName = "الاعتماد النهائي",
+            Role = "Approver",
+            Action = "Approved",
+            UserId = supervisorId,
+            UserName = userName,
+            Date = DateTime.UtcNow,
+            Notes = "تم الاعتماد النهائي، بانتظار تأكيد واستلام صاحب الطلب"
+        });
 
-        // 1. Validate stock levels for all approved items atomically
+        await _repositoryWrapper.SaveAsync();
+
+        var completedReqId = id;
+        var completedUserId = request.RequestedByUserId;
+
+        await _backgroundQueue.QueueBackgroundWorkItemAsync(async (sp, ct) =>
+        {
+            var repo = sp.GetRequiredService<IRepositoryWrapper>();
+            await NotificationHelper.SendNotificationToUserAsync(
+                repo,
+                completedUserId,
+                "تم اعتماد طلب صرف العهدة بالكامل",
+                $"تم اعتماد طلب صرف العهدة #{completedReqId} رسمياً من جميع المعتمدين. يرجى الدخول لتأكيد الاستلام والصرف.",
+                NotificationType.ExitRequest,
+                completedReqId,
+                "ProductExitRequest"
+            );
+        });
+
+        return Ok(new SingleObjectResponseModel { IsDone = true, ReturnMessage = "Request approved by Supervisor. Ready for requester confirmation." });
+    }
+
+    [HttpPost("{id}/requester-confirm")]
+    [Authorize]
+    public async Task<IActionResult> RequesterConfirm([FromRoute] int id)
+    {
+        int userId = GetCurrentUserId();
+        var request = await _repositoryWrapper.ProductExitRequests.GetByIdAsync(id, trackChanges: true);
+        if (request == null)
+            return NotFound(new SingleObjectResponseModel { IsDone = false, ReturnMessage = "الطلب غير موجود." });
+
+        var roleClaim = User.FindFirst(ClaimTypes.Role)?.Value;
+        bool isAdmin = roleClaim == "Admin" || roleClaim == "SuperAdmin" || User.IsInRole("Admin") || User.IsInRole("SuperAdmin");
+        if (!isAdmin && request.RequestedByUserId != userId)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = "فقط مقدم الطلب أو المسؤول يمكنه تأكيد الاستلام وإتمام الصرف."
+            });
+        }
+
+        if (request.IsRequesterConfirmed)
+        {
+            return BadRequest(new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = "تم تأكيد هذا الطلب وصرف العهدة مسبقاً."
+            });
+        }
+
+        var approvedItems = request.Items.Where(i => i.Status == RequestStatus.Approved || i.Status == RequestStatus.Pending).ToList();
+
+        // 1. Validate stock levels
         foreach (var item in approvedItems)
         {
             var inventory = await _repositoryWrapper.Inventories.GetByProductIdAsync(item.ProductId);
@@ -402,18 +512,18 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
             }
         }
 
-        // 2. Decrement stock atomically
+        // 2. Decrement stock
         foreach (var item in approvedItems)
         {
             var inventory = await _repositoryWrapper.Inventories.GetByProductIdAsync(item.ProductId);
             if (inventory != null)
             {
-                inventory.Quantity -= item.Quantity;
+                inventory.Quantity = Math.Max(0, inventory.Quantity - item.Quantity);
                 inventory.LastUpdate = DateTime.UtcNow;
             }
         }
 
-        // 3. Mark associated product items as Exited and create Compass entries
+        // 3. Mark associated product items as Exited and log to Compass
         var productItems = await _repositoryWrapper.ProductItems.GetByExitRequestIdAsync(id);
         var productItemsGrouped = productItems.GroupBy(pi => pi.ProductId).ToDictionary(g => g.Key, g => g.ToList());
 
@@ -428,7 +538,6 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
             int currentCount = itemsToExit.Count;
             if (currentCount < item.Quantity)
             {
-                // We need more items than currently linked. Let's find InStock items for this product.
                 int extraNeeded = item.Quantity - currentCount;
                 var extraItems = await _context.ProductItems
                     .Where(pi => pi.ProductId == item.ProductId && pi.Status == ProductItemStatus.InStock && !pi.IsDeleted && pi.ProductExitRequestId == null)
@@ -441,7 +550,6 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
                     itemsToExit.Add(extraPi);
                 }
 
-                // If we STILL don't have enough items, let's generate new ProductItem records.
                 int stillNeeded = item.Quantity - itemsToExit.Count;
                 if (stillNeeded > 0)
                 {
@@ -469,7 +577,6 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
                 }
             }
 
-            // Now exit all of them and log to Compass
             foreach (var pi in itemsToExit)
             {
                 pi.Status = ProductItemStatus.Exited;
@@ -495,34 +602,33 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
             }
         }
 
-        request.Status = RequestStatus.SupervisorApproved;
-        request.SupervisorId = supervisorId;
+        var userName = User.FindFirst(ClaimTypes.Name)?.Value ?? $"User #{userId}";
+        request.IsRequesterConfirmed = true;
+        request.RequesterConfirmedDate = DateTime.UtcNow;
+        request.Status = RequestStatus.Approved;
         request.LastUpdate = DateTime.UtcNow;
+        request.ApprovalTrail = WorkflowHelper.AppendTrail(request.ApprovalTrail, new WorkflowStepRecord
+        {
+            StepOrder = 4,
+            StepName = "تأكيد واستلام العهدة",
+            Role = "Requester",
+            Action = "Confirmed",
+            UserId = userId,
+            UserName = userName,
+            Date = DateTime.UtcNow,
+            Notes = "تم تأكيد استلام وصرف الأجهزة وتسجيلها في بوصلة العهد"
+        });
 
         await _repositoryWrapper.SaveAsync();
 
-        // Notify Requester that request is fully approved and stock updated
-        var completedReqId = id;
-        var completedUserId = request.RequestedByUserId;
-        var completedRecipient = request.RecipientName;
-
-        await _backgroundQueue.QueueBackgroundWorkItemAsync(async (sp, ct) =>
+        return Ok(new SingleObjectResponseModel
         {
-            var repo = sp.GetRequiredService<IRepositoryWrapper>();
-            await NotificationHelper.SendNotificationToUserAsync(
-                repo,
-                completedUserId,
-                "اكتمال وتوثيق صرف العهدة بنجاح",
-                $"تم توثيق طلب صرف العهدة #{completedReqId} من قبل المشرف وصرف الأصناف إلى {completedRecipient} بنجاح.",
-                NotificationType.ExitRequest,
-                completedReqId,
-                "ProductExitRequest"
-            );
+            IsDone = true,
+            ReturnMessage = "تم تأكيد الاستلام وصرف العهدة وتسجيل الأجهزة في البوصلة بنجاح!"
         });
-
-        return Ok(new SingleObjectResponseModel { IsDone = true, ReturnMessage = "Request approved by Supervisor." });
     }
 
+    [HttpPost("{id}/reject")]
     [HttpPut("{id}/reject")]
     [Authorize]
     public async Task<IActionResult> Reject([FromRoute] int id, [FromBody] RejectRequestDto rejectDto)
@@ -537,19 +643,24 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
             });
         }
 
-        WorkflowRole requiredRole = request.Status == RequestStatus.ManagerApproved ? WorkflowRole.Approver : WorkflowRole.Reviewer;
-        if (!await CheckPermissionAsync(RequestType.Exit, requiredRole))
-        {
-            return BadRequest(new SingleObjectResponseModel
-            {
-                IsDone = false,
-                ReturnMessage = "Your user group is not authorized to reject this request."
-            });
-        }
+        int userId = GetCurrentUserId();
+        var userName = User.FindFirst(ClaimTypes.Name)?.Value ?? $"User #{userId}";
+        string reason = string.IsNullOrWhiteSpace(rejectDto.RejectionReason) ? "تم رفض الطلب" : rejectDto.RejectionReason.Trim();
 
         request.Status = RequestStatus.Rejected;
-        request.RejectionReason = rejectDto.RejectionReason;
+        request.RejectionReason = reason;
         request.LastUpdate = DateTime.UtcNow;
+        request.ApprovalTrail = WorkflowHelper.AppendTrail(request.ApprovalTrail, new WorkflowStepRecord
+        {
+            StepOrder = request.CurrentStep,
+            StepName = $"المرحلة {request.CurrentStep}",
+            Role = "Approver",
+            Action = "Rejected",
+            UserId = userId,
+            UserName = userName,
+            Date = DateTime.UtcNow,
+            Notes = reason
+        });
 
         foreach (var item in request.Items)
         {
@@ -559,23 +670,21 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
 
         await _repositoryWrapper.SaveAsync();
 
-        // Notify employee of rejection in background
         var rejectedReqId = id;
         var rejectedUserId = request.RequestedByUserId;
-        var reason = rejectDto.RejectionReason;
 
         await _backgroundQueue.QueueBackgroundWorkItemAsync(async (sp, ct) =>
         {
             var repo = sp.GetRequiredService<IRepositoryWrapper>();
-            await repo.Notifications.Create(new NotificationCreateDto
-            {
-                UserId = rejectedUserId,
-                Title = $"تم إرجاع / رفض طلب الصرف (رقم #{rejectedReqId})",
-                Message = $"تم إرجاع طلب الصرف الخاص بك. سبب الإرجاع: {reason}",
-                Type = NotificationType.Warning,
-                ReferenceId = rejectedReqId,
-                ReferenceType = "ProductExitRequest"
-            });
+            await NotificationHelper.SendNotificationToUserAsync(
+                repo,
+                rejectedUserId,
+                "تم رفض طلب صرف العهدة",
+                $"تم رفض طلب صرف العهدة #{rejectedReqId}. سبب الرفض: {reason}",
+                NotificationType.Warning,
+                rejectedReqId,
+                "ProductExitRequest"
+            );
         });
 
         return Ok(new SingleObjectResponseModel { IsDone = true, ReturnMessage = "Request rejected." });
@@ -681,6 +790,10 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
             SupervisorUsername = request.Supervisor?.Username,
             RejectionReason = request.RejectionReason,
             InsertDate = request.InsertDate,
+            CurrentStep = request.CurrentStep,
+            IsRequesterConfirmed = request.IsRequesterConfirmed,
+            RequesterConfirmedDate = request.RequesterConfirmedDate,
+            ApprovalTrail = request.ApprovalTrail,
             Items = request.Items.Select(i => new ProductExitRequestItemDto
             {
                 Id = i.Id,

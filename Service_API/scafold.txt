@@ -16,4 +16,4 @@ Update-Database -Context PostgresContext -Project Entities -StartupProject Servi
 
 
 
-Add-Migration seeddata-newpage -Context SqlServerContext -Project Entities -StartupProject Service_API
+Add-Migration intial -Context SqlServerContext -Project Entities -StartupProject Service_API

@@ -32,12 +32,13 @@ namespace Entities.Models.Databases.PostgresDb
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
+            optionsBuilder.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
+
             if (!optionsBuilder.IsConfigured)
             {
                 var connectionString = _configuration.GetConnectionString("PostgresConnection");
                 optionsBuilder.UseNpgsql(connectionString, b => b.MigrationsAssembly("Entities"))
                               .UseSnakeCaseNamingConvention();
-                optionsBuilder.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
             }
         }
 

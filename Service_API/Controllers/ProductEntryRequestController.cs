@@ -95,6 +95,25 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
                 newReqId = typedResp.SingleObject.Id;
             }
 
+            var createdReq = await _repositoryWrapper.ProductEntryRequests.GetByIdAsync(newReqId, trackChanges: true);
+            if (createdReq != null)
+            {
+                var userName = User.FindFirst(ClaimTypes.Name)?.Value ?? $"User #{userId}";
+                createdReq.CurrentStep = 2;
+                createdReq.ApprovalTrail = WorkflowHelper.AppendTrail(null, new WorkflowStepRecord
+                {
+                    StepOrder = 1,
+                    StepName = "مقدم الطلب والتوريد",
+                    Role = "Requester",
+                    Action = "Created",
+                    UserId = userId,
+                    UserName = userName,
+                    Date = DateTime.UtcNow,
+                    Notes = requestDto.Notes
+                });
+                await _repositoryWrapper.SaveAsync();
+            }
+
             var newEntryReqId = newReqId;
             var currentUserId = userId;
             await _backgroundQueue.QueueBackgroundWorkItemAsync(async (sp, ct) =>
@@ -161,9 +180,22 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
             });
         }
 
+        var userName = User.FindFirst(ClaimTypes.Name)?.Value ?? $"Manager #{managerId}";
         request.Status = RequestStatus.ManagerApproved;
         request.ManagerId = managerId;
+        request.CurrentStep = 3;
         request.LastUpdate = DateTime.UtcNow;
+        request.ApprovalTrail = WorkflowHelper.AppendTrail(request.ApprovalTrail, new WorkflowStepRecord
+        {
+            StepOrder = 2,
+            StepName = "المراجعة والفحص الفني",
+            Role = "Reviewer",
+            Action = "Approved",
+            UserId = managerId,
+            UserName = userName,
+            Date = DateTime.UtcNow,
+            Notes = "تمت المراجعة والفحص الفني لبنود الشحنة والتوريد"
+        });
 
         if (approvalDto != null && approvalDto.Items != null && approvalDto.Items.Any())
         {
@@ -194,7 +226,6 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
 
         await _repositoryWrapper.SaveAsync();
 
-        // Offload notifications to background queue
         var reqId = id;
         var reqUserId = request.ReceivedByUserId;
         var reqStatus = request.Status;
@@ -224,8 +255,8 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
                     db,
                     RequestType.Entry,
                     WorkflowRole.Approver,
-                    "طلب توريد معتمد من المدير بانتظار التوثيق النهائي",
-                    $"تمت موافقة المدير على طلب التوريد #{reqId}. يرجى توثيق الطلب وإدخال الأصناف للمخزن.",
+                    "طلب توريد معتمد من المدير بانتظار الاعتماد النهائي",
+                    $"تمت موافقة المدير على طلب التوريد #{reqId}. يرجى الاعتماد النهائي.",
                     reqId,
                     "ProductEntryRequest"
                 );
@@ -234,7 +265,7 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
                     repo,
                     reqUserId,
                     "موافقة المدير على طلب التوريد",
-                    $"تمت مراجعة واعتماد طلب التوريد #{reqId} من قبل المدير. بانتظار التوثيق والاعتماد النهائي من المشرف.",
+                    $"تمت مراجعة واعتماد طلب التوريد #{reqId} من قبل المدير. بانتظار الاعتماد النهائي.",
                     NotificationType.EntryRequest,
                     reqId,
                     "ProductEntryRequest"
@@ -282,7 +313,6 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
             });
         }
 
-        // Apply item status updates
         if (approvalDto != null && approvalDto.Items != null && approvalDto.Items.Any())
         {
             foreach (var itemUpdate in approvalDto.Items)
@@ -307,10 +337,25 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
             }
         }
 
+        var userName = User.FindFirst(ClaimTypes.Name)?.Value ?? $"Supervisor #{supervisorId}";
+        request.SupervisorId = supervisorId;
+        request.LastUpdate = DateTime.UtcNow;
+
         if (request.Items.All(i => i.Status == RequestStatus.Rejected))
         {
             request.Status = RequestStatus.Rejected;
             request.RejectionReason = "All items rejected by Supervisor.";
+            request.ApprovalTrail = WorkflowHelper.AppendTrail(request.ApprovalTrail, new WorkflowStepRecord
+            {
+                StepOrder = 3,
+                StepName = "الاعتماد النهائي",
+                Role = "Approver",
+                Action = "Rejected",
+                UserId = supervisorId,
+                UserName = userName,
+                Date = DateTime.UtcNow,
+                Notes = request.RejectionReason
+            });
             await _repositoryWrapper.SaveAsync();
 
             var reqId = id;
@@ -332,7 +377,72 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
             return Ok(new SingleObjectResponseModel { IsDone = true, ReturnMessage = "Request rejected because all items were rejected." });
         }
 
-        var approvedItems = request.Items.Where(i => i.Status == RequestStatus.Approved).ToList();
+        request.Status = RequestStatus.SupervisorApproved;
+        request.CurrentStep = 4; // Ready for Requester Confirmation
+        request.ApprovalTrail = WorkflowHelper.AppendTrail(request.ApprovalTrail, new WorkflowStepRecord
+        {
+            StepOrder = 3,
+            StepName = "الاعتماد النهائي",
+            Role = "Approver",
+            Action = "Approved",
+            UserId = supervisorId,
+            UserName = userName,
+            Date = DateTime.UtcNow,
+            Notes = "تم الاعتماد النهائي، بانتظار استلام وتأكيد صاحب الطلب"
+        });
+
+        await _repositoryWrapper.SaveAsync();
+
+        var completedReqId = id;
+        var completedUserId = request.ReceivedByUserId;
+
+        await _backgroundQueue.QueueBackgroundWorkItemAsync(async (sp, ct) =>
+        {
+            var repo = sp.GetRequiredService<IRepositoryWrapper>();
+            await NotificationHelper.SendNotificationToUserAsync(
+                repo,
+                completedUserId,
+                "تم اعتماد طلب التوريد بالكامل",
+                $"تم اعتماد طلب التوريد #{completedReqId} رسمياً من جميع المعتمدين. يرجى الدخول لتأكيد الاستلام وتفعيل الأجهزة في النظام.",
+                NotificationType.EntryRequest,
+                completedReqId,
+                "ProductEntryRequest"
+            );
+        });
+
+        return Ok(new SingleObjectResponseModel { IsDone = true, ReturnMessage = "Request approved by Supervisor. Ready for requester confirmation." });
+    }
+
+    [HttpPost("{id}/requester-confirm")]
+    [Authorize]
+    public async Task<IActionResult> RequesterConfirm([FromRoute] int id)
+    {
+        int userId = GetCurrentUserId();
+        var request = await _repositoryWrapper.ProductEntryRequests.GetByIdAsync(id, trackChanges: true);
+        if (request == null)
+            return NotFound(new SingleObjectResponseModel { IsDone = false, ReturnMessage = "الطلب غير موجود." });
+
+        var roleClaim = User.FindFirst(ClaimTypes.Role)?.Value;
+        bool isAdmin = roleClaim == "Admin" || roleClaim == "SuperAdmin" || User.IsInRole("Admin") || User.IsInRole("SuperAdmin");
+        if (!isAdmin && request.ReceivedByUserId != userId)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = "فقط مقدم الطلب أو المسؤول يمكنه تأكيد الاستلام وإدخال الأصناف للمخزن."
+            });
+        }
+
+        if (request.IsRequesterConfirmed)
+        {
+            return BadRequest(new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = "تم تأكيد هذا الطلب وإدخال الأصناف للمخزن مسبقاً."
+            });
+        }
+
+        var approvedItems = request.Items.Where(i => i.Status == RequestStatus.Approved || i.Status == RequestStatus.Pending).ToList();
 
         // Increment inventory and generate ProductItems atomically
         foreach (var item in approvedItems)
@@ -357,7 +467,6 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
                 inventory.LastUpdate = DateTime.UtcNow;
             }
 
-            // Extract returned serial numbers if present in item.Notes (sent as [SN-1, SN-2])
             List<string> returnedSerials = new();
             if (!string.IsNullOrWhiteSpace(item.Notes) && item.Notes.Contains("[") && item.Notes.Contains("]"))
             {
@@ -377,7 +486,6 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
             var product = await _repositoryWrapper.Products.GetByIdAsync(item.ProductId);
             string sku = product?.SKU ?? $"P{item.ProductId}";
 
-            // Resolve item state to determine if it has problems (Damaged / InMaintenance)
             ProductItemStatus itemStatus = ProductItemStatus.InStock;
             string stateLabel = "";
             if (item.ProductStateId.HasValue)
@@ -398,7 +506,6 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
                 }
             }
 
-            // Process returned serial numbers (change status from Exited to InStock or Damaged/Maintenance)
             int processedQty = 0;
             foreach (var serial in returnedSerials)
             {
@@ -411,11 +518,10 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
                     productItem.Place = null;
                     productItem.ExitDate = null;
                     productItem.ProductExitRequestId = null;
-                    productItem.Notes = string.IsNullOrWhiteSpace(stateLabel) 
-                        ? $"Returned to stock via Request #{request.Id}" 
+                    productItem.Notes = string.IsNullOrWhiteSpace(stateLabel)
+                        ? $"Returned to stock via Request #{request.Id}"
                         : $"Returned via Request #{request.Id} (حالة الصنف: {stateLabel})";
 
-                    // Create Compass log entry for return
                     var compassCreate = new CompassCreateDto
                     {
                         SerialNumber = serial,
@@ -434,7 +540,6 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
                 }
             }
 
-            // For the remaining quantity, generate new serial numbers (purchased/new items)
             int remainingQty = item.Quantity - processedQty;
             for (int u = 1; u <= remainingQty; u++)
             {
@@ -455,7 +560,6 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
                 };
                 await _repositoryWrapper.ProductItems.CreateDirectAsync(productItem);
 
-                // Create Compass log entry for EACH ProductItem
                 var compassCreate = new CompassCreateDto
                 {
                     SerialNumber = serialNumber,
@@ -473,33 +577,33 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
             }
         }
 
-        request.Status = RequestStatus.SupervisorApproved;
-        request.SupervisorId = supervisorId;
+        var userName = User.FindFirst(ClaimTypes.Name)?.Value ?? $"User #{userId}";
+        request.IsRequesterConfirmed = true;
+        request.RequesterConfirmedDate = DateTime.UtcNow;
+        request.Status = RequestStatus.Approved;
         request.LastUpdate = DateTime.UtcNow;
+        request.ApprovalTrail = WorkflowHelper.AppendTrail(request.ApprovalTrail, new WorkflowStepRecord
+        {
+            StepOrder = 4,
+            StepName = "تأكيد واستلام التوريد",
+            Role = "Requester",
+            Action = "Confirmed",
+            UserId = userId,
+            UserName = userName,
+            Date = DateTime.UtcNow,
+            Notes = "تم تأكيد الاستلام وتفعيل الأصناف في المخزون وبوصلة العهد"
+        });
 
         await _repositoryWrapper.SaveAsync();
 
-        // Notify Requester that request is fully approved and stock added
-        var completedReqId = id;
-        var completedUserId = request.ReceivedByUserId;
-
-        await _backgroundQueue.QueueBackgroundWorkItemAsync(async (sp, ct) =>
+        return Ok(new SingleObjectResponseModel
         {
-            var repo = sp.GetRequiredService<IRepositoryWrapper>();
-            await NotificationHelper.SendNotificationToUserAsync(
-                repo,
-                completedUserId,
-                "اكتمال وتوثيق طلب التوريد بنجاح",
-                $"تم توثيق طلب التوريد #{completedReqId} من قبل المشرف وإضافة الأصناف إلى رصيد المخزن بنجاح.",
-                NotificationType.EntryRequest,
-                completedReqId,
-                "ProductEntryRequest"
-            );
+            IsDone = true,
+            ReturnMessage = "تم تأكيد الاستلام وإدخال الأصناف للمخزون وتسجيلها في البوصلة بنجاح!"
         });
-
-        return Ok(new SingleObjectResponseModel { IsDone = true, ReturnMessage = "Request approved by Supervisor." });
     }
 
+    [HttpPost("{id}/reject")]
     [HttpPut("{id}/reject")]
     [Authorize]
     public async Task<IActionResult> Reject([FromRoute] int id, [FromBody] RejectRequestDto rejectDto)
@@ -514,19 +618,24 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
             });
         }
 
-        WorkflowRole requiredRole = request.Status == RequestStatus.ManagerApproved ? WorkflowRole.Approver : WorkflowRole.Reviewer;
-        if (!await CheckPermissionAsync(RequestType.Entry, requiredRole))
-        {
-            return BadRequest(new SingleObjectResponseModel
-            {
-                IsDone = false,
-                ReturnMessage = "Your user group is not authorized to reject this request."
-            });
-        }
+        int userId = GetCurrentUserId();
+        var userName = User.FindFirst(ClaimTypes.Name)?.Value ?? $"User #{userId}";
+        string reason = string.IsNullOrWhiteSpace(rejectDto.RejectionReason) ? "تم رفض الطلب" : rejectDto.RejectionReason.Trim();
 
         request.Status = RequestStatus.Rejected;
-        request.RejectionReason = rejectDto.RejectionReason;
+        request.RejectionReason = reason;
         request.LastUpdate = DateTime.UtcNow;
+        request.ApprovalTrail = WorkflowHelper.AppendTrail(request.ApprovalTrail, new WorkflowStepRecord
+        {
+            StepOrder = request.CurrentStep,
+            StepName = $"المرحلة {request.CurrentStep}",
+            Role = "Approver",
+            Action = "Rejected",
+            UserId = userId,
+            UserName = userName,
+            Date = DateTime.UtcNow,
+            Notes = reason
+        });
 
         foreach (var item in request.Items)
         {
@@ -536,23 +645,21 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
 
         await _repositoryWrapper.SaveAsync();
 
-        // Notify employee of rejection in background
         var rejReqId = id;
         var rejUserId = request.ReceivedByUserId;
-        var reason = rejectDto.RejectionReason;
 
         await _backgroundQueue.QueueBackgroundWorkItemAsync(async (sp, ct) =>
         {
             var repo = sp.GetRequiredService<IRepositoryWrapper>();
-            await repo.Notifications.Create(new NotificationCreateDto
-            {
-                UserId = rejUserId,
-                Title = $"تم إرجاع / رفض طلب إدخال المخزون (رقم #{rejReqId})",
-                Message = $"تم إرجاع طلب التوريد الخاص بك. سبب الإرجاع: {reason}",
-                Type = NotificationType.Warning,
-                ReferenceId = rejReqId,
-                ReferenceType = "ProductEntryRequest"
-            });
+            await NotificationHelper.SendNotificationToUserAsync(
+                repo,
+                rejUserId,
+                "تم رفض طلب التوريد",
+                $"تم رفض طلب التوريد #{rejReqId}. سبب الرفض: {reason}",
+                NotificationType.Warning,
+                rejReqId,
+                "ProductEntryRequest"
+            );
         });
 
         return Ok(new SingleObjectResponseModel { IsDone = true, ReturnMessage = "Request rejected." });
@@ -629,6 +736,10 @@ public class ProductEntryRequestController : BaseController<ProductEntryRequest,
             SupervisorUsername = request.Supervisor?.Username,
             RejectionReason = request.RejectionReason,
             InsertDate = request.InsertDate,
+            CurrentStep = request.CurrentStep,
+            IsRequesterConfirmed = request.IsRequesterConfirmed,
+            RequesterConfirmedDate = request.RequesterConfirmedDate,
+            ApprovalTrail = request.ApprovalTrail,
             Items = request.Items.Select(i => new ProductEntryRequestItemDto
             {
                 Id = i.Id,
