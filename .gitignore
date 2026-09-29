@@ -46,3 +46,7 @@ msbuild.wrn
 /Contracts/Interfaces/Models/ILookupLangaugeRepository.cs
 /Contracts/Interfaces/Models/ILookupLangaugeRepository.cs
 /.claude
+
+# Configuration / AppSettings
+appsettings.json
+appsettings.*.json

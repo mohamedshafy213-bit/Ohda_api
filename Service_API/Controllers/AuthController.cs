@@ -41,7 +41,7 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
-            var user = await _repositoryWrapper.Users.GetByUsernameAsync(loginDto.Username);
+            var user = await _repositoryWrapper.Users.GetUserForLoginAsync(loginDto.Username);
             if (user == null)
             {
                 return Unauthorized(new SingleObjectResponseModel
@@ -52,7 +52,7 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
             }
 
             // Verify Branch status if user belongs to a branch
-            if (user.Branch != null && (!user.Branch.IsActive || user.Branch.IsDeleted))
+            if (user.BranchId.HasValue && (!user.BranchIsActive || user.BranchIsDeleted))
             {
                 return StatusCode(StatusCodes.Status403Forbidden, new SingleObjectResponseModel
                 {
@@ -61,7 +61,17 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
                 });
             }
 
-            bool isPasswordValid = PasswordHasherHelper.VerifyPassword(user, user.PasswordHash, loginDto.Password);
+            var tempUser = new User
+            {
+                MilitaryNumber = user.MilitaryNumber,
+                Username = user.Username,
+                Email = user.Email,
+                Role = user.Role,
+                BranchId = user.BranchId,
+                UserGroupId = user.UserGroupId
+            };
+
+            bool isPasswordValid = PasswordHasherHelper.VerifyPassword(tempUser, user.PasswordHash, loginDto.Password);
             if (!isPasswordValid)
             {
                 return Unauthorized(new SingleObjectResponseModel
@@ -71,8 +81,8 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
                 });
             }
 
-            var (token, expiresAt) = _jwtTokenGenerator.GenerateToken(user);
-            var allowedPages = await _repositoryWrapper.UserPagePermissions.GetAllowedPagesForUserAsync(user.MilitaryNumber);
+            var (token, expiresAt) = _jwtTokenGenerator.GenerateToken(tempUser);
+            var allowedPages = await _repositoryWrapper.UserPagePermissions.GetAllowedPagesForUserAsync(user.MilitaryNumber, user.Role, user.UserGroupId);
 
             var userDto = new UserDto
             {
@@ -82,9 +92,9 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
                 Role = user.Role,
                 PersonName = user.PersonName,
                 UserGroupId = user.UserGroupId,
-                UserGroupName = user.UserGroup?.Name,
+                UserGroupName = user.UserGroupName,
                 BranchId = user.BranchId,
-                BranchName = user.Branch?.Name,
+                BranchName = user.BranchName,
                 MustChangePassword = user.MustChangePassword
             };
 
@@ -125,8 +135,8 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
             if (!int.TryParse(militaryNumberClaim, out var militaryNumber))
                 return Unauthorized();
 
-            var user = await _repositoryWrapper.Users.GetByIdWithGroupAsync(militaryNumber);
-            if (user == null)
+            var userDto = await _repositoryWrapper.Users.GetUserDtoByIdAsync(militaryNumber);
+            if (userDto == null)
             {
                 return NotFound(new SingleObjectResponseModel
                 {
@@ -135,21 +145,7 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
                 });
             }
 
-            var allowedPages = await _repositoryWrapper.UserPagePermissions.GetAllowedPagesForUserAsync(user.MilitaryNumber);
-
-            var userDto = new UserDto
-            {
-                MilitaryNumber = user.MilitaryNumber,
-                Username = user.Username,
-                Email = user.Email,
-                Role = user.Role,
-                PersonName = user.PersonName,
-                UserGroupId = user.UserGroupId,
-                UserGroupName = user.UserGroup?.Name,
-                BranchId = user.BranchId,
-                BranchName = user.Branch?.Name,
-                MustChangePassword = user.MustChangePassword
-            };
+            var allowedPages = await _repositoryWrapper.UserPagePermissions.GetAllowedPagesForUserAsync(userDto.MilitaryNumber, userDto.Role, userDto.UserGroupId);
 
             return Ok(new SingleObjectResponseModel<BootstrapResponseDto>
             {
@@ -267,7 +263,7 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
-            var existingUser = await _repositoryWrapper.Users.GetByUsernameAsync(registerDto.Username.Trim());
+            var existingUser = await _repositoryWrapper.Users.GetUserForLoginAsync(registerDto.Username.Trim());
             if (existingUser != null)
             {
                 return BadRequest(new SingleObjectResponseModel
@@ -279,8 +275,8 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
 
             if (registerDto.MilitaryNumber > 0)
             {
-                var existingMilitary = await _repositoryWrapper.Users.GetByIdWithGroupAsync(registerDto.MilitaryNumber);
-                if (existingMilitary != null)
+                var existingMilitary = await _repositoryWrapper.Users.ExistsAsync(registerDto.MilitaryNumber);
+                if (existingMilitary)
                 {
                     return BadRequest(new SingleObjectResponseModel
                     {
@@ -328,11 +324,7 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
             int targetMilitaryNumber = registerDto.MilitaryNumber;
             if (targetMilitaryNumber <= 0)
             {
-                targetMilitaryNumber = (targetBranchId * 10000) + 1;
-                while (await _repositoryWrapper.Users.GetByIdWithGroupAsync(targetMilitaryNumber) != null)
-                {
-                    targetMilitaryNumber++;
-                }
+                targetMilitaryNumber = await _repositoryWrapper.Users.GetNextMilitaryNumberAsync(targetBranchId);
             }
 
             int? validUserGroupId = (registerDto.UserGroupId.HasValue && registerDto.UserGroupId.Value > 0)
@@ -459,19 +451,18 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
             _repositoryWrapper.Users.UpdateDirect(existingUser);
             await _repositoryWrapper.SaveAsync();
 
-            var updatedUser = await _repositoryWrapper.Users.GetByIdWithGroupAsync(militaryNumber);
             var updatedUserDto = new UserDto
             {
-                MilitaryNumber = updatedUser!.MilitaryNumber,
-                Username = updatedUser.Username,
-                Email = updatedUser.Email,
-                Role = updatedUser.Role,
-                PersonName = updatedUser.PersonName,
-                UserGroupId = updatedUser.UserGroupId,
-                UserGroupName = updatedUser.UserGroup?.Name,
-                BranchId = updatedUser.BranchId,
-                BranchName = updatedUser.Branch?.Name,
-                MustChangePassword = updatedUser.MustChangePassword
+                MilitaryNumber = existingUser.MilitaryNumber,
+                Username = existingUser.Username,
+                Email = existingUser.Email,
+                Role = existingUser.Role,
+                PersonName = existingUser.PersonName,
+                UserGroupId = existingUser.UserGroupId,
+                UserGroupName = existingUser.UserGroup?.Name,
+                BranchId = existingUser.BranchId,
+                BranchName = existingUser.Branch?.Name,
+                MustChangePassword = existingUser.MustChangePassword
             };
 
             return Ok(new SingleObjectResponseModel<UserDto>

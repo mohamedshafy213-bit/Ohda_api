@@ -8,6 +8,12 @@ public class CompassDto : BaseDto
     public string SerialNumber { get; set; } = string.Empty;
     public string ProductName { get; set; } = string.Empty;
     public string RecipientName { get; set; } = string.Empty;
+    public string? DelivererName { get; set; }
+    public string? SupervisorName { get; set; }
+    public string? ManagerName { get; set; }
+    public string? ApprovalTrail { get; set; }
+    public DateTime? RequesterConfirmedDate { get; set; }
+    public string? Purpose { get; set; }
     public string Place { get; set; } = string.Empty;
     public DateTime ExitDate { get; set; }
     public CompassType Type { get; set; } = CompassType.Exit;

@@ -27,6 +27,8 @@ public class ProductItemRepository
         return await RepositoryContext.ProductItems
             .AsNoTracking()
             .Include(pi => pi.Product)
+                .ThenInclude(p => p!.Category)
+            .Include(pi => pi.Bin)
             .FirstOrDefaultAsync(pi => pi.SerialNumber == serialNumber && !pi.IsDeleted);
     }
 
@@ -35,6 +37,8 @@ public class ProductItemRepository
         return await RepositoryContext.ProductItems
             .AsNoTracking()
             .Include(pi => pi.Product)
+                .ThenInclude(p => p!.Category)
+            .Include(pi => pi.Bin)
             .Where(pi => pi.ProductId == productId && !pi.IsDeleted)
             .ToListAsync();
     }

@@ -33,7 +33,7 @@ public class UserPagePermissionRepository
         }
     }
 
-    public async Task<List<PageDto>> GetAllowedPagesForUserAsync(int userId)
+    public async Task<List<PageDto>> GetAllowedPagesForUserAsync(int userId, Entities.Models.Enums.UserRole? role = null, int? userGroupId = null)
     {
         var cache = MemoryCache;
         string cacheKey = $"UserAllowedPages_{userId}";
@@ -42,17 +42,33 @@ public class UserPagePermissionRepository
             return cachedPages;
         }
 
-        var user = await RepositoryContext.Users
-            .IgnoreQueryFilters()
-            .AsNoTracking()
-            .FirstOrDefaultAsync(u => u.MilitaryNumber == userId);
+        Entities.Models.Enums.UserRole effectiveRole;
+        int? effectiveUserGroupId;
 
-        if (user == null)
-            return new List<PageDto>();
+        if (role.HasValue)
+        {
+            effectiveRole = role.Value;
+            effectiveUserGroupId = userGroupId;
+        }
+        else
+        {
+            var userInfo = await RepositoryContext.Users
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .Where(u => u.MilitaryNumber == userId && !u.IsDeleted)
+                .Select(u => new { u.Role, u.UserGroupId })
+                .FirstOrDefaultAsync();
+
+            if (userInfo == null)
+                return new List<PageDto>();
+
+            effectiveRole = userInfo.Role;
+            effectiveUserGroupId = userInfo.UserGroupId;
+        }
 
         List<PageDto> result;
 
-        if (user.Role == Entities.Models.Enums.UserRole.SuperAdmin)
+        if (effectiveRole == Entities.Models.Enums.UserRole.SuperAdmin)
         {
             // SuperAdmin gets access to all active pages including branch platform management
             result = await RepositoryContext.Pages
@@ -92,13 +108,13 @@ public class UserPagePermissionRepository
             {
                 result = directUserPages;
             }
-            else if (user.UserGroupId.HasValue)
+            else if (effectiveUserGroupId.HasValue)
             {
                 // 2. User group permissions if assigned
                 var groupPages = await RepositoryContext.GroupPagePermissions
                     .IgnoreQueryFilters()
                     .AsNoTracking()
-                    .Where(p => p.UserGroupId == user.UserGroupId.Value && !p.IsDeleted && p.Page != null && !p.Page.IsDeleted)
+                    .Where(p => p.UserGroupId == effectiveUserGroupId.Value && !p.IsDeleted && p.Page != null && !p.Page.IsDeleted)
                     .OrderBy(p => p.Page!.SortOrder)
                     .Select(p => new PageDto
                     {
@@ -114,7 +130,7 @@ public class UserPagePermissionRepository
                 {
                     result = groupPages;
                 }
-                else if (user.Role == Entities.Models.Enums.UserRole.Admin)
+                else if (effectiveRole == Entities.Models.Enums.UserRole.Admin)
                 {
                     // 3. Fallback for branch Admin without specific group
                     result = await RepositoryContext.Pages
@@ -151,7 +167,7 @@ public class UserPagePermissionRepository
                         .ToListAsync();
                 }
             }
-            else if (user.Role == Entities.Models.Enums.UserRole.Admin)
+            else if (effectiveRole == Entities.Models.Enums.UserRole.Admin)
             {
                 result = await RepositoryContext.Pages
                     .IgnoreQueryFilters()
@@ -186,7 +202,7 @@ public class UserPagePermissionRepository
                     .ToListAsync();
             }
 
-            if (user.Role != Entities.Models.Enums.UserRole.SuperAdmin)
+            if (effectiveRole != Entities.Models.Enums.UserRole.SuperAdmin)
             {
                 result = result.Where(p => !p.Path.ToLower().Contains("branches")).ToList();
             }
@@ -257,11 +273,15 @@ public class UserPagePermissionRepository
     {
         var user = await RepositoryContext.Users
             .IgnoreQueryFilters()
-            .FirstOrDefaultAsync(u => u.MilitaryNumber == userId && !u.IsDeleted);
+            .AsNoTracking()
+            .Where(u => u.MilitaryNumber == userId && !u.IsDeleted)
+            .Select(u => new { u.MilitaryNumber, u.Role })
+            .FirstOrDefaultAsync();
         if (user == null) return;
 
         var query = RepositoryContext.Pages
             .IgnoreQueryFilters()
+            .AsNoTracking()
             .Where(p => !p.IsDeleted);
 
         if (user.Role != Entities.Models.Enums.UserRole.SuperAdmin)
@@ -270,10 +290,31 @@ public class UserPagePermissionRepository
         }
 
         var allPages = await query.ToListAsync();
-        foreach (var page in allPages)
+
+        var existingPageIds = await RepositoryContext.UserPagePermissions
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(p => p.UserId == userId && !p.IsDeleted)
+            .Select(p => p.PageId)
+            .ToListAsync();
+
+        var existingSet = new HashSet<int>(existingPageIds);
+        var newPermissions = allPages
+            .Where(p => !existingSet.Contains(p.Id))
+            .Select(p => new UserPagePermission
+            {
+                UserId = userId,
+                PageId = p.Id,
+                GrantedByUserId = grantedByUserId
+            })
+            .ToList();
+
+        if (newPermissions.Any())
         {
-            await GrantPermissionAsync(userId, page.Id, grantedByUserId);
+            await RepositoryContext.UserPagePermissions.AddRangeAsync(newPermissions);
+            await RepositoryContext.SaveChangesAsync();
         }
+
         InvalidateUserPermissionCache(userId);
     }
 }

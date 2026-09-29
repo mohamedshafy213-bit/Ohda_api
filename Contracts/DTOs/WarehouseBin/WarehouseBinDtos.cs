@@ -57,3 +57,10 @@ public class WarehouseBinItemDto
     public string? Place { get; set; }
     public DateTime? InsertDate { get; set; }
 }
+
+public class AssignProductToBinDto
+{
+    public int ProductId { get; set; }
+    public int Quantity { get; set; } = 1;
+}
+

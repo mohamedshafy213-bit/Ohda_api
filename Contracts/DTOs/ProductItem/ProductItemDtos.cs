@@ -9,12 +9,17 @@ public class ProductItemDto : BaseDto
     public string ProductName { get; set; } = string.Empty;
     public string ProductBarcode { get; set; } = string.Empty;
     public string ProductSKU { get; set; } = string.Empty;
+    public string? CategoryName { get; set; }
 
     public string SerialNumber { get; set; } = string.Empty;
     public string QRCode { get; set; } = string.Empty;
 
     public ProductItemStatus Status { get; set; }
     public string StatusName => Status.ToString();
+
+    public int? BinId { get; set; }
+    public string? BinName { get; set; }
+    public string? BinCode { get; set; }
 
     public string? RecipientName { get; set; }
     public string? Place { get; set; }

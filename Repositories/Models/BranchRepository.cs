@@ -236,25 +236,30 @@ public class BranchRepository : RepositoryBase<Branch, BranchDto, BranchCreateDt
                 .AsNoTracking()
                 .ToListAsync();
 
-            foreach (var page in branchPages)
+            var groupPermissions = branchPages.Select(page => new GroupPagePermission
             {
-                await RepositoryContext.GroupPagePermissions.AddAsync(new GroupPagePermission
-                {
-                    BranchId = branch.Id,
-                    UserGroupId = adminGroup.Id,
-                    PageId = page.Id
-                });
-            }
+                BranchId = branch.Id,
+                UserGroupId = adminGroup.Id,
+                PageId = page.Id
+            }).ToList();
+
+            await RepositoryContext.GroupPagePermissions.AddRangeAsync(groupPermissions);
             await RepositoryContext.SaveChangesAsync();
 
             // 4. Generate Branch Admin Account with Default Secure Password (P@ssw0rd)
             const string defaultPassword = "P@ssw0rd";
-            var militaryNumber = dto.AdminMilitaryNumber ?? (branch.Id * 10000 + 1);
+            var militaryNumber = dto.AdminMilitaryNumber ?? 0;
 
-            // Ensure unique military number
-            while (await RepositoryContext.Users.IgnoreQueryFilters().AnyAsync(u => u.MilitaryNumber == militaryNumber))
+            if (militaryNumber <= 0)
             {
-                militaryNumber++;
+                int baseNumber = (branch.Id * 10000) + 1;
+                int maxInRange = (branch.Id + 1) * 10000;
+                var maxNum = await RepositoryContext.Users
+                    .IgnoreQueryFilters()
+                    .AsNoTracking()
+                    .Where(u => u.MilitaryNumber >= baseNumber && u.MilitaryNumber < maxInRange)
+                    .MaxAsync(u => (int?)u.MilitaryNumber);
+                militaryNumber = (maxNum ?? (baseNumber - 1)) + 1;
             }
 
             var adminUser = new User

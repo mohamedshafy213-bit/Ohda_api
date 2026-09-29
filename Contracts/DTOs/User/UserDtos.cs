@@ -67,3 +67,20 @@ public class BootstrapResponseDto
     public UserDto User { get; set; } = null!;
     public List<PageDto> AllowedPages { get; set; } = new();
 }
+
+public class UserLoginResult
+{
+    public int MilitaryNumber { get; set; }
+    public string Username { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string PasswordHash { get; set; } = string.Empty;
+    public UserRole Role { get; set; }
+    public string? PersonName { get; set; }
+    public int? UserGroupId { get; set; }
+    public string? UserGroupName { get; set; }
+    public int? BranchId { get; set; }
+    public string? BranchName { get; set; }
+    public bool BranchIsActive { get; set; } = true;
+    public bool BranchIsDeleted { get; set; } = false;
+    public bool MustChangePassword { get; set; }
+}

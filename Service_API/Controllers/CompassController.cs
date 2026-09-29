@@ -46,6 +46,24 @@ public class CompassController : BaseController<Compass, CompassDto, CompassCrea
             SerialNumber = c.SerialNumber,
             ProductName = c.ProductName,
             RecipientName = c.RecipientName,
+            DelivererName = c.Type == CompassType.Exit 
+                ? (c.ProductExitRequest?.RequestedByUser?.PersonName ?? c.ProductExitRequest?.RequestedByUser?.Username ?? c.ProductExitRequest?.InsertUserCode)
+                : (c.ProductEntryRequest?.ReceivedByUser?.PersonName ?? c.ProductEntryRequest?.ReceivedByUser?.Username ?? c.ProductEntryRequest?.FromSource),
+            SupervisorName = c.Type == CompassType.Exit
+                ? (c.ProductExitRequest?.Supervisor?.PersonName ?? c.ProductExitRequest?.Supervisor?.Username)
+                : (c.ProductEntryRequest?.Supervisor?.PersonName ?? c.ProductEntryRequest?.Supervisor?.Username),
+            ManagerName = c.Type == CompassType.Exit
+                ? (c.ProductExitRequest?.Manager?.PersonName ?? c.ProductExitRequest?.Manager?.Username)
+                : (c.ProductEntryRequest?.Manager?.PersonName ?? c.ProductEntryRequest?.Manager?.Username),
+            ApprovalTrail = c.Type == CompassType.Exit
+                ? c.ProductExitRequest?.ApprovalTrail
+                : c.ProductEntryRequest?.ApprovalTrail,
+            RequesterConfirmedDate = c.Type == CompassType.Exit
+                ? c.ProductExitRequest?.RequesterConfirmedDate
+                : c.ProductEntryRequest?.RequesterConfirmedDate,
+            Purpose = c.Type == CompassType.Exit
+                ? c.ProductExitRequest?.Purpose
+                : (c.ProductEntryRequest?.FromSource != null ? $"توريد من: {c.ProductEntryRequest.FromSource}" : null),
             Place = c.Place,
             ExitDate = c.ExitDate,
             Type = c.Type,
@@ -64,6 +82,92 @@ public class CompassController : BaseController<Compass, CompassDto, CompassCrea
             ReturnMessage = "Search completed successfully.",
             SingleObject = dtos
         });
+    }
+
+    [HttpGet("export")]
+    public async Task<IActionResult> ExportToExcel(
+        [FromQuery] string? query,
+        [FromQuery] int? departmentId,
+        [FromQuery] CompassType? type,
+        [FromQuery] int? stateId,
+        [FromQuery] DateTime? startDate,
+        [FromQuery] DateTime? endDate)
+    {
+        var records = await _repositoryWrapper.Compasses.SearchCompassRecordsAsync(
+            query, departmentId, type, stateId, startDate, endDate, 1, 5000);
+
+        using var workbook = new XLWorkbook();
+        var worksheet = workbook.Worksheets.Add("بوصلة العهد والأجهزة");
+        worksheet.RightToLeft = true;
+
+        // Headers
+        worksheet.Cell(1, 1).Value = "الرقم التسلسلي (S/N)";
+        worksheet.Cell(1, 2).Value = "اسم الصنف / الجهاز";
+        worksheet.Cell(1, 3).Value = "نوع الحركة";
+        worksheet.Cell(1, 4).Value = "المستلم";
+        worksheet.Cell(1, 5).Value = "المسلم / مقدم الطلب";
+        worksheet.Cell(1, 6).Value = "الجهة / مكان الصرف";
+        worksheet.Cell(1, 7).Value = "القسم";
+        worksheet.Cell(1, 8).Value = "الحالة الفنية";
+        worksheet.Cell(1, 9).Value = "التاريخ والوقت";
+        worksheet.Cell(1, 10).Value = "المعتمد الأول (المشرف)";
+        worksheet.Cell(1, 11).Value = "المعتمد الثاني (المدير)";
+        worksheet.Cell(1, 12).Value = "رقم الطلب المرجعي";
+        worksheet.Cell(1, 13).Value = "الملاحظات والبيان";
+
+        var headerRow = worksheet.Row(1);
+        headerRow.Style.Font.Bold = true;
+        headerRow.Style.Fill.BackgroundColor = XLColor.FromHtml("#1E293B");
+        headerRow.Style.Font.SetFontColor(XLColor.White);
+        headerRow.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+
+        int rowIdx = 2;
+        foreach (var c in records)
+        {
+            string deliverer = c.Type == CompassType.Exit 
+                ? (c.ProductExitRequest?.RequestedByUser?.PersonName ?? c.ProductExitRequest?.RequestedByUser?.Username ?? c.ProductExitRequest?.InsertUserCode ?? "-")
+                : (c.ProductEntryRequest?.ReceivedByUser?.PersonName ?? c.ProductEntryRequest?.ReceivedByUser?.Username ?? c.ProductEntryRequest?.FromSource ?? "-");
+
+            string supervisor = c.Type == CompassType.Exit
+                ? (c.ProductExitRequest?.Supervisor?.PersonName ?? c.ProductExitRequest?.Supervisor?.Username ?? "-")
+                : (c.ProductEntryRequest?.Supervisor?.PersonName ?? c.ProductEntryRequest?.Supervisor?.Username ?? "-");
+
+            string manager = c.Type == CompassType.Exit
+                ? (c.ProductExitRequest?.Manager?.PersonName ?? c.ProductExitRequest?.Manager?.Username ?? "-")
+                : (c.ProductEntryRequest?.Manager?.PersonName ?? c.ProductEntryRequest?.Manager?.Username ?? "-");
+
+            worksheet.Cell(rowIdx, 1).Value = c.SerialNumber;
+            worksheet.Cell(rowIdx, 2).Value = c.ProductName;
+            worksheet.Cell(rowIdx, 3).Value = c.Type == CompassType.Entry ? "دخول" : "خروج";
+            worksheet.Cell(rowIdx, 4).Value = c.RecipientName;
+            worksheet.Cell(rowIdx, 5).Value = deliverer;
+            worksheet.Cell(rowIdx, 6).Value = c.Place;
+            worksheet.Cell(rowIdx, 7).Value = c.Department?.Name ?? "-";
+            worksheet.Cell(rowIdx, 8).Value = c.ProductState?.Name ?? "-";
+            worksheet.Cell(rowIdx, 9).Value = c.ExitDate.ToString("yyyy-MM-dd HH:mm");
+            worksheet.Cell(rowIdx, 10).Value = supervisor;
+            worksheet.Cell(rowIdx, 11).Value = manager;
+            worksheet.Cell(rowIdx, 12).Value = c.ProductExitRequestId.HasValue 
+                ? $"طلب صرف #{c.ProductExitRequestId}" 
+                : (c.ProductEntryRequestId.HasValue ? $"طلب توريد #{c.ProductEntryRequestId}" : "إدخال يدوي/أرشيفي");
+            worksheet.Cell(rowIdx, 13).Value = c.Notes ?? "-";
+
+            if (rowIdx % 2 == 1)
+            {
+                worksheet.Row(rowIdx).Style.Fill.BackgroundColor = XLColor.FromHtml("#F8FAFC");
+            }
+
+            rowIdx++;
+        }
+
+        worksheet.Columns().AdjustToContents();
+
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        var content = stream.ToArray();
+
+        string filename = $"Ohda_Compass_Export_{DateTime.UtcNow:yyyyMMdd_HHmmss}.xlsx";
+        return File(content, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", filename);
     }
 
     [HttpGet("template")]

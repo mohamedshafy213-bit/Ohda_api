@@ -35,7 +35,17 @@ public class CompassRepository
     {
         var dbQuery = RepositoryContext.Compasses
             .Include(c => c.ProductExitRequest)
+                .ThenInclude(r => r!.RequestedByUser)
+            .Include(c => c.ProductExitRequest)
+                .ThenInclude(r => r!.Supervisor)
+            .Include(c => c.ProductExitRequest)
+                .ThenInclude(r => r!.Manager)
             .Include(c => c.ProductEntryRequest)
+                .ThenInclude(r => r!.ReceivedByUser)
+            .Include(c => c.ProductEntryRequest)
+                .ThenInclude(r => r!.Supervisor)
+            .Include(c => c.ProductEntryRequest)
+                .ThenInclude(r => r!.Manager)
             .Include(c => c.Department)
             .Include(c => c.ProductState)
             .Where(c => !c.IsDeleted);

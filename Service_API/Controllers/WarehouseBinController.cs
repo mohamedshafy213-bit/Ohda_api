@@ -47,4 +47,45 @@ public class WarehouseBinController : BaseController<WarehouseBin, WarehouseBinD
             SingleObject = result
         });
     }
+
+    [HttpPost("{id}/assign-product")]
+    public async Task<IActionResult> AssignProduct([FromRoute] int id, [FromBody] AssignProductToBinDto dto)
+    {
+        var (success, message) = await _repositoryWrapper.WarehouseBins.AssignProductToBinAsync(id, dto.ProductId, dto.Quantity);
+        if (!success)
+        {
+            return BadRequest(new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = message
+            });
+        }
+
+        return Ok(new SingleObjectResponseModel
+        {
+            IsDone = true,
+            ReturnMessage = message
+        });
+    }
+
+    [HttpPost("{id}/unassign-item/{itemId}")]
+    [HttpDelete("{id}/items/{itemId}")]
+    public async Task<IActionResult> UnassignItem([FromRoute] int id, [FromRoute] int itemId)
+    {
+        var (success, message) = await _repositoryWrapper.WarehouseBins.UnassignItemFromBinAsync(id, itemId);
+        if (!success)
+        {
+            return BadRequest(new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = message
+            });
+        }
+
+        return Ok(new SingleObjectResponseModel
+        {
+            IsDone = true,
+            ReturnMessage = message
+        });
+    }
 }

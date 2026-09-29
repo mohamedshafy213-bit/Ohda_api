@@ -111,4 +111,93 @@ public class WarehouseBinRepository
             })
             .ToListAsync();
     }
+
+    public async Task<(bool Success, string Message)> AssignProductToBinAsync(int binId, int productId, int quantity)
+    {
+        var bin = await RepositoryContext.WarehouseBins.FirstOrDefaultAsync(b => b.Id == binId && !b.IsDeleted);
+        if (bin == null)
+            return (false, "الرف غير موجود أو تم حذفه.");
+
+        var product = await RepositoryContext.Products.FirstOrDefaultAsync(p => p.Id == productId && !p.IsDeleted);
+        if (product == null)
+            return (false, "الصنف المحدد غير موجود.");
+
+        if (quantity <= 0) quantity = 1;
+
+        int currentCount = await RepositoryContext.ProductItems.CountAsync(pi => pi.BinId == binId && !pi.IsDeleted);
+        if (bin.Capacity.HasValue && bin.Capacity.Value > 0)
+        {
+            int remaining = bin.Capacity.Value - currentCount;
+            if (quantity > remaining)
+            {
+                return (false, $"السعة المتبقية في الرف ({remaining}) لا تكفي لتسكين الكمية المطلوبة ({quantity}).");
+            }
+        }
+
+        // Find available unassigned product items in stock
+        var availableItems = await RepositoryContext.ProductItems
+            .Where(pi => pi.ProductId == productId && pi.Status == Entities.Models.Enums.ProductItemStatus.InStock && !pi.IsDeleted && pi.BinId != binId)
+            .Take(quantity)
+            .ToListAsync();
+
+        int assignedCount = 0;
+        foreach (var item in availableItems)
+        {
+            item.BinId = binId;
+            item.Place = bin.Name;
+            item.LastUpdate = DateTime.UtcNow;
+            assignedCount++;
+        }
+
+        // If more items requested than existing unassigned items, create new serialized items for the remaining quantity
+        int needed = quantity - assignedCount;
+        if (needed > 0)
+        {
+            string barcode = !string.IsNullOrWhiteSpace(product.Barcode) ? product.Barcode : (!string.IsNullOrWhiteSpace(product.SKU) ? product.SKU : "PRD");
+            for (int i = 0; i < needed; i++)
+            {
+                string guidSuffix = Guid.NewGuid().ToString().Substring(0, 8).ToUpper();
+                string serialNumber = $"SN-{barcode}-{guidSuffix}";
+                string qrCode = $"QR-{serialNumber}";
+                var newItem = new ProductItem
+                {
+                    ProductId = productId,
+                    SerialNumber = serialNumber,
+                    QRCode = qrCode,
+                    Status = Entities.Models.Enums.ProductItemStatus.InStock,
+                    BinId = binId,
+                    Place = bin.Name,
+                    BranchId = bin.BranchId,
+                    InsertDate = DateTime.UtcNow,
+                    IsDeleted = false
+                };
+                await RepositoryContext.ProductItems.AddAsync(newItem);
+                assignedCount++;
+            }
+        }
+
+        // Also associate inventory record if not linked
+        var inventory = await RepositoryContext.Inventories.FirstOrDefaultAsync(inv => inv.ProductId == productId && !inv.IsDeleted);
+        if (inventory != null && inventory.BinId == null)
+        {
+            inventory.BinId = binId;
+        }
+
+        await RepositoryContext.SaveChangesAsync();
+        return (true, $"تم تسكين {assignedCount} قطعة من '{product.Name}' بنجاح في الرف {bin.Code} ({bin.Name})");
+    }
+
+    public async Task<(bool Success, string Message)> UnassignItemFromBinAsync(int binId, int itemId)
+    {
+        var item = await RepositoryContext.ProductItems.FirstOrDefaultAsync(pi => pi.Id == itemId && !pi.IsDeleted);
+        if (item == null)
+            return (false, "الجهاز أو الصنف غير موجود.");
+
+        item.BinId = null;
+        item.LastUpdate = DateTime.UtcNow;
+        await RepositoryContext.SaveChangesAsync();
+
+        return (true, "تم إلغاء تسكين الجهاز من الرف بنجاح.");
+    }
 }
+
