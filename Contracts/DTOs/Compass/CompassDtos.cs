@@ -23,6 +23,8 @@ public class CompassDto : BaseDto
     public string? ProductStateName { get; set; }
     public int? ProductExitRequestId { get; set; }
     public int? ProductEntryRequestId { get; set; }
+    public string? DocumentNumber { get; set; }
+    public string? OriginalExitDocumentNumber { get; set; }
     public string? Notes { get; set; }
 }
 

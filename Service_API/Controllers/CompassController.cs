@@ -73,6 +73,12 @@ public class CompassController : BaseController<Compass, CompassDto, CompassCrea
             ProductStateName = c.ProductState?.Name,
             ProductExitRequestId = c.ProductExitRequestId,
             ProductEntryRequestId = c.ProductEntryRequestId,
+            DocumentNumber = c.Type == CompassType.Exit
+                ? $"DOC-OUT-{(c.ProductExitRequestId ?? c.Id)}"
+                : (!string.IsNullOrWhiteSpace(c.ProductEntryRequest?.InvoiceNumber) ? c.ProductEntryRequest.InvoiceNumber : $"DOC-IN-{(c.ProductEntryRequestId ?? c.Id)}"),
+            OriginalExitDocumentNumber = c.ProductExitRequestId.HasValue
+                ? $"DOC-OUT-{c.ProductExitRequestId.Value}"
+                : (c.Notes != null && c.Notes.Contains("RET-REQ-") ? "DOC-OUT-" + c.Notes.Split("RET-REQ-")[1].Split("]")[0].Split(" ")[0] : null),
             Notes = c.Notes
         }).ToList();
 
@@ -101,19 +107,20 @@ public class CompassController : BaseController<Compass, CompassDto, CompassCrea
         worksheet.RightToLeft = true;
 
         // Headers
-        worksheet.Cell(1, 1).Value = "الرقم التسلسلي (S/N)";
-        worksheet.Cell(1, 2).Value = "اسم الصنف / الجهاز";
-        worksheet.Cell(1, 3).Value = "نوع الحركة";
-        worksheet.Cell(1, 4).Value = "المستلم";
-        worksheet.Cell(1, 5).Value = "المسلم / مقدم الطلب";
-        worksheet.Cell(1, 6).Value = "الجهة / مكان الصرف";
-        worksheet.Cell(1, 7).Value = "القسم";
-        worksheet.Cell(1, 8).Value = "الحالة الفنية";
-        worksheet.Cell(1, 9).Value = "التاريخ والوقت";
-        worksheet.Cell(1, 10).Value = "المعتمد الأول (المشرف)";
-        worksheet.Cell(1, 11).Value = "المعتمد الثاني (المدير)";
-        worksheet.Cell(1, 12).Value = "رقم الطلب المرجعي";
-        worksheet.Cell(1, 13).Value = "الملاحظات والبيان";
+        worksheet.Cell(1, 1).Value = "رقم المستند";
+        worksheet.Cell(1, 2).Value = "الرقم التسلسلي (S/N)";
+        worksheet.Cell(1, 3).Value = "اسم الصنف / الجهاز";
+        worksheet.Cell(1, 4).Value = "نوع الحركة";
+        worksheet.Cell(1, 5).Value = "المستلم";
+        worksheet.Cell(1, 6).Value = "المسلم / مقدم الطلب";
+        worksheet.Cell(1, 7).Value = "الجهة / مكان الصرف";
+        worksheet.Cell(1, 8).Value = "القسم";
+        worksheet.Cell(1, 9).Value = "الحالة الفنية";
+        worksheet.Cell(1, 10).Value = "التاريخ والوقت";
+        worksheet.Cell(1, 11).Value = "المعتمد الأول (المشرف)";
+        worksheet.Cell(1, 12).Value = "المعتمد الثاني (المدير)";
+        worksheet.Cell(1, 13).Value = "مستند الصرف الأصلي المرتبط";
+        worksheet.Cell(1, 14).Value = "الملاحظات والبيان";
 
         var headerRow = worksheet.Row(1);
         headerRow.Style.Font.Bold = true;
@@ -124,6 +131,14 @@ public class CompassController : BaseController<Compass, CompassDto, CompassCrea
         int rowIdx = 2;
         foreach (var c in records)
         {
+            string docNum = c.Type == CompassType.Exit
+                ? $"DOC-OUT-{(c.ProductExitRequestId ?? c.Id)}"
+                : (!string.IsNullOrWhiteSpace(c.ProductEntryRequest?.InvoiceNumber) ? c.ProductEntryRequest.InvoiceNumber : $"DOC-IN-{(c.ProductEntryRequestId ?? c.Id)}");
+
+            string origDocNum = c.ProductExitRequestId.HasValue
+                ? $"DOC-OUT-{c.ProductExitRequestId.Value}"
+                : (c.Notes != null && c.Notes.Contains("RET-REQ-") ? "DOC-OUT-" + c.Notes.Split("RET-REQ-")[1].Split("]")[0].Split(" ")[0] : "-");
+
             string deliverer = c.Type == CompassType.Exit 
                 ? (c.ProductExitRequest?.RequestedByUser?.PersonName ?? c.ProductExitRequest?.RequestedByUser?.Username ?? c.ProductExitRequest?.InsertUserCode ?? "-")
                 : (c.ProductEntryRequest?.ReceivedByUser?.PersonName ?? c.ProductEntryRequest?.ReceivedByUser?.Username ?? c.ProductEntryRequest?.FromSource ?? "-");
@@ -136,21 +151,20 @@ public class CompassController : BaseController<Compass, CompassDto, CompassCrea
                 ? (c.ProductExitRequest?.Manager?.PersonName ?? c.ProductExitRequest?.Manager?.Username ?? "-")
                 : (c.ProductEntryRequest?.Manager?.PersonName ?? c.ProductEntryRequest?.Manager?.Username ?? "-");
 
-            worksheet.Cell(rowIdx, 1).Value = c.SerialNumber;
-            worksheet.Cell(rowIdx, 2).Value = c.ProductName;
-            worksheet.Cell(rowIdx, 3).Value = c.Type == CompassType.Entry ? "دخول" : "خروج";
-            worksheet.Cell(rowIdx, 4).Value = c.RecipientName;
-            worksheet.Cell(rowIdx, 5).Value = deliverer;
-            worksheet.Cell(rowIdx, 6).Value = c.Place;
-            worksheet.Cell(rowIdx, 7).Value = c.Department?.Name ?? "-";
-            worksheet.Cell(rowIdx, 8).Value = c.ProductState?.Name ?? "-";
-            worksheet.Cell(rowIdx, 9).Value = c.ExitDate.ToString("yyyy-MM-dd HH:mm");
-            worksheet.Cell(rowIdx, 10).Value = supervisor;
-            worksheet.Cell(rowIdx, 11).Value = manager;
-            worksheet.Cell(rowIdx, 12).Value = c.ProductExitRequestId.HasValue 
-                ? $"طلب صرف #{c.ProductExitRequestId}" 
-                : (c.ProductEntryRequestId.HasValue ? $"طلب توريد #{c.ProductEntryRequestId}" : "إدخال يدوي/أرشيفي");
-            worksheet.Cell(rowIdx, 13).Value = c.Notes ?? "-";
+            worksheet.Cell(rowIdx, 1).Value = docNum;
+            worksheet.Cell(rowIdx, 2).Value = c.SerialNumber;
+            worksheet.Cell(rowIdx, 3).Value = c.ProductName;
+            worksheet.Cell(rowIdx, 4).Value = c.Type == CompassType.Entry ? "دخول" : "خروج";
+            worksheet.Cell(rowIdx, 5).Value = c.RecipientName;
+            worksheet.Cell(rowIdx, 6).Value = deliverer;
+            worksheet.Cell(rowIdx, 7).Value = c.Place;
+            worksheet.Cell(rowIdx, 8).Value = c.Department?.Name ?? "-";
+            worksheet.Cell(rowIdx, 9).Value = c.ProductState?.Name ?? "-";
+            worksheet.Cell(rowIdx, 10).Value = c.ExitDate.ToString("yyyy-MM-dd HH:mm");
+            worksheet.Cell(rowIdx, 11).Value = supervisor;
+            worksheet.Cell(rowIdx, 12).Value = manager;
+            worksheet.Cell(rowIdx, 13).Value = origDocNum;
+            worksheet.Cell(rowIdx, 14).Value = c.Notes ?? "-";
 
             if (rowIdx % 2 == 1)
             {
