@@ -7,6 +7,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Service_API.BaseControllers;
 
+using Entities.Models.Databases;
+using Microsoft.EntityFrameworkCore;
+
 namespace Service_API.Controllers;
 
 [Authorize]
@@ -15,10 +18,12 @@ namespace Service_API.Controllers;
 public class BranchesController : BaseController<Branch, BranchDto, BranchCreateDto, BranchUpdateDto>
 {
     private readonly IRepositoryWrapper _repositoryWrapper;
+    private readonly RepositoryContext _context;
 
-    public BranchesController(IRepositoryWrapper repositoryWrapper)
+    public BranchesController(IRepositoryWrapper repositoryWrapper, RepositoryContext context)
     {
         _repositoryWrapper = repositoryWrapper;
+        _context = context;
         _repository = repositoryWrapper.Branches;
     }
 
@@ -146,6 +151,25 @@ public class BranchesController : BaseController<Branch, BranchDto, BranchCreate
     [Authorize(Roles = "SuperAdmin")]
     public override async Task<IActionResult> Delete([FromRoute] string id)
     {
+        if (!int.TryParse(id, out var branchId))
+            return BadRequest(new SingleObjectResponseModel { IsDone = false, ReturnMessage = "معرف الفرع غير صالح." });
+
+        var existingBranch = await _context.Branches.FirstOrDefaultAsync(b => b.Id == branchId);
+        if (existingBranch == null)
+            return NotFound(new SingleObjectResponseModel { IsDone = false, ReturnMessage = "الفرع غير موجود." });
+
+        var activeUsersCount = await _context.Users.CountAsync(u => u.BranchId == branchId && !u.IsDeleted);
+        var activeProductsCount = await _context.Products.CountAsync(p => p.BranchId == branchId && !p.IsDeleted);
+
+        if (activeUsersCount > 0 || activeProductsCount > 0)
+        {
+            return BadRequest(new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = $"لا يمكن حذف هذا الفرع لوجود ({activeUsersCount} مستخدمين، {activeProductsCount} أصناف مخزون) مرتبطة به حالياً. يرجى نقل أو تسوية الفرع أولاً."
+            });
+        }
+
         return await base.Delete(id);
     }
 

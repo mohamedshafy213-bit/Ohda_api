@@ -4,9 +4,11 @@ using System.Threading.Tasks;
 using Contracts.DTOs.WarehouseBin;
 using Contracts.interfaces.Repository;
 using Contracts.Responses;
+using Entities.Models.Databases;
 using Entities.Models.Tables;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Service_API.BaseControllers;
 
 namespace Service_API.Controllers;
@@ -17,11 +19,36 @@ namespace Service_API.Controllers;
 public class WarehouseBinController : BaseController<WarehouseBin, WarehouseBinDto, WarehouseBinCreateDto, WarehouseBinUpdateDto>
 {
     private readonly IRepositoryWrapper _repositoryWrapper;
+    private readonly RepositoryContext _context;
 
-    public WarehouseBinController(IRepositoryWrapper repositoryWrapper)
+    public WarehouseBinController(IRepositoryWrapper repositoryWrapper, RepositoryContext context)
     {
         _repositoryWrapper = repositoryWrapper;
         _repository = repositoryWrapper.WarehouseBins;
+        _context = context;
+    }
+
+    [HttpDelete("{id}")]
+    public override async Task<IActionResult> Delete([FromRoute] string id)
+    {
+        if (!int.TryParse(id, out var binId))
+            return BadRequest(new SingleObjectResponseModel { IsDone = false, ReturnMessage = "معرف الرف غير صالح." });
+
+        var existingBin = await _context.WarehouseBins.FirstOrDefaultAsync(b => b.Id == binId);
+        if (existingBin == null)
+            return NotFound(new SingleObjectResponseModel { IsDone = false, ReturnMessage = "الرف غير موجود." });
+
+        var linkedItemsCount = await _context.ProductItems.CountAsync(pi => pi.BinId == binId && !pi.IsDeleted);
+        if (linkedItemsCount > 0)
+        {
+            return BadRequest(new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = $"لا يمكن حذف هذا الرف لوجود ({linkedItemsCount}) أجهزة ومخزون مسندة له حالياً. يرجى إخلاء الرف ونقل الأصناف أولاً."
+            });
+        }
+
+        return await base.Delete(id);
     }
 
     [HttpGet("list")]

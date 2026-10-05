@@ -14,6 +14,8 @@ using Microsoft.EntityFrameworkCore;
 using Service_API.BaseControllers;
 using Service_API.Helpers;
 
+using Entities.Models.Databases;
+
 namespace Service_API.Controllers;
 
 [ApiController]
@@ -21,12 +23,14 @@ namespace Service_API.Controllers;
 public class AuthController : BaseController<User, UserDto, UserCreateDto, UserUpdateDto>
 {
     private readonly IRepositoryWrapper _repositoryWrapper;
+    private readonly RepositoryContext _context;
     private readonly IJwtTokenGenerator _jwtTokenGenerator;
     private readonly ILoggerManager _logger;
 
-    public AuthController(IRepositoryWrapper repositoryWrapper, IJwtTokenGenerator jwtTokenGenerator, ILoggerManager logger)
+    public AuthController(IRepositoryWrapper repositoryWrapper, RepositoryContext context, IJwtTokenGenerator jwtTokenGenerator, ILoggerManager logger)
     {
         _repositoryWrapper = repositoryWrapper;
+        _context = context;
         _repository = repositoryWrapper.Users;
         _jwtTokenGenerator = jwtTokenGenerator;
         _logger = logger;
@@ -525,6 +529,30 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
                 {
                     IsDone = false,
                     ReturnMessage = "لا تملك صلاحية حذف مستخدمين تابعين لفروع أخرى"
+                });
+            }
+
+            // Check if user has active/in-progress requests (Pending or In-progress)
+            var pendingExitCount = await _context.ProductExitRequests
+                .CountAsync(r => (r.RequestedByUserId == militaryNumber || r.SupervisorId == militaryNumber || r.ManagerId == militaryNumber)
+                              && !r.IsDeleted
+                              && (r.Status == RequestStatus.Pending || r.Status == RequestStatus.SupervisorApproved || r.Status == RequestStatus.ManagerApproved));
+
+            var pendingEntryCount = await _context.ProductEntryRequests
+                .CountAsync(r => (r.ReceivedByUserId == militaryNumber || r.SupervisorId == militaryNumber || r.ManagerId == militaryNumber)
+                              && !r.IsDeleted
+                              && (r.Status == RequestStatus.Pending || r.Status == RequestStatus.SupervisorApproved || r.Status == RequestStatus.ManagerApproved));
+
+            // Check if user is actively holding equipment/devices as custody
+            var activeHeldCustodyCount = await _context.ProductItems
+                .CountAsync(pi => ((!string.IsNullOrEmpty(existingUser.PersonName) && pi.RecipientName == existingUser.PersonName) || (!string.IsNullOrEmpty(existingUser.Username) && pi.RecipientName == existingUser.Username)) && !pi.IsDeleted && pi.Status == ProductItemStatus.Exited);
+
+            if (pendingExitCount > 0 || pendingEntryCount > 0 || activeHeldCustodyCount > 0)
+            {
+                return BadRequest(new SingleObjectResponseModel
+                {
+                    IsDone = false,
+                    ReturnMessage = $"لا يمكن حذف المستخدم لوجود ارتباطات جارية باسمه ({pendingExitCount + pendingEntryCount} طلبات جارية/معلقة، {activeHeldCustodyCount} أجهزة عهدة مستلمة). يرجى إتمام ومعالجة الطلبات والعهد أولاً."
                 });
             }
 

@@ -1,10 +1,12 @@
 using Contracts.DTOs.Product;
 using Contracts.interfaces.Repository;
 using Contracts.Responses;
+using Entities.Models.Databases;
 using Entities.Models.Tables;
 using Entities.Models.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Service_API.BaseControllers;
 
 namespace Service_API.Controllers;
@@ -15,11 +17,47 @@ namespace Service_API.Controllers;
 public class ProductController : BaseController<Product, ProductDto, ProductCreateDto, ProductUpdateDto>
 {
     private readonly IRepositoryWrapper _repositoryWrapper;
+    private readonly RepositoryContext _context;
 
-    public ProductController(IRepositoryWrapper repositoryWrapper)
+    public ProductController(IRepositoryWrapper repositoryWrapper, RepositoryContext context)
     {
         _repositoryWrapper = repositoryWrapper;
         _repository = repositoryWrapper.Products;
+        _context = context;
+    }
+
+    [HttpDelete("{id}")]
+    public override async Task<IActionResult> Delete([FromRoute] string id)
+    {
+        if (!int.TryParse(id, out var productId))
+            return BadRequest(new SingleObjectResponseModel { IsDone = false, ReturnMessage = "معرف المنتج غير صالح." });
+
+        var existingProduct = await _context.Products.FirstOrDefaultAsync(p => p.Id == productId);
+        if (existingProduct == null)
+            return NotFound(new SingleObjectResponseModel { IsDone = false, ReturnMessage = "المنتج غير موجود." });
+
+        // Check inventory quantity
+        var inventory = await _context.Inventories.FirstOrDefaultAsync(i => i.ProductId == productId && !i.IsDeleted);
+        int currentQty = inventory?.Quantity ?? 0;
+
+        // Check serialized items
+        var activeItemsCount = await _context.ProductItems.CountAsync(pi => pi.ProductId == productId && !pi.IsDeleted);
+
+        // Check pending exit requests
+        var pendingExitItemsCount = await _context.ProductExitRequestItems
+            .Include(i => i.ProductExitRequest)
+            .CountAsync(i => i.ProductId == productId && !i.IsDeleted && i.ProductExitRequest != null && !i.ProductExitRequest.IsDeleted && (i.ProductExitRequest.Status == RequestStatus.Pending || i.ProductExitRequest.Status == RequestStatus.SupervisorApproved || i.ProductExitRequest.Status == RequestStatus.ManagerApproved));
+
+        if (currentQty > 0 || activeItemsCount > 0 || pendingExitItemsCount > 0)
+        {
+            return BadRequest(new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = $"لا يمكن حذف هذا الصنف لوجود رصيد أو ارتباطات سارية به (رصيد المخزن: {currentQty}، أجهزة مسجلة: {activeItemsCount}، طلبات جارية: {pendingExitItemsCount}). يرجى تصفية الرصيد أولاً."
+            });
+        }
+
+        return await base.Delete(id);
     }
 
     [HttpGet]

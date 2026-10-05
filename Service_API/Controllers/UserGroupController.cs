@@ -1,8 +1,10 @@
 using Contracts.DTOs.UserGroup;
 using Contracts.interfaces.Repository;
+using Entities.Models.Databases;
 using Entities.Models.Tables;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Service_API.BaseControllers;
 
 namespace Service_API.Controllers;
@@ -13,11 +15,13 @@ namespace Service_API.Controllers;
 public class UserGroupController : BaseController<UserGroup, UserGroupDto, UserGroupCreateDto, UserGroupUpdateDto>
 {
     private readonly IRepositoryWrapper _repositoryWrapper;
+    private readonly RepositoryContext _context;
 
-    public UserGroupController(IRepositoryWrapper repositoryWrapper)
+    public UserGroupController(IRepositoryWrapper repositoryWrapper, RepositoryContext context)
     {
         _repositoryWrapper = repositoryWrapper;
         _repository = repositoryWrapper.UserGroups;
+        _context = context;
     }
 
     [HttpGet]
@@ -75,6 +79,30 @@ public class UserGroupController : BaseController<UserGroup, UserGroupDto, UserG
     [Authorize(Roles = "Admin,SuperAdmin")]
     public override async Task<IActionResult> Delete([FromRoute] string id)
     {
+        if (int.TryParse(id, out int groupId))
+        {
+            int activeUsers = await _context.Users.CountAsync(u => u.UserGroupId == groupId && !u.IsDeleted);
+            if (activeUsers > 0)
+            {
+                return Ok(new Contracts.Responses.SingleObjectResponseModel
+                {
+                    IsDone = false,
+                    ReturnMessage = $"لا يمكن حذف مجموعة الصلاحيات لأنها مرتبطة بـ ({activeUsers}) مستخدم نشط. يرجى نقل المستخدمين إلى مجموعة أخرى أولاً."
+                });
+            }
+
+            int activeConfigs = await _context.ApprovalConfigs.CountAsync(c => c.UserGroupId == groupId && !c.IsDeleted);
+            if (activeConfigs > 0)
+            {
+                return Ok(new Contracts.Responses.SingleObjectResponseModel
+                {
+                    IsDone = false,
+                    ReturnMessage = $"لا يمكن حذف مجموعة الصلاحيات لوجود ({activeConfigs}) إعداد اعتماد وموافقة مرتبط بها. يرجى تعديل الإعدادات أولاً."
+                });
+            }
+        }
+
         return await base.Delete(id);
     }
 }
+
