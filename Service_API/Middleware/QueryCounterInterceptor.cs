@@ -6,6 +6,13 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace Service_API.Middleware;
 
+public class QueryCounter
+{
+    private int _count;
+    public int Value => _count;
+    public void Increment() => Interlocked.Increment(ref _count);
+}
+
 public class QueryCounterInterceptor : DbCommandInterceptor
 {
     private readonly IHttpContextAccessor _httpContextAccessor;
@@ -63,8 +70,16 @@ public class QueryCounterInterceptor : DbCommandInterceptor
         var httpContext = _httpContextAccessor?.HttpContext;
         if (httpContext != null)
         {
-            int current = httpContext.Items.TryGetValue(QueryCountKey, out var val) && val is int count ? count : 0;
-            httpContext.Items[QueryCountKey] = current + 1;
+            if (httpContext.Items.TryGetValue(QueryCountKey, out var val) && val is QueryCounter counter)
+            {
+                counter.Increment();
+            }
+            else
+            {
+                var newCounter = new QueryCounter();
+                newCounter.Increment();
+                httpContext.Items[QueryCountKey] = newCounter;
+            }
         }
     }
 }

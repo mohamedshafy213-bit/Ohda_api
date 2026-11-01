@@ -14,13 +14,15 @@ public static class NotificationHelper
         string message,
         NotificationType type = NotificationType.Info,
         int? referenceId = null,
-        string? referenceType = null)
+        string? referenceType = null,
+        int? branchId = null)
     {
         if (userId <= 0) return;
 
         await repositoryWrapper.Notifications.Create(new NotificationCreateDto
         {
             UserId = userId,
+            BranchId = branchId,
             Title = title,
             Message = message,
             Type = type,
@@ -50,23 +52,26 @@ public static class NotificationHelper
                 .ToListAsync();
 
             // 2. Find all active users belonging to these groups or system Admins/SuperAdmins
-            var targetUserIds = await context.Users
+            var targetUsers = await context.Users
                 .AsNoTracking()
                 .Where(u => !u.IsDeleted && (
                     (u.UserGroupId != null && targetGroupIds.Contains(u.UserGroupId.Value)) ||
                     u.Role == UserRole.Admin ||
                     u.Role == UserRole.SuperAdmin
                 ))
-                .Select(u => u.MilitaryNumber)
+                .Select(u => new { u.MilitaryNumber, u.BranchId })
                 .Distinct()
                 .ToListAsync();
 
             // 3. Send notifications in a single batch
-            if (targetUserIds.Any())
+            if (targetUsers.Any())
             {
-                var notifications = targetUserIds.Select(userId => new Entities.Models.Tables.Notification
+                int fallbackBranchId = context.CurrentBranchId is > 0 ? context.CurrentBranchId.Value : 1;
+
+                var notifications = targetUsers.Select(u => new Entities.Models.Tables.Notification
                 {
-                    UserId = userId,
+                    UserId = u.MilitaryNumber,
+                    BranchId = u.BranchId.HasValue && u.BranchId.Value > 0 ? u.BranchId.Value : fallbackBranchId,
                     Title = title,
                     Message = message,
                     Type = requestType == RequestType.Entry ? NotificationType.EntryRequest : NotificationType.ExitRequest,

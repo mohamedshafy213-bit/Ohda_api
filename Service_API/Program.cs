@@ -11,81 +11,121 @@ public class Program
 {
     public static async Task Main(string[] args)
     {
-        var builder = WebApplication.CreateBuilder(args);
+        Console.WriteLine("==================================================");
+        Console.WriteLine("         OHDA INVENTORY SYSTEM - SERVICE API      ");
+        Console.WriteLine("==================================================");
 
-        // Clear default claim mapping so standard JWT claim names match ClaimTypes
-        JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
+        try
+        {
+            var builder = WebApplication.CreateBuilder(args);
 
-        // Add services to the container
-        builder.Services.AddControllers()
-            .AddJsonOptions(options =>
+            // Clear default claim mapping so standard JWT claim names match ClaimTypes
+            JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
+
+            // Add services to the container
+            builder.Services.AddControllers()
+                .AddJsonOptions(options =>
+                {
+                    options.JsonSerializerOptions.Converters.Add(new NullableIntConverter());
+                    options.JsonSerializerOptions.Converters.Add(new NullableDecimalConverter());
+                    options.JsonSerializerOptions.Converters.Add(new NullableLongConverter());
+                });
+
+            builder.Services.AddMemoryCache();
+
+            builder.Services.ConfigureSwaggerGen();
+            builder.Services.ConfigureAutoMapper();
+            builder.Services.ConfigureLogger(builder.Configuration);
+            builder.Services.ConfigureHttpContext();
+            builder.Services.ConfigureDataBase(builder.Configuration);
+            builder.Services.ConfigureRepositoryWrapper();
+            builder.Services.ConfigureJwtBearer(builder.Configuration);
+
+            builder.Services.AddResponseCompression(options =>
             {
-                options.JsonSerializerOptions.Converters.Add(new NullableIntConverter());
-                options.JsonSerializerOptions.Converters.Add(new NullableDecimalConverter());
-                options.JsonSerializerOptions.Converters.Add(new NullableLongConverter());
+                options.EnableForHttps = true;
             });
 
-        builder.Services.AddMemoryCache();
+            builder.Services.AddCors(options =>
+                options.AddDefaultPolicy(b => b.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
 
-        builder.Services.ConfigureSwaggerGen();
-        builder.Services.ConfigureAutoMapper();
-        builder.Services.ConfigureLogger(builder.Configuration);
-        builder.Services.ConfigureHttpContext();
-        builder.Services.ConfigureDataBase(builder.Configuration);
-        builder.Services.ConfigureRepositoryWrapper();
-        builder.Services.ConfigureJwtBearer(builder.Configuration);
+            var app = builder.Build();
 
-        builder.Services.AddResponseCompression(options =>
-        {
-            options.EnableForHttps = true;
-        });
+            // Output connection string info for debugging
+            var connStr = app.Configuration.GetConnectionString("SqlServerConnection");
+            Console.WriteLine($"[Config] Provider: {app.Configuration["DatabaseProvider"] ?? "SqlServer"}");
+            Console.WriteLine($"[Config] SQL Connection: {connStr}");
 
-        builder.Services.AddCors(options =>
-            options.AddDefaultPolicy(b => b.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
+            // Apply EF Core migrations and initial seeding
+            Console.WriteLine("[Database] Initializing database & running migrations...");
+            using (var scope = app.Services.CreateScope())
+            {
+                var dbContext = scope.ServiceProvider.GetRequiredService<RepositoryContext>();
+                try
+                {
+                    dbContext.Database.SetCommandTimeout(30);
+                    await dbContext.Database.MigrateAsync();
+                    Console.WriteLine("[Database] EF Migrations applied successfully.");
+                }
+                catch (Exception ex)
+                {
+                    Console.ForegroundColor = ConsoleColor.Yellow;
+                    Console.WriteLine($"[Database Migration Warning]: {ex.Message}");
+                    Console.ResetColor();
+                }
 
-        var app = builder.Build();
+                try
+                {
+                    await DatabaseSeeder.SeedAsync(dbContext);
+                    Console.WriteLine("[Database] Initial data seeding completed.");
+                }
+                catch (Exception ex)
+                {
+                    Console.ForegroundColor = ConsoleColor.Yellow;
+                    Console.WriteLine($"[Database Seeder Warning]: {ex.Message}");
+                    Console.ResetColor();
+                }
+            }
 
-        // Seed initial system data (Users, Categories, Suppliers, Products, Inventories)
-        using (var scope = app.Services.CreateScope())
-        {
-            var dbContext = scope.ServiceProvider.GetRequiredService<RepositoryContext>();
-            // Apply any pending EF Core migrations, then seed initial data
-            await dbContext.Database.MigrateAsync();
-            await DatabaseSeeder.SeedAsync(dbContext);
+            app.UseSwagger();
+            app.UseSwaggerUI(c =>
+            {
+                c.DocExpansion(Swashbuckle.AspNetCore.SwaggerUI.DocExpansion.None);
+            });
+
+            // Centralized performance and request timing middleware
+            app.UseMiddleware<PerformanceMonitoringMiddleware>();
+            app.UseMiddleware<ExceptionMiddleware>();
+            app.UseResponseCompression();
+
+            app.UseCors();
+            app.UseAuthentication();
+            app.UseAuthorization();
+
+            app.MapGet("/", context =>
+            {
+                context.Response.Redirect("/swagger");
+                return Task.CompletedTask;
+            }).AllowAnonymous();
+
+            app.MapControllers();
+
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine("--> Application configured successfully. Starting server...");
+            Console.ResetColor();
+
+            await app.RunAsync();
         }
-
-        app.UseSwagger();
-        app.UseSwaggerUI(c =>
+        catch (Exception fatalEx)
         {
-            c.DocExpansion(Swashbuckle.AspNetCore.SwaggerUI.DocExpansion.None);
-        });
-
-        // Centralized performance and request timing middleware
-        app.UseMiddleware<PerformanceMonitoringMiddleware>();
-
-        app.UseMiddleware<ExceptionMiddleware>();
-
-        app.UseResponseCompression();
-
-        // Avoid HTTPS redirection warning in local development HTTP runs
-        if (!app.Environment.IsDevelopment())
-        {
-            app.UseHttpsRedirection();
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine("==================================================");
+            Console.WriteLine($"[FATAL CRASH ON STARTUP]: {fatalEx.Message}");
+            Console.WriteLine(fatalEx.ToString());
+            Console.WriteLine("==================================================");
+            Console.ResetColor();
+            throw;
         }
-
-        app.UseCors();
-
-        app.UseAuthentication();
-        app.UseAuthorization();
-
-        app.MapGet("/", context =>
-        {
-            context.Response.Redirect("/swagger");
-            return Task.CompletedTask;
-        }).AllowAnonymous();
-
-        app.MapControllers();
-
-        await app.RunAsync();
     }
 }
+

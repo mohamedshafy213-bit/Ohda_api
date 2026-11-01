@@ -115,6 +115,11 @@ public class RepositoryContext : DbContext
                         {
                             tenantEntity.BranchId = currentBranchId.Value;
                         }
+                        else
+                        {
+                            // Avoid fatal foreign key conflict in SQL Server when branch context is uninitialized (e.g. background tasks)
+                            tenantEntity.BranchId = 1;
+                        }
                     }
                     else if (currentBranchId.HasValue && currentBranchId.Value > 0 && !isSuperAdmin)
                     {

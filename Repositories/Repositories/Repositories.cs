@@ -16,6 +16,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Linq.Expressions;
 using Microsoft.Extensions.Caching.Memory;
 using Entities.Models.Tables;
+using Entities.Models.BaseTables;
 using System.Reflection;
 using Entities.Models.Interfaces;
 
@@ -99,6 +100,37 @@ namespace Repositories.Repositories
             return Convert.ChangeType(key, targetType);
         }
 
+        private IQueryable<T> ApplyDefaultOrder(IQueryable<T> query)
+        {
+            if (typeof(BaseTable).IsAssignableFrom(typeof(T)))
+            {
+                return query.OrderByDescending(e => EF.Property<int>(e, nameof(BaseTable.Id)));
+            }
+
+            var keyProp = RepositoryContext.Model.FindEntityType(typeof(T))?.FindPrimaryKey()?.Properties.FirstOrDefault();
+            if (keyProp != null)
+            {
+                if (keyProp.ClrType == typeof(int))
+                {
+                    return query.OrderBy(e => EF.Property<int>(e, keyProp.Name));
+                }
+                else if (keyProp.ClrType == typeof(long))
+                {
+                    return query.OrderBy(e => EF.Property<long>(e, keyProp.Name));
+                }
+                else if (keyProp.ClrType == typeof(Guid))
+                {
+                    return query.OrderBy(e => EF.Property<Guid>(e, keyProp.Name));
+                }
+                else
+                {
+                    return query.OrderBy(e => EF.Property<string>(e, keyProp.Name));
+                }
+            }
+
+            return query;
+        }
+
         public virtual async Task<SingleObjectResponseModel> FindAll(int? pageNumber = null, int? pageSize = null)
         {
             try
@@ -124,6 +156,8 @@ namespace Repositories.Repositories
 
                 var query = RepositoryContext.Set<T>().AsNoTracking();
                 var totalCount = await query.CountAsync();
+
+                query = ApplyDefaultOrder(query);
 
                 if (pageNumber.HasValue && pageSize.HasValue)
                 {

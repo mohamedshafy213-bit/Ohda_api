@@ -86,6 +86,8 @@ public class CompassRepository
             dbQuery = dbQuery.Where(c => c.ExitDate <= endDate.Value);
         }
 
+        dbQuery = dbQuery.OrderByDescending(c => c.Id);
+
         if (pageNumber.HasValue && pageSize.HasValue)
         {
             int skip = (pageNumber.Value - 1) * pageSize.Value;

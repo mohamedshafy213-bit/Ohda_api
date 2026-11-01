@@ -18,6 +18,7 @@ public class NotificationDto : BaseDto
 public class NotificationCreateDto : BaseCreateDto
 {
     public int UserId { get; set; }
+    public int? BranchId { get; set; }
     public string Title { get; set; } = string.Empty;
     public string Message { get; set; } = string.Empty;
     public NotificationType Type { get; set; } = NotificationType.Info;
