@@ -35,9 +35,19 @@ public class JwtTokenGenerator : IJwtTokenGenerator
         {
             new Claim(ClaimTypes.NameIdentifier, user.MilitaryNumber.ToString()),
             new Claim(ClaimTypes.Name, user.Username),
-            new Claim(ClaimTypes.Email, user.Email),
-            new Claim(ClaimTypes.Role, user.Role.ToString())
+            new Claim(ClaimTypes.Role, user.Role.ToString()),
+            new Claim("military_number", user.MilitaryNumber.ToString())
         };
+
+        if (!string.IsNullOrEmpty(user.Email))
+        {
+            claims.Add(new Claim(ClaimTypes.Email, user.Email));
+        }
+
+        if (!string.IsNullOrEmpty(user.PersonName))
+        {
+            claims.Add(new Claim("person_name", user.PersonName));
+        }
 
         if (user.BranchId.HasValue)
         {

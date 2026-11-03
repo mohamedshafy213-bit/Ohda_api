@@ -20,7 +20,7 @@ public class OrderDetailCreateDto : BaseCreateDto
 
 public class OrderDto : BaseDto
 {
-    public int UserId { get; set; }
+    public long UserId { get; set; }
     public string? Username { get; set; }
     public DateTime OrderDate { get; set; }
     public decimal TotalAmount { get; set; }
@@ -29,12 +29,12 @@ public class OrderDto : BaseDto
 
 public class OrderCreateDto : BaseCreateDto
 {
-    public int UserId { get; set; }
+    public long UserId { get; set; }
     public List<OrderDetailCreateDto> OrderDetails { get; set; } = new();
 }
 
 public class OrderUpdateDto : BaseUpdateDto
 {
-    public int UserId { get; set; }
+    public long UserId { get; set; }
     public decimal TotalAmount { get; set; }
 }

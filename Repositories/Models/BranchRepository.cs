@@ -248,17 +248,17 @@ public class BranchRepository : RepositoryBase<Branch, BranchDto, BranchCreateDt
 
             // 4. Generate Branch Admin Account with Default Secure Password (P@ssw0rd)
             const string defaultPassword = "P@ssw0rd";
-            var militaryNumber = dto.AdminMilitaryNumber ?? 0;
+            long militaryNumber = dto.AdminMilitaryNumber ?? 0;
 
             if (militaryNumber <= 0)
             {
-                int baseNumber = (branch.Id * 10000) + 1;
-                int maxInRange = (branch.Id + 1) * 10000;
+                long baseNumber = (branch.Id * 10000L) + 1;
+                long maxInRange = (branch.Id + 1) * 10000L;
                 var maxNum = await RepositoryContext.Users
                     .IgnoreQueryFilters()
                     .AsNoTracking()
                     .Where(u => u.MilitaryNumber >= baseNumber && u.MilitaryNumber < maxInRange)
-                    .MaxAsync(u => (int?)u.MilitaryNumber);
+                    .MaxAsync(u => (long?)u.MilitaryNumber);
                 militaryNumber = (maxNum ?? (baseNumber - 1)) + 1;
             }
 
@@ -266,7 +266,7 @@ public class BranchRepository : RepositoryBase<Branch, BranchDto, BranchCreateDt
             {
                 MilitaryNumber = militaryNumber,
                 Username = dto.AdminUsername.Trim(),
-                Email = dto.AdminEmail.Trim(),
+                Email = string.IsNullOrWhiteSpace(dto.AdminEmail) ? null : dto.AdminEmail.Trim(),
                 Role = UserRole.Admin,
                 PersonName = dto.AdminPersonName ?? $"مدير فرع {branch.Name}",
                 BranchId = branch.Id,

@@ -9,7 +9,7 @@ public static class NotificationHelper
 {
     public static async Task SendNotificationToUserAsync(
         IRepositoryWrapper repositoryWrapper,
-        int userId,
+        long userId,
         string title,
         string message,
         NotificationType type = NotificationType.Info,

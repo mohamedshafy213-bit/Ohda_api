@@ -89,7 +89,7 @@ public class NotificationRepository
         }
     }
 
-    public async Task<List<NotificationDto>> GetNotificationsForUserAsync(int userId, bool unreadOnly = false)
+    public async Task<List<NotificationDto>> GetNotificationsForUserAsync(long userId, bool unreadOnly = false)
     {
         var query = RepositoryContext.Notifications
             .AsNoTracking()
@@ -117,13 +117,13 @@ public class NotificationRepository
             .ToListAsync();
     }
 
-    public async Task<int> GetUnreadCountAsync(int userId)
+    public async Task<int> GetUnreadCountAsync(long userId)
     {
         return await RepositoryContext.Notifications
             .CountAsync(n => n.UserId == userId && !n.IsRead && !n.IsDeleted);
     }
 
-    public async Task MarkAsReadAsync(int notificationId, int userId)
+    public async Task MarkAsReadAsync(int notificationId, long userId)
     {
         var notification = await RepositoryContext.Notifications
             .FirstOrDefaultAsync(n => n.Id == notificationId && n.UserId == userId && !n.IsDeleted);
@@ -136,7 +136,7 @@ public class NotificationRepository
         }
     }
 
-    public async Task MarkAllAsReadAsync(int userId)
+    public async Task MarkAllAsReadAsync(long userId)
     {
         var unread = await RepositoryContext.Notifications
             .Where(n => n.UserId == userId && !n.IsRead && !n.IsDeleted)

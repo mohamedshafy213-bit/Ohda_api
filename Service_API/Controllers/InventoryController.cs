@@ -13,6 +13,8 @@ using Service_API.BaseControllers;
 using UglyToad.PdfPig;
 using System.Text.RegularExpressions;
 
+using Entities.Models.Databases;
+using Microsoft.EntityFrameworkCore;
 
 namespace Service_API.Controllers;
 
@@ -22,11 +24,76 @@ namespace Service_API.Controllers;
 public class InventoryController : BaseController<Inventory, InventoryDto, InventoryCreateDto, InventoryUpdateDto>
 {
     private readonly IRepositoryWrapper _repositoryWrapper;
+    private readonly RepositoryContext _context;
 
-    public InventoryController(IRepositoryWrapper repositoryWrapper)
+    public InventoryController(IRepositoryWrapper repositoryWrapper, RepositoryContext context)
     {
         _repositoryWrapper = repositoryWrapper;
         _repository = repositoryWrapper.Inventories;
+        _context = context;
+    }
+
+    [HttpDelete("product/{productId}")]
+    public async Task<IActionResult> DeleteInventoryByProduct([FromRoute] int productId)
+    {
+        var inventories = await _context.Inventories
+            .Where(i => i.ProductId == productId && !i.IsDeleted)
+            .ToListAsync();
+
+        if (!inventories.Any())
+            return NotFound(new SingleObjectResponseModel { IsDone = false, ReturnMessage = "لا يوجد رصيد مخزني مسجل لهذا الصنف." });
+
+        foreach (var inv in inventories)
+        {
+            inv.Quantity = 0;
+            inv.IsDeleted = true;
+            inv.DeleteDate = DateTime.UtcNow;
+        }
+
+        await _context.SaveChangesAsync();
+
+        return Ok(new SingleObjectResponseModel
+        {
+            IsDone = true,
+            ReturnMessage = "تم تصفية وحذف رصيد المخزون لهذا الصنف بنجاح."
+        });
+    }
+
+    [HttpPost("adjust-quantity")]
+    public async Task<IActionResult> AdjustQuantity([FromBody] AdjustStockDto dto)
+    {
+        if (dto == null || dto.ProductId <= 0)
+            return BadRequest(new SingleObjectResponseModel { IsDone = false, ReturnMessage = "بيانات التعديل غير صحيحة." });
+
+        var inventory = await _context.Inventories
+            .FirstOrDefaultAsync(i => i.ProductId == dto.ProductId && !i.IsDeleted);
+
+        int newQty = Math.Max(0, dto.NewQuantity);
+
+        if (inventory == null)
+        {
+            inventory = new Inventory
+            {
+                ProductId = dto.ProductId,
+                Quantity = newQty,
+                MinStock = 5,
+                MaxStock = 500
+            };
+            await _context.Inventories.AddAsync(inventory);
+        }
+        else
+        {
+            inventory.Quantity = newQty;
+            inventory.LastUpdate = DateTime.UtcNow;
+        }
+
+        await _context.SaveChangesAsync();
+
+        return Ok(new SingleObjectResponseModel
+        {
+            IsDone = true,
+            ReturnMessage = $"تم تحديث رصيد المخزون إلى {newQty} بنجاح."
+        });
     }
 
     [HttpPost("scan")]

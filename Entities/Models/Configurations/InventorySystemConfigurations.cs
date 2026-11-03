@@ -48,11 +48,11 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.HasKey(u => u.MilitaryNumber);
         builder.Property(u => u.MilitaryNumber).HasColumnName("id");
         builder.HasIndex(u => u.Username).IsUnique();
-        builder.HasIndex(u => u.Email).IsUnique();
+        builder.HasIndex(u => u.Email).IsUnique().HasFilter("[Email] IS NOT NULL");
         builder.HasIndex(u => u.BranchId);
 
         builder.Property(u => u.Username).IsRequired().HasMaxLength(100);
-        builder.Property(u => u.Email).IsRequired().HasMaxLength(150);
+        builder.Property(u => u.Email).IsRequired(false).HasMaxLength(150);
         builder.Property(u => u.PasswordHash).IsRequired();
 
         builder.HasOne(u => u.Branch)

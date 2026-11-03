@@ -32,32 +32,102 @@ public class ProductController : BaseController<Product, ProductDto, ProductCrea
         if (!int.TryParse(id, out var productId))
             return BadRequest(new SingleObjectResponseModel { IsDone = false, ReturnMessage = "معرف المنتج غير صالح." });
 
-        var existingProduct = await _context.Products.FirstOrDefaultAsync(p => p.Id == productId);
+        var existingProduct = await _context.Products.IgnoreQueryFilters().FirstOrDefaultAsync(p => p.Id == productId);
         if (existingProduct == null)
-            return NotFound(new SingleObjectResponseModel { IsDone = false, ReturnMessage = "المنتج غير موجود." });
+        {
+            _repositoryWrapper.Products.InvalidateCache();
+            return Ok(new SingleObjectResponseModel
+            {
+                IsDone = true,
+                ReturnMessage = "تم حذف الصنف وتحديث القائمة بنجاح."
+            });
+        }
 
-        // Check inventory quantity
-        var inventory = await _context.Inventories.FirstOrDefaultAsync(i => i.ProductId == productId && !i.IsDeleted);
-        int currentQty = inventory?.Quantity ?? 0;
+        if (existingProduct.IsDeleted)
+        {
+            _repositoryWrapper.Products.InvalidateCache();
+            _repositoryWrapper.Inventories.InvalidateCache();
+            return Ok(new SingleObjectResponseModel
+            {
+                IsDone = true,
+                ReturnMessage = "الصنف محذوف بالفعل، وتم تحديث القائمة بنجاح."
+            });
+        }
 
-        // Check serialized items
-        var activeItemsCount = await _context.ProductItems.CountAsync(pi => pi.ProductId == productId && !pi.IsDeleted);
-
-        // Check pending exit requests
-        var pendingExitItemsCount = await _context.ProductExitRequestItems
+        // Check if product is involved in active or historical exit requests
+        var exitRequestsCount = await _context.ProductExitRequestItems
             .Include(i => i.ProductExitRequest)
-            .CountAsync(i => i.ProductId == productId && !i.IsDeleted && i.ProductExitRequest != null && !i.ProductExitRequest.IsDeleted && (i.ProductExitRequest.Status == RequestStatus.Pending || i.ProductExitRequest.Status == RequestStatus.SupervisorApproved || i.ProductExitRequest.Status == RequestStatus.ManagerApproved));
+            .CountAsync(i => i.ProductId == productId && !i.IsDeleted && i.ProductExitRequest != null && !i.ProductExitRequest.IsDeleted);
 
-        if (currentQty > 0 || activeItemsCount > 0 || pendingExitItemsCount > 0)
+        // Check if product is involved in entry requests
+        var entryRequestsCount = await _context.ProductEntryRequestItems
+            .Include(i => i.ProductEntryRequest)
+            .CountAsync(i => i.ProductId == productId && !i.IsDeleted && i.ProductEntryRequest != null && !i.ProductEntryRequest.IsDeleted);
+
+        // Check if product is involved in orders
+        var ordersCount = await _context.OrderDetails
+            .CountAsync(o => o.ProductId == productId && !o.IsDeleted);
+
+        // Check if any product item is actively assigned to an employee or in custody (not InStock)
+        var assignedItemsCount = await _context.ProductItems
+            .CountAsync(pi => pi.ProductId == productId && !pi.IsDeleted && pi.Status != ProductItemStatus.InStock);
+
+        if (exitRequestsCount > 0 || entryRequestsCount > 0 || ordersCount > 0 || assignedItemsCount > 0)
         {
             return BadRequest(new SingleObjectResponseModel
             {
                 IsDone = false,
-                ReturnMessage = $"لا يمكن حذف هذا الصنف لوجود رصيد أو ارتباطات سارية به (رصيد المخزن: {currentQty}، أجهزة مسجلة: {activeItemsCount}، طلبات جارية: {pendingExitItemsCount}). يرجى تصفية الرصيد أولاً."
+                ReturnMessage = $"لا يمكن حذف هذا الصنف لوجود ارتباطات سارية أو تاريخية به (طلبات صرف: {exitRequestsCount}، طلبات إدخال: {entryRequestsCount}، عهد مستلمة: {assignedItemsCount}). يرجى إلغاء أو معالجة تلك الارتباطات أولاً."
             });
         }
 
-        return await base.Delete(id);
+        // Safe cascade cleanup for unused inventory and in-stock items
+        var strategy = _context.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync<IActionResult>(async () =>
+        {
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                var productItems = await _context.ProductItems.Where(pi => pi.ProductId == productId && !pi.IsDeleted).ToListAsync();
+                foreach (var item in productItems)
+                {
+                    item.IsDeleted = true;
+                    item.DeleteDate = DateTime.UtcNow;
+                }
+
+                var inventories = await _context.Inventories.Where(i => i.ProductId == productId && !i.IsDeleted).ToListAsync();
+                foreach (var inv in inventories)
+                {
+                    inv.IsDeleted = true;
+                    inv.DeleteDate = DateTime.UtcNow;
+                    inv.Quantity = 0;
+                }
+
+                existingProduct.IsDeleted = true;
+                existingProduct.DeleteDate = DateTime.UtcNow;
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                _repositoryWrapper.Products.InvalidateCache();
+                _repositoryWrapper.Inventories.InvalidateCache();
+
+                return Ok(new SingleObjectResponseModel
+                {
+                    IsDone = true,
+                    ReturnMessage = "تم حذف الصنف ورصيده في المخزن بنجاح."
+                });
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                return BadRequest(new SingleObjectResponseModel
+                {
+                    IsDone = false,
+                    ReturnMessage = $"فشل حذف الصنف: {ex.Message}"
+                });
+            }
+        });
     }
 
     [HttpGet]
@@ -163,11 +233,19 @@ public class ProductController : BaseController<Product, ProductDto, ProductCrea
             }
         }
 
-        try
+        var strategy = _context.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync<IActionResult>(async () =>
         {
-            var response = await _repositoryWrapper.Products.Create(createDto);
-            if (response.IsDone)
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
             {
+                var response = await _repositoryWrapper.Products.Create(createDto);
+                if (!response.IsDone)
+                {
+                    await transaction.RollbackAsync();
+                    return HandleResponse(response);
+                }
+
                 var createdProduct = (response as SingleObjectResponseModel<ProductDto>)?.SingleObject;
                 if (createdProduct != null)
                 {
@@ -224,28 +302,34 @@ public class ProductController : BaseController<Product, ProductDto, ProductCrea
                     createdProduct.Amount = initialAmount;
                     createdProduct.Quantity = initialAmount;
                 }
+
+                await transaction.CommitAsync();
+                _repositoryWrapper.Products.InvalidateCache();
+                _repositoryWrapper.Inventories.InvalidateCache();
+                return HandleResponse(response);
             }
-            return HandleResponse(response);
-        }
-        catch (Microsoft.EntityFrameworkCore.DbUpdateException dbEx)
-        {
-            var innerMsg = dbEx.InnerException?.Message ?? dbEx.Message;
-            return BadRequest(new SingleObjectResponseModel
+            catch (Microsoft.EntityFrameworkCore.DbUpdateException dbEx)
             {
-                ErrorCode = Contracts.enums.ErrorCatalog.DataBaseFauiler,
-                IsDone = false,
-                ReturnMessage = $"تعذر حفظ الصنف: تأكد من عدم تكرار الباركود أو السيريال وصحة البيانات المدخلة ({innerMsg})"
-            });
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(new SingleObjectResponseModel
+                await transaction.RollbackAsync();
+                var innerMsg = dbEx.InnerException?.Message ?? dbEx.Message;
+                return BadRequest(new SingleObjectResponseModel
+                {
+                    ErrorCode = Contracts.enums.ErrorCatalog.DataBaseFauiler,
+                    IsDone = false,
+                    ReturnMessage = $"تعذر حفظ الصنف: تأكد من عدم تكرار الباركود أو السيريال وصحة البيانات المدخلة ({innerMsg})"
+                });
+            }
+            catch (Exception ex)
             {
-                ErrorCode = Contracts.enums.ErrorCatalog.missingValues,
-                IsDone = false,
-                ReturnMessage = $"حدث خطأ أثناء حفظ المنتج: {ex.Message}"
-            });
-        }
+                await transaction.RollbackAsync();
+                return BadRequest(new SingleObjectResponseModel
+                {
+                    ErrorCode = Contracts.enums.ErrorCatalog.missingValues,
+                    IsDone = false,
+                    ReturnMessage = $"حدث خطأ أثناء حفظ المنتج: {ex.Message}"
+                });
+            }
+        });
     }
 
     [HttpPut("{id}")]
@@ -295,6 +379,8 @@ public class ProductController : BaseController<Product, ProductDto, ProductCrea
                     await _repositoryWrapper.SaveAsync();
                 }
             }
+            _repositoryWrapper.Products.InvalidateCache();
+            _repositoryWrapper.Inventories.InvalidateCache();
         }
         return HandleResponse(response);
     }

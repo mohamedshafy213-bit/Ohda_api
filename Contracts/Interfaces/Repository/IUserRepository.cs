@@ -7,7 +7,7 @@ namespace Contracts.Interfaces.Repository;
 public interface IUserRepository : IRepositoryBase<User, UserDto, UserCreateDto, UserUpdateDto>
 {
     Task<User?> GetByUsernameAsync(string username, bool trackChanges = false);
-    Task<User?> GetByIdWithGroupAsync(int id, bool trackChanges = false);
+    Task<User?> GetByIdWithGroupAsync(long id, bool trackChanges = false);
     Task<List<UserDto>> GetUsersFilteredAsync(int? branchId, bool isSuperAdmin, int? userBranchId);
     void UpdateDirect(User user);
 
@@ -20,15 +20,15 @@ public interface IUserRepository : IRepositoryBase<User, UserDto, UserCreateDto,
     /// <summary>
     /// Check if a user exists by MilitaryNumber without loading navigation properties.
     /// </summary>
-    Task<bool> ExistsAsync(int militaryNumber);
+    Task<bool> ExistsAsync(long militaryNumber);
 
     /// <summary>
     /// Lightweight projection query: loads UserDto with BranchName and UserGroupName directly.
     /// </summary>
-    Task<UserDto?> GetUserDtoByIdAsync(int militaryNumber);
+    Task<UserDto?> GetUserDtoByIdAsync(long militaryNumber);
 
     /// <summary>
     /// Get the next available MilitaryNumber using MAX() instead of a loop.
     /// </summary>
-    Task<int> GetNextMilitaryNumberAsync(int branchId);
+    Task<long> GetNextMilitaryNumberAsync(int branchId);
 }

@@ -24,7 +24,7 @@ public class UserPagePermissionRepository
     {
     }
 
-    private void InvalidateUserPermissionCache(int userId)
+    private void InvalidateUserPermissionCache(long userId)
     {
         var cache = MemoryCache;
         if (cache != null)
@@ -33,7 +33,7 @@ public class UserPagePermissionRepository
         }
     }
 
-    public async Task<List<PageDto>> GetAllowedPagesForUserAsync(int userId, Entities.Models.Enums.UserRole? role = null, int? userGroupId = null)
+    public async Task<List<PageDto>> GetAllowedPagesForUserAsync(long userId, Entities.Models.Enums.UserRole? role = null, int? userGroupId = null)
     {
         var cache = MemoryCache;
         string cacheKey = $"UserAllowedPages_{userId}";
@@ -216,7 +216,7 @@ public class UserPagePermissionRepository
         return result;
     }
 
-    public async Task<bool> GrantPermissionAsync(int userId, int pageId, int grantedByUserId)
+    public async Task<bool> GrantPermissionAsync(long userId, int pageId, long grantedByUserId)
     {
         var user = await RepositoryContext.Users
             .IgnoreQueryFilters()
@@ -245,7 +245,8 @@ public class UserPagePermissionRepository
         {
             UserId = userId,
             PageId = pageId,
-            GrantedByUserId = grantedByUserId
+            GrantedByUserId = grantedByUserId,
+            BranchId = user.BranchId ?? 0
         };
 
         await RepositoryContext.UserPagePermissions.AddAsync(permission);
@@ -254,7 +255,7 @@ public class UserPagePermissionRepository
         return true;
     }
 
-    public async Task<bool> RevokePermissionAsync(int userId, int pageId)
+    public async Task<bool> RevokePermissionAsync(long userId, int pageId)
     {
         var existing = await RepositoryContext.UserPagePermissions
             .FirstOrDefaultAsync(p => p.UserId == userId && p.PageId == pageId && !p.IsDeleted);
@@ -269,13 +270,13 @@ public class UserPagePermissionRepository
         return true;
     }
 
-    public async Task GrantAllPagesToUserAsync(int userId, int grantedByUserId)
+    public async Task GrantAllPagesToUserAsync(long userId, long grantedByUserId)
     {
         var user = await RepositoryContext.Users
             .IgnoreQueryFilters()
             .AsNoTracking()
             .Where(u => u.MilitaryNumber == userId && !u.IsDeleted)
-            .Select(u => new { u.MilitaryNumber, u.Role })
+            .Select(u => new { u.MilitaryNumber, u.Role, u.BranchId })
             .FirstOrDefaultAsync();
         if (user == null) return;
 
@@ -305,7 +306,8 @@ public class UserPagePermissionRepository
             {
                 UserId = userId,
                 PageId = p.Id,
-                GrantedByUserId = grantedByUserId
+                GrantedByUserId = grantedByUserId,
+                BranchId = user.BranchId ?? 0
             })
             .ToList();
 

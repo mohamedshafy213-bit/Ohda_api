@@ -28,3 +28,10 @@ public class InventoryUpdateDto : BaseUpdateDto
     public int MinStock { get; set; }
     public int MaxStock { get; set; }
 }
+
+public class AdjustStockDto
+{
+    public int ProductId { get; set; }
+    public int NewQuantity { get; set; }
+    public string? Reason { get; set; }
+}

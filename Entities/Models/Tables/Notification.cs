@@ -5,7 +5,7 @@ namespace Entities.Models.Tables;
 
 public class Notification : TenantBaseTable
 {
-    public int UserId { get; set; }
+    public long UserId { get; set; }
     public User? User { get; set; }
 
     public string Title { get; set; } = string.Empty;

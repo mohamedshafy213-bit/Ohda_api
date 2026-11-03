@@ -4,12 +4,12 @@ namespace Entities.Models.Tables;
 
 public class UserPagePermission : TenantBaseTable
 {
-    public int UserId { get; set; }
+    public long UserId { get; set; }
     public User? User { get; set; }
 
     public int PageId { get; set; }
     public Page? Page { get; set; }
 
-    public int? GrantedByUserId { get; set; }
+    public long? GrantedByUserId { get; set; }
     public User? GrantedByUser { get; set; }
 }

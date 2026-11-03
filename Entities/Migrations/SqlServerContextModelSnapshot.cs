@@ -396,8 +396,8 @@ namespace Entities.Migrations
                     b.Property<string>("DeleteUserCode")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int?>("GrantedByUserId")
-                        .HasColumnType("int");
+                    b.Property<long?>("GrantedByUserId")
+                        .HasColumnType("bigint");
 
                     b.Property<DateTime?>("InsertDate")
                         .HasColumnType("datetime2");
@@ -551,8 +551,8 @@ namespace Entities.Migrations
                     b.Property<string>("UpdateUserCode")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int>("UserId")
-                        .HasColumnType("int");
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint");
 
                     b.HasKey("Id");
 
@@ -608,8 +608,8 @@ namespace Entities.Migrations
                     b.Property<string>("UpdateUserCode")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int>("UserId")
-                        .HasColumnType("int");
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint");
 
                     b.HasKey("Id");
 
@@ -730,7 +730,7 @@ namespace Entities.Migrations
                         {
                             Id = 1,
                             Icon = "dashboard",
-                            InsertDate = new DateTime(2026, 9, 28, 18, 23, 11, 733, DateTimeKind.Utc).AddTicks(1687),
+                            InsertDate = new DateTime(2026, 11, 3, 8, 34, 50, 539, DateTimeKind.Utc).AddTicks(5477),
                             IsDeleted = false,
                             Path = "/dashboard",
                             SortOrder = 1,
@@ -740,7 +740,7 @@ namespace Entities.Migrations
                         {
                             Id = 2,
                             Icon = "inventory_2",
-                            InsertDate = new DateTime(2026, 9, 28, 18, 23, 11, 733, DateTimeKind.Utc).AddTicks(3667),
+                            InsertDate = new DateTime(2026, 11, 3, 8, 34, 50, 540, DateTimeKind.Utc).AddTicks(46),
                             IsDeleted = false,
                             Path = "/products",
                             SortOrder = 2,
@@ -750,7 +750,7 @@ namespace Entities.Migrations
                         {
                             Id = 3,
                             Icon = "warehouse",
-                            InsertDate = new DateTime(2026, 9, 28, 18, 23, 11, 733, DateTimeKind.Utc).AddTicks(3672),
+                            InsertDate = new DateTime(2026, 11, 3, 8, 34, 50, 540, DateTimeKind.Utc).AddTicks(50),
                             IsDeleted = false,
                             Path = "/inventory",
                             SortOrder = 3,
@@ -760,7 +760,7 @@ namespace Entities.Migrations
                         {
                             Id = 4,
                             Icon = "qr_code_scanner",
-                            InsertDate = new DateTime(2026, 9, 28, 18, 23, 11, 733, DateTimeKind.Utc).AddTicks(3675),
+                            InsertDate = new DateTime(2026, 11, 3, 8, 34, 50, 540, DateTimeKind.Utc).AddTicks(51),
                             IsDeleted = false,
                             Path = "/scan",
                             SortOrder = 4,
@@ -770,7 +770,7 @@ namespace Entities.Migrations
                         {
                             Id = 5,
                             Icon = "assignment_return",
-                            InsertDate = new DateTime(2026, 9, 28, 18, 23, 11, 733, DateTimeKind.Utc).AddTicks(3677),
+                            InsertDate = new DateTime(2026, 11, 3, 8, 34, 50, 540, DateTimeKind.Utc).AddTicks(52),
                             IsDeleted = false,
                             Path = "/exit-requests",
                             SortOrder = 5,
@@ -780,7 +780,7 @@ namespace Entities.Migrations
                         {
                             Id = 6,
                             Icon = "shopping_cart",
-                            InsertDate = new DateTime(2026, 9, 28, 18, 23, 11, 733, DateTimeKind.Utc).AddTicks(3678),
+                            InsertDate = new DateTime(2026, 11, 3, 8, 34, 50, 540, DateTimeKind.Utc).AddTicks(53),
                             IsDeleted = false,
                             Path = "/orders",
                             SortOrder = 6,
@@ -790,7 +790,7 @@ namespace Entities.Migrations
                         {
                             Id = 7,
                             Icon = "category",
-                            InsertDate = new DateTime(2026, 9, 28, 18, 23, 11, 733, DateTimeKind.Utc).AddTicks(3680),
+                            InsertDate = new DateTime(2026, 11, 3, 8, 34, 50, 540, DateTimeKind.Utc).AddTicks(55),
                             IsDeleted = false,
                             Path = "/categories",
                             SortOrder = 7,
@@ -800,7 +800,7 @@ namespace Entities.Migrations
                         {
                             Id = 8,
                             Icon = "local_shipping",
-                            InsertDate = new DateTime(2026, 9, 28, 18, 23, 11, 733, DateTimeKind.Utc).AddTicks(3681),
+                            InsertDate = new DateTime(2026, 11, 3, 8, 34, 50, 540, DateTimeKind.Utc).AddTicks(56),
                             IsDeleted = false,
                             Path = "/suppliers",
                             SortOrder = 8,
@@ -810,7 +810,7 @@ namespace Entities.Migrations
                         {
                             Id = 9,
                             Icon = "group",
-                            InsertDate = new DateTime(2026, 9, 28, 18, 23, 11, 733, DateTimeKind.Utc).AddTicks(3683),
+                            InsertDate = new DateTime(2026, 11, 3, 8, 34, 50, 540, DateTimeKind.Utc).AddTicks(57),
                             IsDeleted = false,
                             Path = "/users",
                             SortOrder = 9,
@@ -820,7 +820,7 @@ namespace Entities.Migrations
                         {
                             Id = 11,
                             Icon = "explore",
-                            InsertDate = new DateTime(2026, 9, 28, 18, 23, 11, 733, DateTimeKind.Utc).AddTicks(3684),
+                            InsertDate = new DateTime(2026, 11, 3, 8, 34, 50, 540, DateTimeKind.Utc).AddTicks(58),
                             IsDeleted = false,
                             Path = "/compass",
                             SortOrder = 10,
@@ -879,8 +879,8 @@ namespace Entities.Migrations
                     b.Property<string>("UpdateUserCode")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int?>("UserId")
-                        .HasColumnType("int");
+                    b.Property<long?>("UserId")
+                        .HasColumnType("bigint");
 
                     b.HasKey("Id");
 
@@ -1028,8 +1028,8 @@ namespace Entities.Migrations
                     b.Property<DateTime?>("LastUpdate")
                         .HasColumnType("datetime2");
 
-                    b.Property<int?>("ManagerId")
-                        .HasColumnType("int");
+                    b.Property<long?>("ManagerId")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("Notes")
                         .HasMaxLength(500)
@@ -1038,8 +1038,8 @@ namespace Entities.Migrations
                     b.Property<int?>("ProductStateId")
                         .HasColumnType("int");
 
-                    b.Property<int>("ReceivedByUserId")
-                        .HasColumnType("int");
+                    b.Property<long>("ReceivedByUserId")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("RejectionReason")
                         .HasColumnType("nvarchar(max)");
@@ -1050,8 +1050,8 @@ namespace Entities.Migrations
                     b.Property<int>("Status")
                         .HasColumnType("int");
 
-                    b.Property<int?>("SupervisorId")
-                        .HasColumnType("int");
+                    b.Property<long?>("SupervisorId")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("UpdateUserCode")
                         .HasColumnType("nvarchar(max)");
@@ -1186,8 +1186,8 @@ namespace Entities.Migrations
                     b.Property<DateTime?>("LastUpdate")
                         .HasColumnType("datetime2");
 
-                    b.Property<int?>("ManagerId")
-                        .HasColumnType("int");
+                    b.Property<long?>("ManagerId")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("Purpose")
                         .HasMaxLength(500)
@@ -1201,8 +1201,8 @@ namespace Entities.Migrations
                     b.Property<string>("RejectionReason")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int>("RequestedByUserId")
-                        .HasColumnType("int");
+                    b.Property<long>("RequestedByUserId")
+                        .HasColumnType("bigint");
 
                     b.Property<DateTime?>("RequesterConfirmedDate")
                         .HasColumnType("datetime2");
@@ -1210,8 +1210,8 @@ namespace Entities.Migrations
                     b.Property<int>("Status")
                         .HasColumnType("int");
 
-                    b.Property<int?>("SupervisorId")
-                        .HasColumnType("int");
+                    b.Property<long?>("SupervisorId")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("UpdateUserCode")
                         .HasColumnType("nvarchar(max)");
@@ -1609,8 +1609,8 @@ namespace Entities.Migrations
 
             modelBuilder.Entity("Entities.Models.Tables.User", b =>
                 {
-                    b.Property<int>("MilitaryNumber")
-                        .HasColumnType("int")
+                    b.Property<long>("MilitaryNumber")
+                        .HasColumnType("bigint")
                         .HasColumnName("id");
 
                     b.Property<int?>("BranchId")
@@ -1623,7 +1623,6 @@ namespace Entities.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Email")
-                        .IsRequired()
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
 
@@ -1668,7 +1667,8 @@ namespace Entities.Migrations
                     b.HasIndex("BranchId");
 
                     b.HasIndex("Email")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[Email] IS NOT NULL");
 
                     b.HasIndex("UserGroupId");
 
@@ -1745,8 +1745,8 @@ namespace Entities.Migrations
                     b.Property<string>("DeleteUserCode")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int?>("GrantedByUserId")
-                        .HasColumnType("int");
+                    b.Property<long?>("GrantedByUserId")
+                        .HasColumnType("bigint");
 
                     b.Property<DateTime?>("InsertDate")
                         .HasColumnType("datetime2");
@@ -1766,8 +1766,8 @@ namespace Entities.Migrations
                     b.Property<string>("UpdateUserCode")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int>("UserId")
-                        .HasColumnType("int");
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint");
 
                     b.HasKey("Id");
 

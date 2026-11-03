@@ -55,7 +55,7 @@ public class NotificationController : BaseController<Notification, NotificationD
     [HttpGet("my-notifications")]
     public async Task<IActionResult> GetMyNotifications([FromQuery] bool unreadOnly = false)
     {
-        int userId = GetCurrentUserId();
+        long userId = GetCurrentUserId();
         if (userId <= 0)
         {
             return Unauthorized(new SingleObjectResponseModel
@@ -77,7 +77,7 @@ public class NotificationController : BaseController<Notification, NotificationD
     [HttpGet("unread-count")]
     public async Task<IActionResult> GetUnreadCount()
     {
-        int userId = GetCurrentUserId();
+        long userId = GetCurrentUserId();
         int count = await _repositoryWrapper.Notifications.GetUnreadCountAsync(userId);
 
         return Ok(new SingleObjectResponseModel<int>
@@ -91,7 +91,7 @@ public class NotificationController : BaseController<Notification, NotificationD
     [HttpPut("{id}/read")]
     public async Task<IActionResult> MarkAsRead([FromRoute] int id)
     {
-        int userId = GetCurrentUserId();
+        long userId = GetCurrentUserId();
         await _repositoryWrapper.Notifications.MarkAsReadAsync(id, userId);
 
         return Ok(new SingleObjectResponseModel
@@ -104,7 +104,7 @@ public class NotificationController : BaseController<Notification, NotificationD
     [HttpPut("read-all")]
     public async Task<IActionResult> MarkAllAsRead()
     {
-        int userId = GetCurrentUserId();
+        long userId = GetCurrentUserId();
         await _repositoryWrapper.Notifications.MarkAllAsReadAsync(userId);
 
         return Ok(new SingleObjectResponseModel
@@ -114,9 +114,9 @@ public class NotificationController : BaseController<Notification, NotificationD
         });
     }
 
-    private int GetCurrentUserId()
+    private long GetCurrentUserId()
     {
         var claim = User.FindFirst(ClaimTypes.NameIdentifier) ?? User.FindFirst("sub");
-        return claim != null && int.TryParse(claim.Value, out int userId) ? userId : 0;
+        return claim != null && long.TryParse(claim.Value, out long userId) ? userId : 0;
     }
 }

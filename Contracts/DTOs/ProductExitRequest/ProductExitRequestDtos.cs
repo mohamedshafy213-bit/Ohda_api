@@ -34,6 +34,7 @@ namespace Contracts.DTOs.ProductExitRequest
 
     public class ProductExitRequestDto : BaseDto
     {
+        public int? BranchId { get; set; }
         public List<ProductExitRequestItemDto> Items { get; set; } = new();
         public RequestStatus Status { get; set; }
 
@@ -42,15 +43,18 @@ namespace Contracts.DTOs.ProductExitRequest
         public string? DepartmentName { get; set; }
         public string? Purpose { get; set; }
 
-        public int RequestedByUserId { get; set; }
+        public long RequestedByUserId { get; set; }
         public string? RequestedByUsername { get; set; }
+        public string? RequestedByPersonName { get; set; }
 
-        public int? ManagerId { get; set; }
+        public long? ManagerId { get; set; }
         public string? ManagerUsername { get; set; }
+        public string? ManagerPersonName { get; set; }
         public bool ManagerApprove => ManagerId.HasValue && ManagerId > 0;
 
-        public int? SupervisorId { get; set; }
+        public long? SupervisorId { get; set; }
         public string? SupervisorUsername { get; set; }
+        public string? SupervisorPersonName { get; set; }
         public bool SupervisorApprove => SupervisorId.HasValue && SupervisorId > 0;
 
         public string? RejectionReason { get; set; }
@@ -71,7 +75,7 @@ namespace Contracts.DTOs.ProductExitRequest
         public string RecipientName { get; set; } = string.Empty;
         public int? DepartmentId { get; set; }
         public string? Purpose { get; set; }
-        public int RequestedByUserId { get; set; }
+        public long RequestedByUserId { get; set; }
         public List<int> SelectedProductItemIds { get; set; } = new();
     }
 
@@ -82,9 +86,9 @@ namespace Contracts.DTOs.ProductExitRequest
         public string RecipientName { get; set; } = string.Empty;
         public int? DepartmentId { get; set; }
         public string? Purpose { get; set; }
-        public int RequestedByUserId { get; set; }
-        public int? ManagerId { get; set; }
-        public int? SupervisorId { get; set; }
+        public long RequestedByUserId { get; set; }
+        public long? ManagerId { get; set; }
+        public long? SupervisorId { get; set; }
         public string? RejectionReason { get; set; }
         public int CurrentStep { get; set; } = 1;
         public bool IsRequesterConfirmed { get; set; }

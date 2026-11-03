@@ -11,8 +11,10 @@ public class WorkflowStepRecord
     public string StepName { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
     public string Action { get; set; } = string.Empty; // "Created", "Approved", "Rejected", "Confirmed"
-    public int UserId { get; set; }
+    public long UserId { get; set; }
     public string UserName { get; set; } = string.Empty;
+    public string? PersonName { get; set; }
+    public long? MilitaryNumber { get; set; }
     public DateTime Date { get; set; } = DateTime.UtcNow;
     public string? Notes { get; set; }
 }

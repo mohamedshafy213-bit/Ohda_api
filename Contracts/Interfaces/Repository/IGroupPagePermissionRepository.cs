@@ -8,7 +8,7 @@ namespace Contracts.Interfaces.Repository;
 public interface IGroupPagePermissionRepository : IRepositoryBase<GroupPagePermission, GroupPagePermissionDto, GrantGroupPermissionDto, GroupPagePermissionUpdateDto>
 {
     Task<List<PageDto>> GetAllowedPagesForGroupAsync(int groupId);
-    Task<bool> GrantPermissionAsync(int groupId, int pageId, int grantedByUserId);
+    Task<bool> GrantPermissionAsync(int groupId, int pageId, long grantedByUserId);
     Task<bool> RevokePermissionAsync(int groupId, int pageId);
-    Task GrantAllPagesToGroupAsync(int groupId, int grantedByUserId);
+    Task GrantAllPagesToGroupAsync(int groupId, long grantedByUserId);
 }

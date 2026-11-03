@@ -104,7 +104,8 @@ public static class DatabaseSeeder
                 new Page { Title = "إدارة الفروع (Branches)", Path = "/branches", Icon = "Building2", SortOrder = 14 },
                 new Page { Title = "لوحة مؤشرات الفروع (Branches Dashboard)", Path = "/branches-dashboard", Icon = "Activity", SortOrder = 15 },
                 new Page { Title = "أماكن وأرفف التخزين", Path = "/warehouse-bins", Icon = "Layers", SortOrder = 16 },
-                new Page { Title = "طباعة الباركود والملصقات", Path = "/barcode-print", Icon = "Printer", SortOrder = 17 }
+                new Page { Title = "طباعة الباركود والملصقات", Path = "/barcode-print", Icon = "Printer", SortOrder = 17 },
+                new Page { Title = "مركز التصديقات والاعتمادات", Path = "/acceptance", Icon = "CheckCheck", SortOrder = 18 }
             };
 
             var existingPages = await context.Pages.IgnoreQueryFilters()

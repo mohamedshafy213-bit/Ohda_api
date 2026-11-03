@@ -11,7 +11,7 @@ public class GroupPagePermissionDto : BaseDto
     public string PageTitle { get; set; } = string.Empty;
     public string PagePath { get; set; } = string.Empty;
 
-    public int? GrantedByUserId { get; set; }
+    public long? GrantedByUserId { get; set; }
     public string? GrantedByUsername { get; set; }
 }
 

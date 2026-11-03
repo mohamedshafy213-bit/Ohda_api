@@ -40,7 +40,7 @@ public class GroupPagePermissionController : BaseController<GroupPagePermission,
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> GrantPermission([FromBody] GrantGroupPermissionDto grantDto)
     {
-        int grantedByUserId = GetCurrentUserId();
+        long grantedByUserId = GetCurrentUserId();
 
         var success = await _repositoryWrapper.GroupPagePermissions.GrantPermissionAsync(
             grantDto.UserGroupId,
@@ -90,7 +90,7 @@ public class GroupPagePermissionController : BaseController<GroupPagePermission,
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> GrantAllPages([FromRoute] int groupId)
     {
-        int grantedByUserId = GetCurrentUserId();
+        long grantedByUserId = GetCurrentUserId();
         await _repositoryWrapper.GroupPagePermissions.GrantAllPagesToGroupAsync(groupId, grantedByUserId);
 
         return Ok(new SingleObjectResponseModel
@@ -100,14 +100,14 @@ public class GroupPagePermissionController : BaseController<GroupPagePermission,
         });
     }
 
-    private int GetCurrentUserId()
+    private long GetCurrentUserId()
     {
         var claim = User.FindFirst(ClaimTypes.NameIdentifier)
                  ?? User.FindFirst("sub")
                  ?? User.FindFirst("id")
                  ?? User.FindFirst("nameid");
 
-        if (claim != null && int.TryParse(claim.Value, out int userId) && userId > 0)
+        if (claim != null && long.TryParse(claim.Value, out long userId) && userId > 0)
         {
             return userId;
         }

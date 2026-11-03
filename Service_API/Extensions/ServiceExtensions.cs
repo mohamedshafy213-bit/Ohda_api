@@ -38,9 +38,12 @@ public static class ServiceExtensions
         TypeAdapterConfig<Entities.Models.Tables.ProductExitRequest, Contracts.DTOs.ProductExitRequest.ProductExitRequestDto>
             .NewConfig()
             .Map(dest => dest.DepartmentName, src => src.Department != null ? src.Department.Name : null)
-            .Map(dest => dest.RequestedByUsername, src => src.RequestedByUser != null ? (src.RequestedByUser.PersonName ?? src.RequestedByUser.Username) : null)
-            .Map(dest => dest.SupervisorUsername, src => src.Supervisor != null ? (src.Supervisor.PersonName ?? src.Supervisor.Username) : null)
-            .Map(dest => dest.ManagerUsername, src => src.Manager != null ? (src.Manager.PersonName ?? src.Manager.Username) : null);
+            .Map(dest => dest.RequestedByUsername, src => src.RequestedByUser != null ? src.RequestedByUser.Username : null)
+            .Map(dest => dest.RequestedByPersonName, src => src.RequestedByUser != null ? (src.RequestedByUser.PersonName ?? src.RequestedByUser.Username) : null)
+            .Map(dest => dest.SupervisorUsername, src => src.Supervisor != null ? src.Supervisor.Username : null)
+            .Map(dest => dest.SupervisorPersonName, src => src.Supervisor != null ? (src.Supervisor.PersonName ?? src.Supervisor.Username) : null)
+            .Map(dest => dest.ManagerUsername, src => src.Manager != null ? src.Manager.Username : null)
+            .Map(dest => dest.ManagerPersonName, src => src.Manager != null ? (src.Manager.PersonName ?? src.Manager.Username) : null);
 
         TypeAdapterConfig<Entities.Models.Tables.ProductExitRequestItem, Contracts.DTOs.ProductExitRequest.ProductExitRequestItemDto>
             .NewConfig()
@@ -50,9 +53,12 @@ public static class ServiceExtensions
         TypeAdapterConfig<Entities.Models.Tables.ProductEntryRequest, Contracts.DTOs.ProductEntryRequest.ProductEntryRequestDto>
             .NewConfig()
             .Map(dest => dest.DepartmentName, src => src.Department != null ? src.Department.Name : null)
-            .Map(dest => dest.ReceivedByUsername, src => src.ReceivedByUser != null ? (src.ReceivedByUser.PersonName ?? src.ReceivedByUser.Username) : null)
-            .Map(dest => dest.SupervisorUsername, src => src.Supervisor != null ? (src.Supervisor.PersonName ?? src.Supervisor.Username) : null)
-            .Map(dest => dest.ManagerUsername, src => src.Manager != null ? (src.Manager.PersonName ?? src.Manager.Username) : null);
+            .Map(dest => dest.ReceivedByUsername, src => src.ReceivedByUser != null ? src.ReceivedByUser.Username : null)
+            .Map(dest => dest.ReceivedByPersonName, src => src.ReceivedByUser != null ? (src.ReceivedByUser.PersonName ?? src.ReceivedByUser.Username) : null)
+            .Map(dest => dest.SupervisorUsername, src => src.Supervisor != null ? src.Supervisor.Username : null)
+            .Map(dest => dest.SupervisorPersonName, src => src.Supervisor != null ? (src.Supervisor.PersonName ?? src.Supervisor.Username) : null)
+            .Map(dest => dest.ManagerUsername, src => src.Manager != null ? src.Manager.Username : null)
+            .Map(dest => dest.ManagerPersonName, src => src.Manager != null ? (src.Manager.PersonName ?? src.Manager.Username) : null);
 
         TypeAdapterConfig<Entities.Models.Tables.ProductEntryRequestItem, Contracts.DTOs.ProductEntryRequest.ProductEntryRequestItemDto>
             .NewConfig()

@@ -13,13 +13,13 @@ public class ProductExitRequest : TenantBaseTable
     public Department? Department { get; set; }
     public string? Purpose { get; set; }
 
-    public int RequestedByUserId { get; set; }
+    public long RequestedByUserId { get; set; }
     public User? RequestedByUser { get; set; }
 
-    public int? SupervisorId { get; set; }
+    public long? SupervisorId { get; set; }
     public User? Supervisor { get; set; }
 
-    public int? ManagerId { get; set; }
+    public long? ManagerId { get; set; }
     public User? Manager { get; set; }
 
     public string? RejectionReason { get; set; }

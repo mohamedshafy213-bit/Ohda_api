@@ -11,10 +11,10 @@ public class User : ISoftDelete
     [Key]
     [Column("id")]
     [DatabaseGenerated(DatabaseGeneratedOption.None)]
-    public int MilitaryNumber { get; set; }
+    public long MilitaryNumber { get; set; }
 
     public string Username { get; set; } = string.Empty;
-    public string Email { get; set; } = string.Empty;
+    public string? Email { get; set; }
     public string PasswordHash { get; set; } = string.Empty;
     public UserRole Role { get; set; } = UserRole.Employee;
     public string? PersonName { get; set; }

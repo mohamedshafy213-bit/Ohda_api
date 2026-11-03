@@ -26,7 +26,7 @@ public class UserPagePermissionController : BaseController<UserPagePermission, U
     [HttpGet("my-pages")]
     public async Task<IActionResult> GetMyPages()
     {
-        int userId = GetCurrentUserId();
+        long userId = GetCurrentUserId();
         if (userId <= 0)
         {
             return Unauthorized(new SingleObjectResponseModel
@@ -46,8 +46,8 @@ public class UserPagePermissionController : BaseController<UserPagePermission, U
     }
 
     [HttpGet("user/{userId}")]
-    [Authorize(Roles = "Admin")]
-    public async Task<IActionResult> GetUserPages([FromRoute] int userId)
+    [Authorize(Roles = "Admin,SuperAdmin")]
+    public async Task<IActionResult> GetUserPages([FromRoute] long userId)
     {
         var allowedPages = await _repositoryWrapper.UserPagePermissions.GetAllowedPagesForUserAsync(userId);
         return Ok(new SingleObjectResponseModel<List<PageDto>>
@@ -59,10 +59,10 @@ public class UserPagePermissionController : BaseController<UserPagePermission, U
     }
 
     [HttpPost("grant")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,SuperAdmin")]
     public async Task<IActionResult> GrantPermission([FromBody] GrantPermissionDto grantDto)
     {
-        int adminUserId = GetCurrentUserId();
+        long adminUserId = GetCurrentUserId();
         bool success = await _repositoryWrapper.UserPagePermissions.GrantPermissionAsync(grantDto.UserId, grantDto.PageId, adminUserId);
 
         return Ok(new SingleObjectResponseModel
@@ -73,8 +73,8 @@ public class UserPagePermissionController : BaseController<UserPagePermission, U
     }
 
     [HttpDelete("revoke/{userId}/{pageId}")]
-    [Authorize(Roles = "Admin")]
-    public async Task<IActionResult> RevokePermission([FromRoute] int userId, [FromRoute] int pageId)
+    [Authorize(Roles = "Admin,SuperAdmin")]
+    public async Task<IActionResult> RevokePermission([FromRoute] long userId, [FromRoute] int pageId)
     {
         bool success = await _repositoryWrapper.UserPagePermissions.RevokePermissionAsync(userId, pageId);
 
@@ -85,9 +85,9 @@ public class UserPagePermissionController : BaseController<UserPagePermission, U
         });
     }
 
-    private int GetCurrentUserId()
+    private long GetCurrentUserId()
     {
         var claim = User.FindFirst(ClaimTypes.NameIdentifier) ?? User.FindFirst("sub");
-        return claim != null && int.TryParse(claim.Value, out int userId) ? userId : 0;
+        return claim != null && long.TryParse(claim.Value, out long userId) ? userId : 0;
     }
 }

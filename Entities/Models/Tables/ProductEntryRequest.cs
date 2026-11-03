@@ -16,13 +16,13 @@ public class ProductEntryRequest : TenantBaseTable
     public string? InvoiceNumber { get; set; }
     public string? Notes { get; set; }
 
-    public int ReceivedByUserId { get; set; }
+    public long ReceivedByUserId { get; set; }
     public User? ReceivedByUser { get; set; }
 
-    public int? SupervisorId { get; set; }
+    public long? SupervisorId { get; set; }
     public User? Supervisor { get; set; }
 
-    public int? ManagerId { get; set; }
+    public long? ManagerId { get; set; }
     public User? Manager { get; set; }
 
     public string? RejectionReason { get; set; }

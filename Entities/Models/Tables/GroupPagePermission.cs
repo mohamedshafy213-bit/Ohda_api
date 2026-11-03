@@ -10,6 +10,6 @@ public class GroupPagePermission : TenantBaseTable
     public int PageId { get; set; }
     public Page? Page { get; set; }
 
-    public int? GrantedByUserId { get; set; }
+    public long? GrantedByUserId { get; set; }
     public User? GrantedByUser { get; set; }
 }

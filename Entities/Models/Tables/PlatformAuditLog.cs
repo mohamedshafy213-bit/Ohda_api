@@ -4,7 +4,7 @@ namespace Entities.Models.Tables;
 
 public class PlatformAuditLog : BaseTable
 {
-    public int? UserId { get; set; }
+    public long? UserId { get; set; }
     public User? User { get; set; }
 
     public string Action { get; set; } = string.Empty;

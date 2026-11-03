@@ -136,7 +136,7 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
         try
         {
             var militaryNumberClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (!int.TryParse(militaryNumberClaim, out var militaryNumber))
+            if (!long.TryParse(militaryNumberClaim, out var militaryNumber))
                 return Unauthorized();
 
             var userDto = await _repositoryWrapper.Users.GetUserDtoByIdAsync(militaryNumber);
@@ -180,7 +180,7 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
         try
         {
             var militaryNumberClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (!int.TryParse(militaryNumberClaim, out var militaryNumber))
+            if (!long.TryParse(militaryNumberClaim, out var militaryNumber))
                 return Unauthorized();
 
             var user = await _repositoryWrapper.Users.GetByIdWithGroupAsync(militaryNumber, trackChanges: true);
@@ -325,7 +325,7 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
                 }
             }
 
-            int targetMilitaryNumber = registerDto.MilitaryNumber;
+            long targetMilitaryNumber = registerDto.MilitaryNumber;
             if (targetMilitaryNumber <= 0)
             {
                 targetMilitaryNumber = await _repositoryWrapper.Users.GetNextMilitaryNumberAsync(targetBranchId);
@@ -339,11 +339,13 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
             var tempUser = new User { Username = registerDto.Username, MilitaryNumber = targetMilitaryNumber };
             string hashedPassword = PasswordHasherHelper.HashPassword(tempUser, rawPassword);
 
+            string? email = !string.IsNullOrWhiteSpace(registerDto.Email) ? registerDto.Email.Trim() : null;
+
             var user = new User
             {
                 MilitaryNumber = targetMilitaryNumber,
                 Username = registerDto.Username.Trim(),
-                Email = registerDto.Email.Trim(),
+                Email = email,
                 PasswordHash = hashedPassword,
                 Role = registerDto.Role != 0 ? registerDto.Role : UserRole.Employee,
                 PersonName = registerDto.PersonName?.Trim() ?? registerDto.Username.Trim(),
@@ -411,7 +413,7 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
     {
         try
         {
-            if (!int.TryParse(id, out var militaryNumber))
+            if (!long.TryParse(id, out var militaryNumber))
                 return BadRequest("Invalid user ID");
 
             var roleClaim = User.FindFirst(ClaimTypes.Role)?.Value;
@@ -433,7 +435,7 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
             }
 
             existingUser.Username = updateDto.Username.Trim();
-            existingUser.Email = updateDto.Email.Trim();
+            existingUser.Email = !string.IsNullOrWhiteSpace(updateDto.Email) ? updateDto.Email.Trim() : null;
             existingUser.PersonName = updateDto.PersonName?.Trim();
             existingUser.Role = (!isSuperAdmin && updateDto.Role == UserRole.SuperAdmin) ? existingUser.Role : (updateDto.Role != 0 ? updateDto.Role : existingUser.Role);
             existingUser.UserGroupId = (updateDto.UserGroupId.HasValue && updateDto.UserGroupId.Value > 0) ? updateDto.UserGroupId.Value : null;
@@ -502,7 +504,7 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
     {
         try
         {
-            if (!int.TryParse(id, out var militaryNumber))
+            if (!long.TryParse(id, out var militaryNumber))
                 return BadRequest("Invalid user ID");
 
             var roleClaim = User.FindFirst(ClaimTypes.Role)?.Value;

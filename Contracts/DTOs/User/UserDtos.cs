@@ -6,9 +6,9 @@ namespace Contracts.DTOs.User;
 
 public class UserDto
 {
-    public int MilitaryNumber { get; set; }
+    public long MilitaryNumber { get; set; }
     public string Username { get; set; } = string.Empty;
-    public string Email { get; set; } = string.Empty;
+    public string? Email { get; set; }
     public UserRole Role { get; set; }
     public string? PersonName { get; set; }
     public int? UserGroupId { get; set; }
@@ -20,9 +20,9 @@ public class UserDto
 
 public class UserCreateDto
 {
-    public int MilitaryNumber { get; set; }
+    public long MilitaryNumber { get; set; }
     public string Username { get; set; } = string.Empty;
-    public string Email { get; set; } = string.Empty;
+    public string? Email { get; set; }
     public string Password { get; set; } = string.Empty;
     public UserRole Role { get; set; } = UserRole.Employee;
     public string? PersonName { get; set; }
@@ -32,9 +32,9 @@ public class UserCreateDto
 
 public class UserUpdateDto
 {
-    public int MilitaryNumber { get; set; }
+    public long MilitaryNumber { get; set; }
     public string Username { get; set; } = string.Empty;
-    public string Email { get; set; } = string.Empty;
+    public string? Email { get; set; }
     public string? Password { get; set; }
     public UserRole Role { get; set; }
     public string? PersonName { get; set; }
@@ -70,9 +70,9 @@ public class BootstrapResponseDto
 
 public class UserLoginResult
 {
-    public int MilitaryNumber { get; set; }
+    public long MilitaryNumber { get; set; }
     public string Username { get; set; } = string.Empty;
-    public string Email { get; set; } = string.Empty;
+    public string? Email { get; set; }
     public string PasswordHash { get; set; } = string.Empty;
     public UserRole Role { get; set; }
     public string? PersonName { get; set; }

@@ -35,7 +35,7 @@ public class UserRepository
             .FirstOrDefaultAsync(u => u.Username == cleanUsername && !u.IsDeleted);
     }
 
-    public async Task<User?> GetByIdWithGroupAsync(int id, bool trackChanges = false)
+    public async Task<User?> GetByIdWithGroupAsync(long id, bool trackChanges = false)
     {
         var query = RepositoryContext.Users.IgnoreQueryFilters();
         if (!trackChanges)
@@ -115,7 +115,7 @@ public class UserRepository
             .FirstOrDefaultAsync();
     }
 
-    public async Task<bool> ExistsAsync(int militaryNumber)
+    public async Task<bool> ExistsAsync(long militaryNumber)
     {
         return await RepositoryContext.Users
             .IgnoreQueryFilters()
@@ -123,20 +123,20 @@ public class UserRepository
             .AnyAsync(u => u.MilitaryNumber == militaryNumber && !u.IsDeleted);
     }
 
-    public async Task<int> GetNextMilitaryNumberAsync(int branchId)
+    public async Task<long> GetNextMilitaryNumberAsync(int branchId)
     {
-        int baseNumber = (branchId * 10000) + 1;
-        int maxInRange = (branchId + 1) * 10000;
+        long baseNumber = (branchId * 10000L) + 1;
+        long maxInRange = (branchId + 1) * 10000L;
         var maxMilitary = await RepositoryContext.Users
             .IgnoreQueryFilters()
             .AsNoTracking()
             .Where(u => u.MilitaryNumber >= baseNumber && u.MilitaryNumber < maxInRange)
-            .MaxAsync(u => (int?)u.MilitaryNumber);
+            .MaxAsync(u => (long?)u.MilitaryNumber);
 
         return (maxMilitary ?? (baseNumber - 1)) + 1;
     }
 
-    public async Task<UserDto?> GetUserDtoByIdAsync(int militaryNumber)
+    public async Task<UserDto?> GetUserDtoByIdAsync(long militaryNumber)
     {
         return await RepositoryContext.Users
             .IgnoreQueryFilters()

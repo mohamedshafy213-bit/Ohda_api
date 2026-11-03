@@ -58,7 +58,7 @@ namespace Repositories.Repositories
             typeof(T) == typeof(ApprovalConfig) ||
             typeof(T) == typeof(WarehouseBin);
 
-        private void InvalidateCache()
+        public void InvalidateCache()
         {
             var cache = MemoryCache;
             if (cache != null && IsCacheableType)

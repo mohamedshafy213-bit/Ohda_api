@@ -26,9 +26,11 @@ public class Program
             builder.Services.AddControllers()
                 .AddJsonOptions(options =>
                 {
+                    options.JsonSerializerOptions.NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowReadingFromString;
                     options.JsonSerializerOptions.Converters.Add(new NullableIntConverter());
                     options.JsonSerializerOptions.Converters.Add(new NullableDecimalConverter());
                     options.JsonSerializerOptions.Converters.Add(new NullableLongConverter());
+                    options.JsonSerializerOptions.Converters.Add(new LongConverter());
                 });
 
             builder.Services.AddMemoryCache();

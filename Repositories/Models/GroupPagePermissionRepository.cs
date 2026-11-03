@@ -54,7 +54,7 @@ public class GroupPagePermissionRepository
             .ToListAsync();
     }
 
-    public async Task<bool> GrantPermissionAsync(int groupId, int pageId, int grantedByUserId)
+    public async Task<bool> GrantPermissionAsync(int groupId, int pageId, long grantedByUserId)
     {
         var group = await RepositoryContext.UserGroups
             .IgnoreQueryFilters()
@@ -107,7 +107,7 @@ public class GroupPagePermissionRepository
         return true;
     }
 
-    public async Task GrantAllPagesToGroupAsync(int groupId, int grantedByUserId)
+    public async Task GrantAllPagesToGroupAsync(int groupId, long grantedByUserId)
     {
         var group = await RepositoryContext.UserGroups
             .IgnoreQueryFilters()

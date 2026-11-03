@@ -123,7 +123,12 @@ public class RepositoryContext : DbContext
                     }
                     else if (currentBranchId.HasValue && currentBranchId.Value > 0 && !isSuperAdmin)
                     {
-                        if (tenantEntity.BranchId != currentBranchId.Value)
+                        // Notifications can be delivered across branches to reach recipient users
+                        if (entry.Entity is Notification)
+                        {
+                            // Permitted
+                        }
+                        else if (tenantEntity.BranchId != currentBranchId.Value)
                         {
                             throw new InvalidOperationException($"Cross-tenant creation forbidden. Target BranchId {tenantEntity.BranchId} does not match active branch context {currentBranchId.Value}.");
                         }

@@ -41,9 +41,9 @@ public class BranchCreateDto
 
     // Initial Branch Admin account creation
     public string AdminUsername { get; set; } = string.Empty;
-    public string AdminEmail { get; set; } = string.Empty;
+    public string? AdminEmail { get; set; }
     public string? AdminPersonName { get; set; }
-    public int? AdminMilitaryNumber { get; set; }
+    public long? AdminMilitaryNumber { get; set; }
 }
 
 public class BranchUpdateDto
@@ -68,7 +68,7 @@ public class BranchCreatedResultDto
     public BranchDto Branch { get; set; } = null!;
     public string AdminUsername { get; set; } = string.Empty;
     public string TemporaryPassword { get; set; } = string.Empty;
-    public int AdminMilitaryNumber { get; set; }
+    public long AdminMilitaryNumber { get; set; }
 }
 
 public class BranchStatsDto

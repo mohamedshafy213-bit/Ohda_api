@@ -10,5 +10,6 @@ namespace Contracts.interfaces.Repository
         Task<SingleObjectResponseModel> Update(object key, TUpdateDto entityUpdate);
         Task<SingleObjectResponseModel> Delete(object key);
         Task CreateDirectAsync(T entity);
+        void InvalidateCache();
     }
 }
