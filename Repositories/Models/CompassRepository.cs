@@ -31,7 +31,8 @@ public class CompassRepository
         DateTime? startDate,
         DateTime? endDate,
         int? pageNumber = null,
-        int? pageSize = null)
+        int? pageSize = null,
+        string? source = null)
     {
         var dbQuery = RepositoryContext.Compasses
             .Include(c => c.ProductExitRequest)
@@ -84,6 +85,11 @@ public class CompassRepository
         if (endDate.HasValue)
         {
             dbQuery = dbQuery.Where(c => c.ExitDate <= endDate.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(source) && !source.Equals("All", StringComparison.OrdinalIgnoreCase))
+        {
+            dbQuery = dbQuery.Where(c => c.Source == source);
         }
 
         dbQuery = dbQuery.OrderByDescending(c => c.Id);

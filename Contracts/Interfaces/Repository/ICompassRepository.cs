@@ -15,6 +15,7 @@ public interface ICompassRepository : IRepositoryBase<Compass, CompassDto, Compa
         DateTime? startDate,
         DateTime? endDate,
         int? pageNumber = null,
-        int? pageSize = null);
+        int? pageSize = null,
+        string? source = null);
     Task<Compass?> GetBySerialNumberAsync(string serialNumber);
 }

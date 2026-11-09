@@ -187,55 +187,44 @@ public class ExcelController : ControllerBase
     }
 
     [HttpGet("export/template/products")]
-    [Authorize(Roles = "Admin, Manager")]
+    [Authorize(Roles = "Admin, Manager, SuperAdmin")]
     public IActionResult ExportProductTemplate()
     {
         using var workbook = new XLWorkbook();
         var worksheet = workbook.Worksheets.Add("Product Template");
 
-        // Headers
-        worksheet.Cell(1, 1).Value = "Product Name";
-        worksheet.Cell(1, 2).Value = "SKU";
-        worksheet.Cell(1, 3).Value = "Barcode";
-        worksheet.Cell(1, 4).Value = "Category Name";
-        worksheet.Cell(1, 5).Value = "Supplier Name";
-        worksheet.Cell(1, 6).Value = "Unit Price";
-        worksheet.Cell(1, 7).Value = "Purchase Price";
-        worksheet.Cell(1, 8).Value = "Inventory Type (Purchased/Owned)";
-        worksheet.Cell(1, 9).Value = "Initial Quantity";
-        worksheet.Cell(1, 10).Value = "Min Stock";
-        worksheet.Cell(1, 11).Value = "Max Stock";
+        // Headers with * for required fields
+        worksheet.Cell(1, 1).Value = "اسم الصنف / Product Name *";
+        worksheet.Cell(1, 2).Value = "رمز الصنف / SKU *";
+        worksheet.Cell(1, 3).Value = "الباركود / Barcode *";
+        worksheet.Cell(1, 4).Value = "التصنيف / Category Name *";
+        worksheet.Cell(1, 5).Value = "اسم المورد / Supplier Name";
+        worksheet.Cell(1, 6).Value = "سعر البيع / Unit Price";
+        worksheet.Cell(1, 7).Value = "سعر الشراء / Purchase Price";
+        worksheet.Cell(1, 8).Value = "نوع المخزون / Inventory Type (Purchased/Owned)";
+        worksheet.Cell(1, 9).Value = "الرصيد الافتتاحي / Initial Quantity";
+        worksheet.Cell(1, 10).Value = "الحد الأدنى / Min Stock";
+        worksheet.Cell(1, 11).Value = "الحد الأقصى / Max Stock";
 
         var headerRow = worksheet.Row(1);
         headerRow.Style.Font.Bold = true;
-        headerRow.Style.Fill.BackgroundColor = XLColor.Navy;
+        headerRow.Style.Fill.BackgroundColor = XLColor.FromArgb(15, 76, 129); // Professional Navy
         headerRow.Style.Font.SetFontColor(XLColor.White);
+        headerRow.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+        headerRow.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+        headerRow.Height = 30;
 
-        // Add a helper comment or tip row
-        worksheet.Cell(2, 1).Value = "Sample Product (Delete this row)";
-        worksheet.Cell(2, 2).Value = "SMPL-SKU-001";
-        worksheet.Cell(2, 3).Value = "123456789012";
-        worksheet.Cell(2, 4).Value = "Electronics";
-        worksheet.Cell(2, 5).Value = "TechSupplier Co";
-        worksheet.Cell(2, 6).Value = 99.99m;
-        worksheet.Cell(2, 7).Value = 75.00m;
-        worksheet.Cell(2, 8).Value = "Purchased";
-        worksheet.Cell(2, 9).Value = 20;
-        worksheet.Cell(2, 10).Value = 5;
-        worksheet.Cell(2, 11).Value = 100;
-
-        worksheet.Row(2).Style.Font.Italic = true;
-        worksheet.Row(2).Style.Font.SetFontColor(XLColor.Gray);
-
-        worksheet.Columns().AdjustToContents();
+        worksheet.RightToLeft = true;
+        worksheet.SheetView.FreezeRows(1);
+        worksheet.Columns().AdjustToContents(18.0, 45.0);
 
         using var stream = new MemoryStream();
         workbook.SaveAs(stream);
-        return File(stream.ToArray(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "Product_Import_Template.xlsx");
+        return File(stream.ToArray(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "Products_Import_Template.xlsx");
     }
 
     [HttpPost("import/products")]
-    [Authorize(Roles = "Admin, Manager")]
+    [Authorize(Roles = "Admin, Manager, SuperAdmin")]
     public async Task<IActionResult> ImportProducts(IFormFile file)
     {
         if (file == null || file.Length == 0)
@@ -243,7 +232,7 @@ public class ExcelController : ControllerBase
             return BadRequest(new SingleObjectResponseModel
             {
                 IsDone = false,
-                ReturnMessage = "Please select a valid Excel file."
+                ReturnMessage = "يرجى اختيار ملف Excel صحيح."
             });
         }
 
@@ -260,21 +249,56 @@ public class ExcelController : ControllerBase
         {
             try
             {
-                string name = row.Cell(1).GetValue<string>();
-                string sku = row.Cell(2).GetValue<string>();
-                string barcode = row.Cell(3).GetValue<string>();
-                string categoryName = row.Cell(4).GetValue<string>();
-                string supplierName = row.Cell(5).GetValue<string>();
-                decimal unitPrice = row.Cell(6).GetValue<decimal>();
-                decimal purchasePrice = row.Cell(7).GetValue<decimal>();
-                string invTypeStr = row.Cell(8).GetValue<string>();
-                int initialQty = row.Cell(9).GetValue<int>();
-                int minStock = row.Cell(10).GetValue<int>();
-                int maxStock = row.Cell(11).GetValue<int>();
+                string name = row.Cell(1).GetString().Trim();
+                string sku = row.Cell(2).GetString().Trim();
+                string barcode = row.Cell(3).GetString().Trim();
+                string categoryName = row.Cell(4).GetString().Trim();
+                string supplierName = row.Cell(5).GetString().Trim();
 
-                // Skip the sample instruction row or empty rows
-                if (string.IsNullOrWhiteSpace(name) || name.Contains("Sample Product") || string.IsNullOrWhiteSpace(sku) || string.IsNullOrWhiteSpace(barcode))
+                // Skip header duplicates or completely empty rows
+                if (string.IsNullOrWhiteSpace(name) || name.Contains("Product Name") || name.Contains("اسم الصنف"))
                     continue;
+
+                // Validate required fields (marked with *)
+                if (string.IsNullOrWhiteSpace(sku) || string.IsNullOrWhiteSpace(barcode))
+                    continue;
+
+                decimal unitPrice = 0;
+                var cell6 = row.Cell(6).GetString().Trim();
+                if (!string.IsNullOrWhiteSpace(cell6) && decimal.TryParse(cell6, out var up))
+                {
+                    unitPrice = up;
+                }
+
+                decimal purchasePrice = 0;
+                var cell7 = row.Cell(7).GetString().Trim();
+                if (!string.IsNullOrWhiteSpace(cell7) && decimal.TryParse(cell7, out var pp))
+                {
+                    purchasePrice = pp;
+                }
+
+                string invTypeStr = row.Cell(8).GetString().Trim();
+
+                int initialQty = 0;
+                var cell9 = row.Cell(9).GetString().Trim();
+                if (!string.IsNullOrWhiteSpace(cell9) && int.TryParse(cell9, out var iq))
+                {
+                    initialQty = iq;
+                }
+
+                int minStock = 5;
+                var cell10 = row.Cell(10).GetString().Trim();
+                if (!string.IsNullOrWhiteSpace(cell10) && int.TryParse(cell10, out var ms))
+                {
+                    minStock = ms;
+                }
+
+                int maxStock = 100;
+                var cell11 = row.Cell(11).GetString().Trim();
+                if (!string.IsNullOrWhiteSpace(cell11) && int.TryParse(cell11, out var xs))
+                {
+                    maxStock = xs;
+                }
 
                 // Resolve Category (find or create)
                 int categoryId;
@@ -286,7 +310,7 @@ public class ExcelController : ControllerBase
                         var createResponse = await _repositoryWrapper.Categories.Create(new Contracts.DTOs.Category.CategoryCreateDto
                         {
                             Name = categoryName,
-                            Description = "Auto-created during Excel import"
+                            Description = "تم إنشاؤه تلقائياً أثناء استيراد Excel"
                         });
                         var newCat = (createResponse as SingleObjectResponseModel<Contracts.DTOs.Category.CategoryDto>)?.SingleObject;
                         categoryId = newCat?.Id ?? 1;
@@ -416,7 +440,7 @@ public class ExcelController : ControllerBase
         return Ok(new SingleObjectResponseModel
         {
             IsDone = true,
-            ReturnMessage = $"Excel processing complete: Imported {importedCount} new products, updated {updatedCount} existing products, and {failedCount} rows failed."
+            ReturnMessage = $"اكتملت معالجة ملف Excel: تم استيراد {importedCount} صنف جديد، وتحديث {updatedCount} صنف مسجل، وفشل {failedCount} سطر."
         });
     }
 }

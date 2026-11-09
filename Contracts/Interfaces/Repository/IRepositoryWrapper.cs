@@ -25,7 +25,8 @@ public interface IRepositoryWrapper
     IDepartmentRepository Departments { get; }
     IProductStateRepository ProductStates { get; }
     IWarehouseBinRepository WarehouseBins { get; }
-
+    IUntrackedItemRepository UntrackedItems { get; }
+    IPackageRepository Packages { get; }
 
     void Save();
     Task SaveAsync();

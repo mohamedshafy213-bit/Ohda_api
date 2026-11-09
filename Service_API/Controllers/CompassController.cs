@@ -38,10 +38,11 @@ public class CompassController : BaseController<Compass, CompassDto, CompassCrea
         [FromQuery] DateTime? startDate,
         [FromQuery] DateTime? endDate,
         [FromQuery] int? pageNumber = null,
-        [FromQuery] int? pageSize = null)
+        [FromQuery] int? pageSize = null,
+        [FromQuery] string? source = null)
     {
         var records = await _repositoryWrapper.Compasses.SearchCompassRecordsAsync(
-            query, departmentId, type, stateId, startDate, endDate, pageNumber, pageSize);
+            query, departmentId, type, stateId, startDate, endDate, pageNumber, pageSize, source);
 
         var dtos = records.Select(c => new CompassDto
         {
@@ -82,6 +83,9 @@ public class CompassController : BaseController<Compass, CompassDto, CompassCrea
             OriginalExitDocumentNumber = c.ProductExitRequestId.HasValue
                 ? $"DOC-OUT-{c.ProductExitRequestId.Value}"
                 : (c.Notes != null && c.Notes.Contains("RET-REQ-") ? "DOC-OUT-" + c.Notes.Split("RET-REQ-")[1].Split("]")[0].Split(" ")[0] : null),
+            Source = c.Source ?? "Normal",
+            CreatedAt = c.InsertDate,
+            CreatedBy = c.InsertUserCode,
             Notes = c.Notes
         }).ToList();
 
@@ -91,6 +95,450 @@ public class CompassController : BaseController<Compass, CompassDto, CompassCrea
             ReturnMessage = "Search completed successfully.",
             SingleObject = dtos
         });
+    }
+
+    [HttpPost("initial-entry")]
+    public async Task<IActionResult> CreateInitialEntry([FromBody] CompassInitialEntryCreateDto createDto)
+    {
+        if (!await CheckInitialEntryPermissionAsync())
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = "ليس لديك صلاحية لإدخال عهدة سابقة (Compass.InitialEntry)."
+            });
+        }
+
+        if (string.IsNullOrWhiteSpace(createDto.ProductName))
+        {
+            return BadRequest(new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = "اسم الجهاز / الصنف مطلوب."
+            });
+        }
+
+        if (createDto.DepartmentId <= 0)
+        {
+            return BadRequest(new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = "الموقع / الإدارة مطلوبة."
+            });
+        }
+
+        var dept = await _context.Departments.FirstOrDefaultAsync(d => d.Id == createDto.DepartmentId && !d.IsDeleted);
+        if (dept == null)
+        {
+            return BadRequest(new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = "الموقع / الإدارة المحددة غير موجودة في النظام."
+            });
+        }
+
+        var userCode = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value 
+            ?? User.FindFirst("sub")?.Value 
+            ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value 
+            ?? "Admin";
+
+        var branchClaim = User.FindFirst("branch_id")?.Value ?? User.FindFirst("BranchId")?.Value;
+        int branchId = createDto.BranchId ?? (int.TryParse(branchClaim, out var bId) && bId > 0 ? bId : (dept.BranchId > 0 ? dept.BranchId : 1));
+
+        // Lookup product if ProductId was provided or by name match for tracking
+        Product? linkedProduct = null;
+        if (createDto.ProductId.HasValue && createDto.ProductId.Value > 0)
+        {
+            linkedProduct = await _context.Products
+                .Include(p => p.Category)
+                .FirstOrDefaultAsync(p => p.Id == createDto.ProductId.Value && !p.IsDeleted);
+        }
+        else if (!string.IsNullOrWhiteSpace(createDto.ProductName))
+        {
+            linkedProduct = await _context.Products
+                .Include(p => p.Category)
+                .FirstOrDefaultAsync(p => p.Name.Trim().ToLower() == createDto.ProductName.Trim().ToLower() && !p.IsDeleted);
+        }
+
+        string finalProductName = linkedProduct != null ? linkedProduct.Name : createDto.ProductName.Trim();
+        string serialNum = string.IsNullOrWhiteSpace(createDto.SerialNumber) 
+            ? $"INIT-{DateTime.UtcNow:yyyyMMddHHmmss}-{Random.Shared.Next(100, 999)}" 
+            : createDto.SerialNumber.Trim();
+
+        var compass = new Compass
+        {
+            ProductName = finalProductName,
+            Place = dept.Name,
+            DepartmentId = dept.Id,
+            SerialNumber = serialNum,
+            RecipientName = string.IsNullOrWhiteSpace(createDto.RecipientName) ? dept.Name : createDto.RecipientName.Trim(),
+            ExitDate = DateTime.UtcNow,
+            Type = CompassType.Exit,
+            Source = "InitialEntry",
+            Notes = string.IsNullOrWhiteSpace(createDto.Notes) ? "عهدة سابقة مسجلة يدوياً" : createDto.Notes.Trim(),
+            BranchId = branchId,
+            InsertDate = DateTime.UtcNow,
+            InsertUserCode = userCode
+        };
+
+        await _context.Compasses.AddAsync(compass);
+
+        // Step: Track physical device in ProductItems under the product (status Exited = custody, no warehouse deduction)
+        if (linkedProduct != null)
+        {
+            var existingProductItem = await _context.ProductItems.IgnoreQueryFilters()
+                .FirstOrDefaultAsync(pi => pi.SerialNumber == serialNum && pi.BranchId == branchId && !pi.IsDeleted);
+
+            if (existingProductItem == null)
+            {
+                var newProductItem = new ProductItem
+                {
+                    ProductId = linkedProduct.Id,
+                    BranchId = branchId,
+                    SerialNumber = serialNum,
+                    QRCode = serialNum,
+                    Status = ProductItemStatus.Exited,
+                    RecipientName = compass.RecipientName,
+                    Place = dept.Name,
+                    ExitDate = compass.ExitDate,
+                    Notes = compass.Notes,
+                    InsertDate = DateTime.UtcNow,
+                    InsertUserCode = userCode
+                };
+                await _context.ProductItems.AddAsync(newProductItem);
+            }
+            else
+            {
+                existingProductItem.ProductId = linkedProduct.Id;
+                existingProductItem.Status = ProductItemStatus.Exited;
+                existingProductItem.RecipientName = compass.RecipientName;
+                existingProductItem.Place = dept.Name;
+                existingProductItem.ExitDate = compass.ExitDate;
+                existingProductItem.Notes = compass.Notes;
+                existingProductItem.LastUpdate = DateTime.UtcNow;
+                existingProductItem.UpdateUserCode = userCode;
+            }
+        }
+
+        await _context.SaveChangesAsync();
+
+        var resultDto = new CompassDto
+        {
+            Id = compass.Id,
+            ProductName = compass.ProductName,
+            ProductId = linkedProduct?.Id,
+            CategoryId = linkedProduct?.CategoryId,
+            CategoryName = linkedProduct?.Category?.Name,
+            Place = compass.Place,
+            DepartmentId = compass.DepartmentId,
+            DepartmentName = dept.Name,
+            SerialNumber = compass.SerialNumber,
+            RecipientName = compass.RecipientName,
+            ExitDate = compass.ExitDate,
+            Type = compass.Type,
+            Source = compass.Source,
+            CreatedAt = compass.InsertDate,
+            CreatedBy = compass.InsertUserCode,
+            Notes = compass.Notes
+        };
+
+        return Ok(new SingleObjectResponseModel<CompassDto>
+        {
+            IsDone = true,
+            ReturnMessage = "تم تسجيل العهدة السابقة في البوصلة وتتبعها في المخزون بنجاح.",
+            SingleObject = resultDto
+        });
+    }
+
+    [HttpPut("initial-entry/{id:int}")]
+    public async Task<IActionResult> UpdateInitialEntry([FromRoute] int id, [FromBody] CompassInitialEntryUpdateDto updateDto)
+    {
+        if (!await CheckInitialEntryPermissionAsync())
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = "ليس لديك صلاحية لتعديل سجلات العهدة السابقة (Compass.InitialEntry)."
+            });
+        }
+
+        var compass = await _context.Compasses
+            .Include(c => c.Department)
+            .FirstOrDefaultAsync(c => c.Id == id && !c.IsDeleted);
+
+        if (compass == null)
+        {
+            return NotFound(new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = "السجل غير موجود."
+            });
+        }
+
+        if (compass.Source != "InitialEntry" || compass.ProductExitRequestId != null)
+        {
+            return BadRequest(new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = "لا يمكن تعديل هذا السجل لأنه ناتج عن دورة صرف مخزني نظامية وليس عهدة سابقة."
+            });
+        }
+
+        if (string.IsNullOrWhiteSpace(updateDto.ProductName))
+        {
+            return BadRequest(new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = "اسم الجهاز / الصنف مطلوب."
+            });
+        }
+
+        if (updateDto.DepartmentId <= 0)
+        {
+            return BadRequest(new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = "الموقع / الإدارة مطلوبة."
+            });
+        }
+
+        var dept = await _context.Departments.FirstOrDefaultAsync(d => d.Id == updateDto.DepartmentId && !d.IsDeleted);
+        if (dept == null)
+        {
+            return BadRequest(new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = "الموقع / الإدارة المحددة غير موجودة في النظام."
+            });
+        }
+
+        var userCode = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value 
+            ?? User.FindFirst("sub")?.Value 
+            ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value 
+            ?? "Admin";
+
+        // Lookup product if updated
+        Product? linkedProduct = null;
+        if (updateDto.ProductId.HasValue && updateDto.ProductId.Value > 0)
+        {
+            linkedProduct = await _context.Products
+                .Include(p => p.Category)
+                .FirstOrDefaultAsync(p => p.Id == updateDto.ProductId.Value && !p.IsDeleted);
+        }
+        else if (!string.IsNullOrWhiteSpace(updateDto.ProductName))
+        {
+            linkedProduct = await _context.Products
+                .Include(p => p.Category)
+                .FirstOrDefaultAsync(p => p.Name.Trim().ToLower() == updateDto.ProductName.Trim().ToLower() && !p.IsDeleted);
+        }
+
+        string oldSerial = compass.SerialNumber;
+        string newSerial = !string.IsNullOrWhiteSpace(updateDto.SerialNumber) ? updateDto.SerialNumber.Trim() : oldSerial;
+
+        compass.ProductName = linkedProduct != null ? linkedProduct.Name : updateDto.ProductName.Trim();
+        compass.DepartmentId = dept.Id;
+        compass.Place = dept.Name;
+        compass.SerialNumber = newSerial;
+        if (!string.IsNullOrWhiteSpace(updateDto.RecipientName))
+        {
+            compass.RecipientName = updateDto.RecipientName.Trim();
+        }
+        if (updateDto.Notes != null)
+        {
+            compass.Notes = updateDto.Notes.Trim();
+        }
+        compass.UpdateUserCode = userCode;
+        compass.LastUpdate = DateTime.UtcNow;
+
+        // Update tracked ProductItem if exists
+        var existingItem = await _context.ProductItems.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(pi => (pi.SerialNumber == oldSerial || pi.SerialNumber == newSerial) && pi.BranchId == compass.BranchId && !pi.IsDeleted);
+
+        if (existingItem != null)
+        {
+            if (linkedProduct != null) existingItem.ProductId = linkedProduct.Id;
+            existingItem.SerialNumber = newSerial;
+            existingItem.QRCode = newSerial;
+            existingItem.Place = dept.Name;
+            existingItem.RecipientName = compass.RecipientName;
+            existingItem.Notes = compass.Notes;
+            existingItem.LastUpdate = DateTime.UtcNow;
+            existingItem.UpdateUserCode = userCode;
+        }
+        else if (linkedProduct != null)
+        {
+            var newProductItem = new ProductItem
+            {
+                ProductId = linkedProduct.Id,
+                BranchId = compass.BranchId,
+                SerialNumber = newSerial,
+                QRCode = newSerial,
+                Status = ProductItemStatus.Exited,
+                RecipientName = compass.RecipientName,
+                Place = dept.Name,
+                ExitDate = compass.ExitDate,
+                Notes = compass.Notes,
+                InsertDate = DateTime.UtcNow,
+                InsertUserCode = userCode
+            };
+            await _context.ProductItems.AddAsync(newProductItem);
+        }
+
+        await _context.SaveChangesAsync();
+
+        var resultDto = new CompassDto
+        {
+            Id = compass.Id,
+            ProductName = compass.ProductName,
+            ProductId = linkedProduct?.Id,
+            CategoryId = linkedProduct?.CategoryId,
+            CategoryName = linkedProduct?.Category?.Name,
+            Place = compass.Place,
+            DepartmentId = compass.DepartmentId,
+            DepartmentName = dept.Name,
+            SerialNumber = compass.SerialNumber,
+            RecipientName = compass.RecipientName,
+            ExitDate = compass.ExitDate,
+            Type = compass.Type,
+            Source = compass.Source,
+            CreatedAt = compass.InsertDate,
+            CreatedBy = compass.InsertUserCode,
+            Notes = compass.Notes
+        };
+
+        return Ok(new SingleObjectResponseModel<CompassDto>
+        {
+            IsDone = true,
+            ReturnMessage = "تم تحديث بيانات العهدة السابقة بنجاح.",
+            SingleObject = resultDto
+        });
+    }
+
+    [HttpDelete("initial-entry/{id:int}")]
+    public async Task<IActionResult> DeleteInitialEntry([FromRoute] int id)
+    {
+        if (!await CheckInitialEntryPermissionAsync())
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = "ليس لديك صلاحية لحذف سجلات العهدة السابقة (Compass.InitialEntry)."
+            });
+        }
+
+        var compass = await _context.Compasses.FirstOrDefaultAsync(c => c.Id == id && !c.IsDeleted);
+        if (compass == null)
+        {
+            return NotFound(new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = "السجل غير موجود."
+            });
+        }
+
+        if (compass.Source != "InitialEntry" || compass.ProductExitRequestId != null)
+        {
+            return BadRequest(new SingleObjectResponseModel
+            {
+                IsDone = false,
+                ReturnMessage = "لا يمكن حذف هذا السجل لأنه ناتج عن دورة صرف مخزني نظامية."
+            });
+        }
+
+        var userCode = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value 
+            ?? User.FindFirst("sub")?.Value 
+            ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value 
+            ?? "Admin";
+
+        compass.IsDeleted = true;
+        compass.DeleteDate = DateTime.UtcNow;
+        compass.DeleteUserCode = userCode;
+
+        // Clean up corresponding ProductItem if tracked from initial entry
+        var associatedItem = await _context.ProductItems.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(pi => pi.SerialNumber == compass.SerialNumber && pi.BranchId == compass.BranchId && !pi.IsDeleted && pi.ProductExitRequestId == null);
+        if (associatedItem != null)
+        {
+            associatedItem.IsDeleted = true;
+            associatedItem.DeleteDate = DateTime.UtcNow;
+            associatedItem.DeleteUserCode = userCode;
+        }
+
+        await _context.SaveChangesAsync();
+
+        return Ok(new SingleObjectResponseModel<bool>
+        {
+            IsDone = true,
+            ReturnMessage = "تم حذف سجل العهدة السابقة بنجاح.",
+            SingleObject = true
+        });
+    }
+
+    private async Task<bool> CheckInitialEntryPermissionAsync()
+    {
+        var claim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier) 
+            ?? User.FindFirst("sub") 
+            ?? User.FindFirst("id") 
+            ?? User.FindFirst("nameid");
+
+        if (claim == null || !long.TryParse(claim.Value, out var userId))
+            return false;
+
+        var user = await _context.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.MilitaryNumber == userId && !u.IsDeleted);
+        if (user == null)
+            return false;
+
+        // SuperAdmin and Admin have full initial entry rights
+        if (user.Role == Entities.Models.Enums.UserRole.SuperAdmin || user.Role == Entities.Models.Enums.UserRole.Admin)
+            return true;
+
+        // Check if there is an explicit initial-entry permission
+        var page = await _context.Pages.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(p => !p.IsDeleted && (p.Path == "/compass/initial-entry" || p.Path == "Compass.InitialEntry" || p.Path == "/ohda/compass/initial-entry"));
+
+        if (page != null)
+        {
+            var userPerm = await _context.UserPagePermissions.IgnoreQueryFilters()
+                .FirstOrDefaultAsync(up => up.UserId == userId && up.PageId == page.Id);
+
+            if (userPerm != null)
+            {
+                return !userPerm.IsDeleted;
+            }
+
+            if (user.UserGroupId.HasValue)
+            {
+                var groupPerm = await _context.GroupPagePermissions.IgnoreQueryFilters()
+                    .FirstOrDefaultAsync(gp => gp.UserGroupId == user.UserGroupId.Value && gp.PageId == page.Id && !gp.IsDeleted);
+                if (groupPerm != null)
+                    return true;
+            }
+        }
+
+        // Check general Compass page permission
+        var compassPage = await _context.Pages.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(p => !p.IsDeleted && (p.Path == "/compass" || p.Path == "/ohda/compass"));
+
+        if (compassPage != null)
+        {
+            var userPerm = await _context.UserPagePermissions.IgnoreQueryFilters()
+                .FirstOrDefaultAsync(up => up.UserId == userId && up.PageId == compassPage.Id);
+
+            if (userPerm != null)
+            {
+                return !userPerm.IsDeleted;
+            }
+
+            if (user.UserGroupId.HasValue)
+            {
+                var groupPerm = await _context.GroupPagePermissions.IgnoreQueryFilters()
+                    .FirstOrDefaultAsync(gp => gp.UserGroupId == user.UserGroupId.Value && gp.PageId == compassPage.Id && !gp.IsDeleted);
+                if (groupPerm != null)
+                    return true;
+            }
+        }
+
+        return false;
     }
 
     [HttpGet("export")]

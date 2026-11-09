@@ -70,21 +70,44 @@ public class UserPagePermissionRepository
 
         if (effectiveRole == Entities.Models.Enums.UserRole.SuperAdmin)
         {
-            // SuperAdmin gets access to all active pages including branch platform management
-            result = await RepositoryContext.Pages
+            // If direct permissions have been customized for SuperAdmin, respect them
+            var directUserPages = await RepositoryContext.UserPagePermissions
                 .IgnoreQueryFilters()
                 .AsNoTracking()
-                .Where(p => !p.IsDeleted)
-                .OrderBy(p => p.SortOrder)
+                .Where(p => p.UserId == userId && !p.IsDeleted && p.Page != null && !p.Page.IsDeleted)
+                .OrderBy(p => p.Page!.SortOrder)
                 .Select(p => new PageDto
                 {
-                    Id = p.Id,
-                    Title = p.Title,
-                    Path = p.Path,
-                    Icon = p.Icon,
-                    SortOrder = p.SortOrder
+                    Id = p.Page!.Id,
+                    Title = p.Page.Title,
+                    Path = p.Page.Path,
+                    Icon = p.Page.Icon,
+                    SortOrder = p.Page.SortOrder
                 })
                 .ToListAsync();
+
+            if (directUserPages.Any())
+            {
+                result = directUserPages;
+            }
+            else
+            {
+                // Otherwise default SuperAdmin gets access to all active pages
+                result = await RepositoryContext.Pages
+                    .IgnoreQueryFilters()
+                    .AsNoTracking()
+                    .Where(p => !p.IsDeleted)
+                    .OrderBy(p => p.SortOrder)
+                    .Select(p => new PageDto
+                    {
+                        Id = p.Id,
+                        Title = p.Title,
+                        Path = p.Path,
+                        Icon = p.Icon,
+                        SortOrder = p.SortOrder
+                    })
+                    .ToListAsync();
+            }
         }
         else
         {

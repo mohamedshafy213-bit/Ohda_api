@@ -186,6 +186,7 @@ public class ProductExitRequestItemConfiguration : IEntityTypeConfiguration<Prod
         builder.HasOne(i => i.Product)
             .WithMany()
             .HasForeignKey(i => i.ProductId)
+            .IsRequired(false)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasIndex(i => i.ProductExitRequestId);
@@ -248,6 +249,7 @@ public class ProductEntryRequestItemConfiguration : IEntityTypeConfiguration<Pro
         builder.HasOne(i => i.Product)
             .WithMany()
             .HasForeignKey(i => i.ProductId)
+            .IsRequired(false)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(i => i.ProductState)
@@ -414,6 +416,7 @@ public class CompassConfiguration : IEntityTypeConfiguration<Compass>
         builder.Property(c => c.ProductName).IsRequired().HasMaxLength(200);
         builder.Property(c => c.RecipientName).IsRequired().HasMaxLength(150);
         builder.Property(c => c.Place).IsRequired().HasMaxLength(150);
+        builder.Property(c => c.Source).IsRequired().HasMaxLength(50).HasDefaultValue("Normal");
 
         builder.HasOne(c => c.Branch)
             .WithMany()
@@ -508,6 +511,85 @@ public class SupplierConfiguration : IEntityTypeConfiguration<Supplier>
         builder.HasOne(s => s.Branch)
             .WithMany()
             .HasForeignKey(s => s.BranchId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public class UntrackedItemConfiguration : IEntityTypeConfiguration<UntrackedItem>
+{
+    public void Configure(EntityTypeBuilder<UntrackedItem> builder)
+    {
+        builder.HasKey(u => u.Id);
+        builder.Property(u => u.Name).IsRequired().HasMaxLength(200);
+        builder.HasIndex(u => u.BranchId);
+        builder.HasIndex(u => u.IsDeleted);
+
+        builder.HasOne(u => u.Branch)
+            .WithMany()
+            .HasForeignKey(u => u.BranchId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public class PackageConfiguration : IEntityTypeConfiguration<Package>
+{
+    public void Configure(EntityTypeBuilder<Package> builder)
+    {
+        builder.HasKey(p => p.Id);
+        builder.Property(p => p.Name).IsRequired().HasMaxLength(200);
+        builder.HasIndex(p => p.BranchId);
+        builder.HasIndex(p => p.IsDeleted);
+
+        builder.HasOne(p => p.Branch)
+            .WithMany()
+            .HasForeignKey(p => p.BranchId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasMany(p => p.Items)
+            .WithOne(pi => pi.Package)
+            .HasForeignKey(pi => pi.PackageId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+public class PackageItemConfiguration : IEntityTypeConfiguration<PackageItem>
+{
+    public void Configure(EntityTypeBuilder<PackageItem> builder)
+    {
+        builder.HasKey(pi => pi.Id);
+        builder.HasIndex(pi => pi.PackageId);
+        builder.HasIndex(pi => pi.CategoryId);
+        builder.HasIndex(pi => pi.TrackedProductId);
+        builder.HasIndex(pi => pi.UntrackedItemId);
+        builder.HasIndex(pi => pi.BranchId);
+        builder.HasIndex(pi => pi.IsDeleted);
+
+        builder.HasOne(pi => pi.Branch)
+            .WithMany()
+            .HasForeignKey(pi => pi.BranchId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(pi => pi.Package)
+            .WithMany(p => p.Items)
+            .HasForeignKey(pi => pi.PackageId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(pi => pi.Category)
+            .WithMany()
+            .HasForeignKey(pi => pi.CategoryId)
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(pi => pi.TrackedProduct)
+            .WithMany()
+            .HasForeignKey(pi => pi.TrackedProductId)
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(pi => pi.UntrackedItem)
+            .WithMany()
+            .HasForeignKey(pi => pi.UntrackedItemId)
+            .IsRequired(false)
             .OnDelete(DeleteBehavior.Restrict);
     }
 }

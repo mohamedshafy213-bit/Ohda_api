@@ -25,5 +25,7 @@ public class Compass : TenantBaseTable
     public int? ProductEntryRequestId { get; set; }
     public ProductEntryRequest? ProductEntryRequest { get; set; }
 
+    public string Source { get; set; } = "Normal";
+
     public string? Notes { get; set; }
 }

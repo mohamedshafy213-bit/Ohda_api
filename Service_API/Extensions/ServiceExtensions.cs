@@ -197,6 +197,7 @@ public static class ServiceExtensions
         services.AddSwaggerGen(options =>
         {
             options.CustomSchemaIds(type => type.FullName);
+            options.ResolveConflictingActions(apiDescriptions => apiDescriptions.First());
 
             options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
             {

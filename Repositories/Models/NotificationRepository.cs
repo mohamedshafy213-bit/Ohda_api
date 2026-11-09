@@ -91,63 +91,93 @@ public class NotificationRepository
 
     public async Task<List<NotificationDto>> GetNotificationsForUserAsync(long userId, bool unreadOnly = false)
     {
-        var query = RepositoryContext.Notifications
-            .AsNoTracking()
-            .Where(n => n.UserId == userId && !n.IsDeleted);
-
-        if (unreadOnly)
+        try
         {
-            query = query.Where(n => !n.IsRead);
-        }
+            var query = RepositoryContext.Notifications
+                .AsNoTracking()
+                .Where(n => n.UserId == userId && !n.IsDeleted);
 
-        return await query
-            .OrderByDescending(n => n.InsertDate)
-            .Select(n => new NotificationDto
+            if (unreadOnly)
             {
-                Id = n.Id,
-                UserId = n.UserId,
-                Title = n.Title,
-                Message = n.Message,
-                IsRead = n.IsRead,
-                Type = n.Type,
-                ReferenceId = n.ReferenceId,
-                ReferenceType = n.ReferenceType,
-                InsertDate = n.InsertDate
-            })
-            .ToListAsync();
+                query = query.Where(n => !n.IsRead);
+            }
+
+            return await query
+                .OrderByDescending(n => n.InsertDate)
+                .Select(n => new NotificationDto
+                {
+                    Id = n.Id,
+                    UserId = n.UserId,
+                    Title = n.Title,
+                    Message = n.Message,
+                    IsRead = n.IsRead,
+                    Type = n.Type,
+                    ReferenceId = n.ReferenceId,
+                    ReferenceType = n.ReferenceType,
+                    InsertDate = n.InsertDate
+                })
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.logErrorWithException(ex, $"{nameof(Notification)} ===> GetNotificationsForUserAsync ");
+            return new List<NotificationDto>();
+        }
     }
 
     public async Task<int> GetUnreadCountAsync(long userId)
     {
-        return await RepositoryContext.Notifications
-            .CountAsync(n => n.UserId == userId && !n.IsRead && !n.IsDeleted);
+        try
+        {
+            return await RepositoryContext.Notifications
+                .CountAsync(n => n.UserId == userId && !n.IsRead && !n.IsDeleted);
+        }
+        catch (Exception ex)
+        {
+            _logger.logErrorWithException(ex, $"{nameof(Notification)} ===> GetUnreadCountAsync ");
+            return 0;
+        }
     }
 
     public async Task MarkAsReadAsync(int notificationId, long userId)
     {
-        var notification = await RepositoryContext.Notifications
-            .FirstOrDefaultAsync(n => n.Id == notificationId && n.UserId == userId && !n.IsDeleted);
-
-        if (notification != null)
+        try
         {
-            notification.IsRead = true;
-            notification.LastUpdate = DateTime.UtcNow;
-            await RepositoryContext.SaveChangesAsync();
+            var notification = await RepositoryContext.Notifications
+                .FirstOrDefaultAsync(n => n.Id == notificationId && n.UserId == userId && !n.IsDeleted);
+
+            if (notification != null)
+            {
+                notification.IsRead = true;
+                notification.LastUpdate = DateTime.UtcNow;
+                await RepositoryContext.SaveChangesAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.logErrorWithException(ex, $"{nameof(Notification)} ===> MarkAsReadAsync ");
         }
     }
 
     public async Task MarkAllAsReadAsync(long userId)
     {
-        var unread = await RepositoryContext.Notifications
-            .Where(n => n.UserId == userId && !n.IsRead && !n.IsDeleted)
-            .ToListAsync();
-
-        foreach (var n in unread)
+        try
         {
-            n.IsRead = true;
-            n.LastUpdate = DateTime.UtcNow;
-        }
+            var unread = await RepositoryContext.Notifications
+                .Where(n => n.UserId == userId && !n.IsRead && !n.IsDeleted)
+                .ToListAsync();
 
-        await RepositoryContext.SaveChangesAsync();
+            foreach (var n in unread)
+            {
+                n.IsRead = true;
+                n.LastUpdate = DateTime.UtcNow;
+            }
+
+            await RepositoryContext.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.logErrorWithException(ex, $"{nameof(Notification)} ===> MarkAllAsReadAsync ");
+        }
     }
 }

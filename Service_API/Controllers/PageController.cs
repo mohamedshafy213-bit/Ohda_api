@@ -50,14 +50,14 @@ public class PageController : BaseController<Page, PageDto, PageCreateDto, PageU
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,SuperAdmin")]
     public override async Task<IActionResult> Create([FromBody] PageCreateDto createDto)
     {
         return await base.Create(createDto);
     }
 
     [HttpPut("{id}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,SuperAdmin")]
     public override async Task<IActionResult> Update([FromRoute] string id, [FromBody] PageUpdateDto updateDto)
     {
 
@@ -66,7 +66,7 @@ public class PageController : BaseController<Page, PageDto, PageCreateDto, PageU
     }
 
     [HttpDelete("{id}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,SuperAdmin")]
     public override async Task<IActionResult> Delete([FromRoute] string id)
     {
         return await base.Delete(id);

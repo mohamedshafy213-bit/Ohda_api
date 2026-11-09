@@ -36,6 +36,9 @@ public class RepositoryContext : DbContext
     public virtual DbSet<Department> Departments { get; set; } = null!;
     public virtual DbSet<ProductState> ProductStates { get; set; } = null!;
     public virtual DbSet<WarehouseBin> WarehouseBins { get; set; } = null!;
+    public virtual DbSet<UntrackedItem> UntrackedItems { get; set; } = null!;
+    public virtual DbSet<Package> Packages { get; set; } = null!;
+    public virtual DbSet<PackageItem> PackageItems { get; set; } = null!;
 
     protected readonly IConfiguration _configuration;
     protected readonly IHttpContextAccessor? _httpContextAccessor;
@@ -94,6 +97,37 @@ public class RepositoryContext : DbContext
             dynamic configurationInstance = Activator.CreateInstance(type)!;
             modelBuilder.ApplyConfiguration(configurationInstance);
         }
+    }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<PackageItem>(entity =>
+        {
+            entity.HasOne(pi => pi.Package)
+                .WithMany(p => p.Items)
+                .HasForeignKey(pi => pi.PackageId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(pi => pi.TrackedProduct)
+                .WithMany()
+                .HasForeignKey(pi => pi.TrackedProductId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(pi => pi.UntrackedItem)
+                .WithMany()
+                .HasForeignKey(pi => pi.UntrackedItemId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ProductExitRequestItem>(entity =>
+        {
+            entity.HasOne(pi => pi.Product)
+                .WithMany()
+                .HasForeignKey(pi => pi.ProductId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
     }
 
     private void EnforceTenantSecurityAndAudit()

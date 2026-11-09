@@ -105,8 +105,25 @@ public static class DatabaseSeeder
                 new Page { Title = "لوحة مؤشرات الفروع (Branches Dashboard)", Path = "/branches-dashboard", Icon = "Activity", SortOrder = 15 },
                 new Page { Title = "أماكن وأرفف التخزين", Path = "/warehouse-bins", Icon = "Layers", SortOrder = 16 },
                 new Page { Title = "طباعة الباركود والملصقات", Path = "/barcode-print", Icon = "Printer", SortOrder = 17 },
-                new Page { Title = "مركز التصديقات والاعتمادات", Path = "/acceptance", Icon = "CheckCheck", SortOrder = 18 }
+                new Page { Title = "مركز التصديقات والاعتمادات", Path = "/acceptance", Icon = "CheckCheck", SortOrder = 18 },
+                new Page { Title = "الأصناف غير المتتبعة", Path = "/untracked-items", Icon = "MousePointerClick", SortOrder = 19 },
+                new Page { Title = "الحزم والتشكيلات", Path = "/packages", Icon = "PackageOpen", SortOrder = 20 }
             };
+
+            // Clean up any erroneous / deprecated pages from Pages table
+            var erroneousPages = await context.Pages.IgnoreQueryFilters()
+                .Where(p => !p.IsDeleted && (p.Path.Contains("untracked-products") || p.Path.Contains("compass/initial-entry")))
+                .ToListAsync();
+
+            if (erroneousPages.Any())
+            {
+                foreach (var ep in erroneousPages)
+                {
+                    ep.IsDeleted = true;
+                    ep.DeleteDate = DateTime.UtcNow;
+                }
+                await context.SaveChangesAsync();
+            }
 
             var existingPages = await context.Pages.IgnoreQueryFilters()
                 .AsNoTracking()
@@ -128,10 +145,11 @@ public static class DatabaseSeeder
             }
 
             // 5. Ensure SuperAdmin has user page permissions for all active pages
-            var allActivePages = await context.Pages.IgnoreQueryFilters().Where(p => !p.IsDeleted).ToListAsync();
+            var allActivePages = await context.Pages.IgnoreQueryFilters().AsNoTracking().Where(p => !p.IsDeleted).ToListAsync();
             if (superAdmin != null && allActivePages.Any())
             {
                 var existingUserPermPageIds = await context.UserPagePermissions.IgnoreQueryFilters()
+                    .AsNoTracking()
                     .Where(up => up.UserId == superAdmin.MilitaryNumber && !up.IsDeleted)
                     .Select(up => up.PageId)
                     .ToListAsync();

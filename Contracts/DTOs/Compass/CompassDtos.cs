@@ -25,6 +25,33 @@ public class CompassDto : BaseDto
     public int? ProductEntryRequestId { get; set; }
     public string? DocumentNumber { get; set; }
     public string? OriginalExitDocumentNumber { get; set; }
+    public string Source { get; set; } = "Normal";
+    public int? ProductId { get; set; }
+    public int? CategoryId { get; set; }
+    public string? CategoryName { get; set; }
+    public DateTime? CreatedAt { get; set; }
+    public string? CreatedBy { get; set; }
+    public string? Notes { get; set; }
+}
+
+public class CompassInitialEntryCreateDto
+{
+    public string ProductName { get; set; } = string.Empty;
+    public int? ProductId { get; set; }
+    public int DepartmentId { get; set; }
+    public string? SerialNumber { get; set; }
+    public string? RecipientName { get; set; }
+    public string? Notes { get; set; }
+    public int? BranchId { get; set; }
+}
+
+public class CompassInitialEntryUpdateDto
+{
+    public string ProductName { get; set; } = string.Empty;
+    public int? ProductId { get; set; }
+    public int DepartmentId { get; set; }
+    public string? SerialNumber { get; set; }
+    public string? RecipientName { get; set; }
     public string? Notes { get; set; }
 }
 

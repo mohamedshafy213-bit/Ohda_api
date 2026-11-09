@@ -308,6 +308,13 @@ namespace Entities.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasDefaultValue("Normal");
+
                     b.Property<int>("Type")
                         .HasColumnType("int");
 
@@ -676,6 +683,122 @@ namespace Entities.Migrations
                     b.ToTable("OrderDetails");
                 });
 
+            modelBuilder.Entity("Entities.Models.Tables.Package", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BranchId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DeleteDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DeleteUserCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("InsertDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("InsertUserCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("LastUpdate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("UpdateUserCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("IsDeleted");
+
+                    b.ToTable("Packages");
+                });
+
+            modelBuilder.Entity("Entities.Models.Tables.PackageItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BranchId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("CategoryId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DeleteDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DeleteUserCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("InsertDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("InsertUserCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("LastUpdate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("PackageId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("TrackedProductId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("UntrackedItemId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("UpdateUserCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("CategoryId");
+
+                    b.HasIndex("IsDeleted");
+
+                    b.HasIndex("PackageId");
+
+                    b.HasIndex("TrackedProductId");
+
+                    b.HasIndex("UntrackedItemId");
+
+                    b.ToTable("PackageItems");
+                });
+
             modelBuilder.Entity("Entities.Models.Tables.Page", b =>
                 {
                     b.Property<int>("Id")
@@ -730,7 +853,7 @@ namespace Entities.Migrations
                         {
                             Id = 1,
                             Icon = "dashboard",
-                            InsertDate = new DateTime(2026, 11, 3, 8, 34, 50, 539, DateTimeKind.Utc).AddTicks(5477),
+                            InsertDate = new DateTime(2026, 11, 9, 11, 49, 56, 877, DateTimeKind.Utc).AddTicks(4895),
                             IsDeleted = false,
                             Path = "/dashboard",
                             SortOrder = 1,
@@ -740,7 +863,7 @@ namespace Entities.Migrations
                         {
                             Id = 2,
                             Icon = "inventory_2",
-                            InsertDate = new DateTime(2026, 11, 3, 8, 34, 50, 540, DateTimeKind.Utc).AddTicks(46),
+                            InsertDate = new DateTime(2026, 11, 9, 11, 49, 56, 878, DateTimeKind.Utc).AddTicks(1301),
                             IsDeleted = false,
                             Path = "/products",
                             SortOrder = 2,
@@ -750,7 +873,7 @@ namespace Entities.Migrations
                         {
                             Id = 3,
                             Icon = "warehouse",
-                            InsertDate = new DateTime(2026, 11, 3, 8, 34, 50, 540, DateTimeKind.Utc).AddTicks(50),
+                            InsertDate = new DateTime(2026, 11, 9, 11, 49, 56, 878, DateTimeKind.Utc).AddTicks(1305),
                             IsDeleted = false,
                             Path = "/inventory",
                             SortOrder = 3,
@@ -760,7 +883,7 @@ namespace Entities.Migrations
                         {
                             Id = 4,
                             Icon = "qr_code_scanner",
-                            InsertDate = new DateTime(2026, 11, 3, 8, 34, 50, 540, DateTimeKind.Utc).AddTicks(51),
+                            InsertDate = new DateTime(2026, 11, 9, 11, 49, 56, 878, DateTimeKind.Utc).AddTicks(1307),
                             IsDeleted = false,
                             Path = "/scan",
                             SortOrder = 4,
@@ -770,7 +893,7 @@ namespace Entities.Migrations
                         {
                             Id = 5,
                             Icon = "assignment_return",
-                            InsertDate = new DateTime(2026, 11, 3, 8, 34, 50, 540, DateTimeKind.Utc).AddTicks(52),
+                            InsertDate = new DateTime(2026, 11, 9, 11, 49, 56, 878, DateTimeKind.Utc).AddTicks(1320),
                             IsDeleted = false,
                             Path = "/exit-requests",
                             SortOrder = 5,
@@ -780,7 +903,7 @@ namespace Entities.Migrations
                         {
                             Id = 6,
                             Icon = "shopping_cart",
-                            InsertDate = new DateTime(2026, 11, 3, 8, 34, 50, 540, DateTimeKind.Utc).AddTicks(53),
+                            InsertDate = new DateTime(2026, 11, 9, 11, 49, 56, 878, DateTimeKind.Utc).AddTicks(1321),
                             IsDeleted = false,
                             Path = "/orders",
                             SortOrder = 6,
@@ -790,7 +913,7 @@ namespace Entities.Migrations
                         {
                             Id = 7,
                             Icon = "category",
-                            InsertDate = new DateTime(2026, 11, 3, 8, 34, 50, 540, DateTimeKind.Utc).AddTicks(55),
+                            InsertDate = new DateTime(2026, 11, 9, 11, 49, 56, 878, DateTimeKind.Utc).AddTicks(1322),
                             IsDeleted = false,
                             Path = "/categories",
                             SortOrder = 7,
@@ -800,7 +923,7 @@ namespace Entities.Migrations
                         {
                             Id = 8,
                             Icon = "local_shipping",
-                            InsertDate = new DateTime(2026, 11, 3, 8, 34, 50, 540, DateTimeKind.Utc).AddTicks(56),
+                            InsertDate = new DateTime(2026, 11, 9, 11, 49, 56, 878, DateTimeKind.Utc).AddTicks(1323),
                             IsDeleted = false,
                             Path = "/suppliers",
                             SortOrder = 8,
@@ -810,7 +933,7 @@ namespace Entities.Migrations
                         {
                             Id = 9,
                             Icon = "group",
-                            InsertDate = new DateTime(2026, 11, 3, 8, 34, 50, 540, DateTimeKind.Utc).AddTicks(57),
+                            InsertDate = new DateTime(2026, 11, 9, 11, 49, 56, 878, DateTimeKind.Utc).AddTicks(1325),
                             IsDeleted = false,
                             Path = "/users",
                             SortOrder = 9,
@@ -820,7 +943,7 @@ namespace Entities.Migrations
                         {
                             Id = 11,
                             Icon = "explore",
-                            InsertDate = new DateTime(2026, 11, 3, 8, 34, 50, 540, DateTimeKind.Utc).AddTicks(58),
+                            InsertDate = new DateTime(2026, 11, 9, 11, 49, 56, 878, DateTimeKind.Utc).AddTicks(1326),
                             IsDeleted = false,
                             Path = "/compass",
                             SortOrder = 10,
@@ -1261,16 +1384,25 @@ namespace Entities.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("IsUntracked")
+                        .HasColumnType("bit");
+
                     b.Property<DateTime?>("LastUpdate")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("Notes")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int?>("PackageId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PackageName")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<int>("ProductExitRequestId")
                         .HasColumnType("int");
 
-                    b.Property<int>("ProductId")
+                    b.Property<int?>("ProductId")
                         .HasColumnType("int");
 
                     b.Property<int>("Quantity")
@@ -1278,6 +1410,9 @@ namespace Entities.Migrations
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
+
+                    b.Property<string>("UntrackedItemName")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("UpdateUserCode")
                         .HasColumnType("nvarchar(max)");
@@ -1605,6 +1740,55 @@ namespace Entities.Migrations
                     b.HasIndex("IsDeleted");
 
                     b.ToTable("Suppliers");
+                });
+
+            modelBuilder.Entity("Entities.Models.Tables.UntrackedItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BranchId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DeleteDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DeleteUserCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("InsertDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("InsertUserCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("LastUpdate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("UpdateUserCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("IsDeleted");
+
+                    b.ToTable("UntrackedItems");
                 });
 
             modelBuilder.Entity("Entities.Models.Tables.User", b =>
@@ -2056,6 +2240,57 @@ namespace Entities.Migrations
                     b.Navigation("Product");
                 });
 
+            modelBuilder.Entity("Entities.Models.Tables.Package", b =>
+                {
+                    b.HasOne("Entities.Models.Tables.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Branch");
+                });
+
+            modelBuilder.Entity("Entities.Models.Tables.PackageItem", b =>
+                {
+                    b.HasOne("Entities.Models.Tables.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Entities.Models.Tables.Category", "Category")
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Entities.Models.Tables.Package", "Package")
+                        .WithMany("Items")
+                        .HasForeignKey("PackageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Entities.Models.Tables.Product", "TrackedProduct")
+                        .WithMany()
+                        .HasForeignKey("TrackedProductId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Entities.Models.Tables.UntrackedItem", "UntrackedItem")
+                        .WithMany()
+                        .HasForeignKey("UntrackedItemId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Branch");
+
+                    b.Navigation("Category");
+
+                    b.Navigation("Package");
+
+                    b.Navigation("TrackedProduct");
+
+                    b.Navigation("UntrackedItem");
+                });
+
             modelBuilder.Entity("Entities.Models.Tables.PlatformAuditLog", b =>
                 {
                     b.HasOne("Entities.Models.Tables.Branch", "Branch")
@@ -2165,8 +2400,7 @@ namespace Entities.Migrations
                     b.HasOne("Entities.Models.Tables.Product", "Product")
                         .WithMany()
                         .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("Entities.Models.Tables.ProductState", "ProductState")
                         .WithMany()
@@ -2240,8 +2474,7 @@ namespace Entities.Migrations
                     b.HasOne("Entities.Models.Tables.Product", "Product")
                         .WithMany()
                         .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Branch");
 
@@ -2311,6 +2544,17 @@ namespace Entities.Migrations
                 });
 
             modelBuilder.Entity("Entities.Models.Tables.Supplier", b =>
+                {
+                    b.HasOne("Entities.Models.Tables.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Branch");
+                });
+
+            modelBuilder.Entity("Entities.Models.Tables.UntrackedItem", b =>
                 {
                     b.HasOne("Entities.Models.Tables.Branch", "Branch")
                         .WithMany()
@@ -2404,6 +2648,11 @@ namespace Entities.Migrations
             modelBuilder.Entity("Entities.Models.Tables.Order", b =>
                 {
                     b.Navigation("OrderDetails");
+                });
+
+            modelBuilder.Entity("Entities.Models.Tables.Package", b =>
+                {
+                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("Entities.Models.Tables.ProductEntryRequest", b =>

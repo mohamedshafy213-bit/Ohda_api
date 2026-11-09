@@ -112,19 +112,53 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
             }
         }
 
-        // Validate stock for all items
+        // Validate items and stock for tracked items
         foreach (var item in requestDto.Items)
         {
-            var inventory = await _repositoryWrapper.Inventories.GetByProductIdAsync(item.ProductId);
-            if (inventory == null || inventory.Quantity < item.Quantity)
+            if (item.IsUntracked)
             {
-                var product = await _repositoryWrapper.Products.GetByIdAsync(item.ProductId);
-                string prodName = product?.Name ?? $"ID {item.ProductId}";
-                return BadRequest(new SingleObjectResponseModel
+                if (string.IsNullOrWhiteSpace(item.UntrackedItemName))
                 {
-                    IsDone = false,
-                    ReturnMessage = $"الرصيد غير كافٍ في المستودع للصنف '{prodName}'. المتوفر: {inventory?.Quantity ?? 0}، المطلوب: {item.Quantity}."
-                });
+                    return BadRequest(new SingleObjectResponseModel
+                    {
+                        IsDone = false,
+                        ReturnMessage = "اسم الصنف غير المتتبع مطلوب."
+                    });
+                }
+                item.ProductId = null;
+                item.Quantity = 1;
+            }
+            else
+            {
+                if (!item.ProductId.HasValue || item.ProductId.Value <= 0)
+                {
+                    return BadRequest(new SingleObjectResponseModel
+                    {
+                        IsDone = false,
+                        ReturnMessage = "يجب تحديد المنتج المتتبع."
+                    });
+                }
+
+                if (item.Quantity <= 0)
+                {
+                    return BadRequest(new SingleObjectResponseModel
+                    {
+                        IsDone = false,
+                        ReturnMessage = "يجب أن تكون الكمية أكبر من الصفر."
+                    });
+                }
+
+                var inventory = await _repositoryWrapper.Inventories.GetByProductIdAsync(item.ProductId.Value);
+                if (inventory == null || inventory.Quantity < item.Quantity)
+                {
+                    var product = await _repositoryWrapper.Products.GetByIdAsync(item.ProductId.Value);
+                    string prodName = product?.Name ?? $"ID {item.ProductId.Value}";
+                    return BadRequest(new SingleObjectResponseModel
+                    {
+                        IsDone = false,
+                        ReturnMessage = $"الرصيد غير كافٍ في المستودع للصنف '{prodName}'. المتوفر: {inventory?.Quantity ?? 0}، المطلوب: {item.Quantity}."
+                    });
+                }
             }
         }
 
@@ -569,24 +603,28 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
 
     private async Task<(bool Success, string? ErrorMessage)> FinalizeExitStockAndCompassAsync(ProductExitRequest request, int id)
     {
-        var approvedItems = request.Items.Where(i => i.Status == RequestStatus.Approved || i.Status == RequestStatus.Pending).ToList();
+        var approvedTrackedItems = request.Items
+            .Where(i => !i.IsUntracked && i.ProductId.HasValue && (i.Status == RequestStatus.Approved || i.Status == RequestStatus.Pending))
+            .ToList();
 
-        // 1. Validate stock levels
-        foreach (var item in approvedItems)
+        // 1. Validate stock levels for tracked products
+        foreach (var item in approvedTrackedItems)
         {
-            var inventory = await _repositoryWrapper.Inventories.GetByProductIdAsync(item.ProductId);
+            int pId = item.ProductId!.Value;
+            var inventory = await _repositoryWrapper.Inventories.GetByProductIdAsync(pId);
             if (inventory == null || inventory.Quantity < item.Quantity)
             {
-                var product = await _repositoryWrapper.Products.GetByIdAsync(item.ProductId);
-                string prodName = product?.Name ?? $"ID {item.ProductId}";
+                var product = await _repositoryWrapper.Products.GetByIdAsync(pId);
+                string prodName = product?.Name ?? $"ID {pId}";
                 return (false, $"الرصيد غير كافٍ في المخزون للصنف '{prodName}'. المتوفر: {inventory?.Quantity ?? 0}، المطلوب: {item.Quantity}.");
             }
         }
 
-        // 2. Decrement stock
-        foreach (var item in approvedItems)
+        // 2. Decrement stock for tracked products
+        foreach (var item in approvedTrackedItems)
         {
-            var inventory = await _repositoryWrapper.Inventories.GetByProductIdAsync(item.ProductId);
+            int pId = item.ProductId!.Value;
+            var inventory = await _repositoryWrapper.Inventories.GetByProductIdAsync(pId);
             if (inventory != null)
             {
                 inventory.Quantity = Math.Max(0, inventory.Quantity - item.Quantity);
@@ -598,10 +636,11 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
         var productItems = await _repositoryWrapper.ProductItems.GetByExitRequestIdAsync(id);
         var productItemsGrouped = productItems.GroupBy(pi => pi.ProductId).ToDictionary(g => g.Key, g => g.ToList());
 
-        foreach (var item in approvedItems)
+        foreach (var item in approvedTrackedItems)
         {
+            int pId = item.ProductId!.Value;
             List<ProductItem> itemsToExit = new();
-            if (productItemsGrouped.TryGetValue(item.ProductId, out var itemsForProduct))
+            if (productItemsGrouped.TryGetValue(pId, out var itemsForProduct))
             {
                 itemsToExit = itemsForProduct.Take(item.Quantity).ToList();
             }
@@ -611,7 +650,7 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
             {
                 int extraNeeded = item.Quantity - currentCount;
                 var extraItems = await _context.ProductItems
-                    .Where(pi => pi.ProductId == item.ProductId && pi.Status == ProductItemStatus.InStock && !pi.IsDeleted && pi.ProductExitRequestId == null)
+                    .Where(pi => pi.ProductId == pId && pi.Status == ProductItemStatus.InStock && !pi.IsDeleted && pi.ProductExitRequestId == null)
                     .Take(extraNeeded)
                     .ToListAsync();
 
@@ -624,8 +663,8 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
                 int stillNeeded = item.Quantity - itemsToExit.Count;
                 if (stillNeeded > 0)
                 {
-                    var product = await _repositoryWrapper.Products.GetByIdAsync(item.ProductId);
-                    string sku = product?.SKU ?? $"P{item.ProductId}";
+                    var product = await _repositoryWrapper.Products.GetByIdAsync(pId);
+                    string sku = product?.SKU ?? $"P{pId}";
                     for (int u = 1; u <= stillNeeded; u++)
                     {
                         string guidSuffix = Guid.NewGuid().ToString().Substring(0, 8).ToUpper();
@@ -634,7 +673,7 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
 
                         var productItem = new ProductItem
                         {
-                            ProductId = item.ProductId,
+                            ProductId = pId,
                             SerialNumber = serialNumber,
                             QRCode = qrCode,
                             Status = ProductItemStatus.InStock,
@@ -836,8 +875,12 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
             {
                 Id = i.Id,
                 ProductId = i.ProductId,
-                ProductName = i.Product?.Name,
+                ProductName = i.IsUntracked ? i.UntrackedItemName : i.Product?.Name,
                 ProductSKU = i.Product?.SKU,
+                IsUntracked = i.IsUntracked,
+                UntrackedItemName = i.UntrackedItemName,
+                PackageId = i.PackageId,
+                PackageName = i.PackageName,
                 Quantity = i.Quantity,
                 Status = i.Status,
                 Notes = i.Notes
@@ -849,8 +892,8 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
         dto.SelectedSerials = items.Select(i => i.SerialNumber).ToList();
 
         var missingProductIds = dto.Items
-            .Where(itm => !items.Any(x => x.ProductId == itm.ProductId && x.BinId != null))
-            .Select(itm => itm.ProductId)
+            .Where(itm => !itm.IsUntracked && itm.ProductId.HasValue && !items.Any(x => x.ProductId == itm.ProductId.Value && x.BinId != null))
+            .Select(itm => itm.ProductId!.Value)
             .Distinct()
             .ToList();
 
@@ -870,18 +913,21 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
 
         foreach (var itm in dto.Items)
         {
-            var assigned = items.FirstOrDefault(x => x.ProductId == itm.ProductId && x.BinId != null);
-            if (assigned != null)
+            if (itm.ProductId.HasValue)
             {
-                itm.BinId = assigned.BinId;
-                itm.BinCode = assigned.Bin?.Code;
-                itm.BinName = assigned.Bin?.Name;
-            }
-            else if (inStockBins.TryGetValue(itm.ProductId, out var binInfo))
-            {
-                itm.BinId = binInfo.BinId;
-                itm.BinCode = binInfo.BinCode;
-                itm.BinName = binInfo.BinName;
+                var assigned = items.FirstOrDefault(x => x.ProductId == itm.ProductId.Value && x.BinId != null);
+                if (assigned != null)
+                {
+                    itm.BinId = assigned.BinId;
+                    itm.BinCode = assigned.Bin?.Code;
+                    itm.BinName = assigned.Bin?.Name;
+                }
+                else if (inStockBins.TryGetValue(itm.ProductId.Value, out var binInfo))
+                {
+                    itm.BinId = binInfo.BinId;
+                    itm.BinCode = binInfo.BinCode;
+                    itm.BinName = binInfo.BinName;
+                }
             }
         }
 

@@ -36,6 +36,8 @@ public class RepositoryWrapper : IRepositoryWrapper
     private IProductStateRepository? _productStates;
     private IWarehouseBinRepository? _warehouseBins;
     private IBranchRepository? _branches;
+    private IUntrackedItemRepository? _untrackedItems;
+    private IPackageRepository? _packages;
 
 
     public RepositoryWrapper(
@@ -113,6 +115,11 @@ public class RepositoryWrapper : IRepositoryWrapper
     public IWarehouseBinRepository WarehouseBins =>
         _warehouseBins ??= new WarehouseBinRepository(_logger, _repoContext, _httpContextAccessor, _mapper);
 
+    public IUntrackedItemRepository UntrackedItems =>
+        _untrackedItems ??= new UntrackedItemRepository(_logger, _repoContext, _httpContextAccessor, _mapper);
+
+    public IPackageRepository Packages =>
+        _packages ??= new PackageRepository(_logger, _repoContext, _httpContextAccessor, _mapper);
 
     public void Save()
     {

@@ -8,9 +8,13 @@ namespace Contracts.DTOs.ProductExitRequest
     public class ProductExitRequestItemDto
     {
         public int Id { get; set; }
-        public int ProductId { get; set; }
+        public int? ProductId { get; set; }
         public string? ProductName { get; set; }
         public string? ProductSKU { get; set; }
+        public bool IsUntracked { get; set; } = false;
+        public string? UntrackedItemName { get; set; }
+        public int? PackageId { get; set; }
+        public string? PackageName { get; set; }
         public int Quantity { get; set; }
         public int? BinId { get; set; }
         public string? BinCode { get; set; }
@@ -21,8 +25,12 @@ namespace Contracts.DTOs.ProductExitRequest
 
     public class ProductExitRequestItemCreateDto
     {
-        public int ProductId { get; set; }
-        public int Quantity { get; set; }
+        public int? ProductId { get; set; }
+        public bool IsUntracked { get; set; } = false;
+        public string? UntrackedItemName { get; set; }
+        public int? PackageId { get; set; }
+        public string? PackageName { get; set; }
+        public int Quantity { get; set; } = 1;
         public string? Notes { get; set; }
     }
 

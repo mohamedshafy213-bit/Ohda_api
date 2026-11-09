@@ -33,7 +33,7 @@ namespace Repositories.Repositories
         protected RepositoryContext RepositoryContext { get; set; }
         private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly IMapper _mapper;
-        private readonly ILoggerManager _logger;
+        protected readonly ILoggerManager _logger;
 
         public RepositoryBase(ILoggerManager logger, RepositoryContext repositoryContext, IHttpContextAccessor httpContextAccessor
             , IMapper mapper)
