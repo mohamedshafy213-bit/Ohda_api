@@ -9,8 +9,16 @@ public class CompassDto : BaseDto
     public string ProductName { get; set; } = string.Empty;
     public string RecipientName { get; set; } = string.Empty;
     public string? DelivererName { get; set; }
+    public string? DelivererPersonName { get; set; }
     public string? SupervisorName { get; set; }
+    public string? SupervisorPersonName { get; set; }
     public string? ManagerName { get; set; }
+    public string? ManagerPersonName { get; set; }
+    public string? RecipientPersonName { get; set; }
+    public long? DelivererUserId { get; set; }
+    public long? SupervisorId { get; set; }
+    public long? ManagerId { get; set; }
+    public long? RecipientUserId { get; set; }
     public string? ApprovalTrail { get; set; }
     public DateTime? RequesterConfirmedDate { get; set; }
     public string? Purpose { get; set; }

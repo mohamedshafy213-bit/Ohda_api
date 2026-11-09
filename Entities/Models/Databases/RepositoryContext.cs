@@ -143,7 +143,23 @@ public class RepositoryContext : DbContext
             {
                 if (entry.State == EntityState.Added)
                 {
-                    if (tenantEntity.BranchId == 0)
+                    if (currentBranchId.HasValue && currentBranchId.Value > 0 && !isSuperAdmin)
+                    {
+                        // Ensure entity is safely scoped to current user's active branch without cross-tenant exception
+                        if (entry.Entity is Notification)
+                        {
+                            // Permitted across branches
+                            if (tenantEntity.BranchId == 0)
+                            {
+                                tenantEntity.BranchId = currentBranchId.Value;
+                            }
+                        }
+                        else
+                        {
+                            tenantEntity.BranchId = currentBranchId.Value;
+                        }
+                    }
+                    else if (tenantEntity.BranchId == 0)
                     {
                         if (currentBranchId.HasValue && currentBranchId.Value > 0)
                         {
@@ -153,18 +169,6 @@ public class RepositoryContext : DbContext
                         {
                             // Avoid fatal foreign key conflict in SQL Server when branch context is uninitialized (e.g. background tasks)
                             tenantEntity.BranchId = 1;
-                        }
-                    }
-                    else if (currentBranchId.HasValue && currentBranchId.Value > 0 && !isSuperAdmin)
-                    {
-                        // Notifications can be delivered across branches to reach recipient users
-                        if (entry.Entity is Notification)
-                        {
-                            // Permitted
-                        }
-                        else if (tenantEntity.BranchId != currentBranchId.Value)
-                        {
-                            throw new InvalidOperationException($"Cross-tenant creation forbidden. Target BranchId {tenantEntity.BranchId} does not match active branch context {currentBranchId.Value}.");
                         }
                     }
                 }

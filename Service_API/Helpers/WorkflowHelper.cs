@@ -42,4 +42,37 @@ public static class WorkflowHelper
         list.Add(newRecord);
         return JsonSerializer.Serialize(list);
     }
+
+    public static string EnrichApprovalTrailWithPersonNames(
+        string? trailJson,
+        Dictionary<long, string?> usersById,
+        Dictionary<string, string?> usersByName)
+    {
+        if (string.IsNullOrWhiteSpace(trailJson))
+            return trailJson ?? string.Empty;
+
+        var list = ParseTrail(trailJson);
+        if (list == null || list.Count == 0)
+            return trailJson;
+
+        bool modified = false;
+        foreach (var step in list)
+        {
+            if (string.IsNullOrWhiteSpace(step.PersonName) || step.PersonName.Trim() == step.UserName.Trim())
+            {
+                if (step.UserId > 0 && usersById.TryGetValue(step.UserId, out var pNameById) && !string.IsNullOrWhiteSpace(pNameById))
+                {
+                    step.PersonName = pNameById;
+                    modified = true;
+                }
+                else if (!string.IsNullOrWhiteSpace(step.UserName) && usersByName.TryGetValue(step.UserName, out var pNameByName) && !string.IsNullOrWhiteSpace(pNameByName))
+                {
+                    step.PersonName = pNameByName;
+                    modified = true;
+                }
+            }
+        }
+
+        return modified ? JsonSerializer.Serialize(list) : trailJson;
+    }
 }

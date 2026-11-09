@@ -74,19 +74,23 @@ public class PackageController : BaseController<Package, PackageDto, PackageCrea
             });
         }
 
+        int activeBranchId = (_context.CurrentBranchId.HasValue && _context.CurrentBranchId.Value > 0)
+            ? _context.CurrentBranchId.Value
+            : (createDto.BranchId.HasValue && createDto.BranchId.Value > 0 ? createDto.BranchId.Value : 1);
+
         var pkg = new Package
         {
             Name = createDto.Name.Trim(),
             Description = createDto.Description,
             IsActive = createDto.IsActive,
-            BranchId = createDto.BranchId ?? 1,
+            BranchId = activeBranchId,
             Items = createDto.Items.Select(i => new PackageItem
             {
                 CategoryId = i.CategoryId,
                 TrackedProductId = i.TrackedProductId,
                 UntrackedItemId = i.UntrackedItemId,
                 Quantity = i.UntrackedItemId.HasValue ? 1 : Math.Max(1, i.Quantity),
-                BranchId = createDto.BranchId ?? 1
+                BranchId = activeBranchId
             }).ToList()
         };
 

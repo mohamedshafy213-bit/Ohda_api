@@ -44,49 +44,107 @@ public class CompassController : BaseController<Compass, CompassDto, CompassCrea
         var records = await _repositoryWrapper.Compasses.SearchCompassRecordsAsync(
             query, departmentId, type, stateId, startDate, endDate, pageNumber, pageSize, source);
 
-        var dtos = records.Select(c => new CompassDto
+        var users = await _context.Users.AsNoTracking()
+            .Select(u => new { u.MilitaryNumber, u.Username, u.PersonName })
+            .ToListAsync();
+        var usersById = users.Where(u => u.MilitaryNumber > 0 && !string.IsNullOrWhiteSpace(u.PersonName))
+            .ToDictionary(u => u.MilitaryNumber, u => (string?)u.PersonName);
+        var usersByName = users.Where(u => !string.IsNullOrWhiteSpace(u.Username) && !string.IsNullOrWhiteSpace(u.PersonName))
+            .ToDictionary(u => u.Username, u => (string?)u.PersonName, StringComparer.OrdinalIgnoreCase);
+
+        var products = await _context.Products.AsNoTracking()
+            .Include(p => p.Category)
+            .Where(p => !p.IsDeleted)
+            .ToListAsync();
+        var productsById = products.ToDictionary(p => p.Id, p => p);
+        var productsByName = products
+            .GroupBy(p => p.Name.Trim().ToLower())
+            .ToDictionary(g => g.Key, g => g.First());
+
+        var dtos = records.Select(c =>
         {
-            Id = c.Id,
-            SerialNumber = c.SerialNumber,
-            ProductName = c.ProductName,
-            RecipientName = c.RecipientName,
-            DelivererName = c.Type == CompassType.Exit 
-                ? (c.ProductExitRequest?.RequestedByUser?.PersonName ?? c.ProductExitRequest?.RequestedByUser?.Username ?? c.ProductExitRequest?.InsertUserCode)
-                : (c.ProductEntryRequest?.ReceivedByUser?.PersonName ?? c.ProductEntryRequest?.ReceivedByUser?.Username ?? c.ProductEntryRequest?.FromSource),
-            SupervisorName = c.Type == CompassType.Exit
-                ? (c.ProductExitRequest?.Supervisor?.PersonName ?? c.ProductExitRequest?.Supervisor?.Username)
-                : (c.ProductEntryRequest?.Supervisor?.PersonName ?? c.ProductEntryRequest?.Supervisor?.Username),
-            ManagerName = c.Type == CompassType.Exit
-                ? (c.ProductExitRequest?.Manager?.PersonName ?? c.ProductExitRequest?.Manager?.Username)
-                : (c.ProductEntryRequest?.Manager?.PersonName ?? c.ProductEntryRequest?.Manager?.Username),
-            ApprovalTrail = c.Type == CompassType.Exit
+            var rawTrail = c.Type == CompassType.Exit
                 ? c.ProductExitRequest?.ApprovalTrail
-                : c.ProductEntryRequest?.ApprovalTrail,
-            RequesterConfirmedDate = c.Type == CompassType.Exit
-                ? c.ProductExitRequest?.RequesterConfirmedDate
-                : c.ProductEntryRequest?.RequesterConfirmedDate,
-            Purpose = c.Type == CompassType.Exit
-                ? c.ProductExitRequest?.Purpose
-                : (c.ProductEntryRequest?.FromSource != null ? $"توريد من: {c.ProductEntryRequest.FromSource}" : null),
-            Place = c.Place,
-            ExitDate = c.ExitDate,
-            Type = c.Type,
-            DepartmentId = c.DepartmentId,
-            DepartmentName = c.Department?.Name,
-            ProductStateId = c.ProductStateId,
-            ProductStateName = c.ProductState?.Name,
-            ProductExitRequestId = c.ProductExitRequestId,
-            ProductEntryRequestId = c.ProductEntryRequestId,
-            DocumentNumber = c.Type == CompassType.Exit
-                ? $"DOC-OUT-{(c.ProductExitRequestId ?? c.Id)}"
-                : (!string.IsNullOrWhiteSpace(c.ProductEntryRequest?.InvoiceNumber) ? c.ProductEntryRequest.InvoiceNumber : $"DOC-IN-{(c.ProductEntryRequestId ?? c.Id)}"),
-            OriginalExitDocumentNumber = c.ProductExitRequestId.HasValue
-                ? $"DOC-OUT-{c.ProductExitRequestId.Value}"
-                : (c.Notes != null && c.Notes.Contains("RET-REQ-") ? "DOC-OUT-" + c.Notes.Split("RET-REQ-")[1].Split("]")[0].Split(" ")[0] : null),
-            Source = c.Source ?? "Normal",
-            CreatedAt = c.InsertDate,
-            CreatedBy = c.InsertUserCode,
-            Notes = c.Notes
+                : c.ProductEntryRequest?.ApprovalTrail;
+            var enrichedTrail = Service_API.Helpers.WorkflowHelper.EnrichApprovalTrailWithPersonNames(rawTrail, usersById, usersByName);
+
+            string? recipientPersonName = c.RecipientName;
+            if (!string.IsNullOrWhiteSpace(c.RecipientName) && usersByName.TryGetValue(c.RecipientName, out var matchedPName))
+            {
+                recipientPersonName = matchedPName;
+            }
+
+            Product? matchedProduct = null;
+            if (!string.IsNullOrWhiteSpace(c.ProductName) && productsByName.TryGetValue(c.ProductName.Trim().ToLower(), out var prodByName))
+            {
+                matchedProduct = prodByName;
+            }
+
+            return new CompassDto
+            {
+                Id = c.Id,
+                SerialNumber = c.SerialNumber,
+                ProductName = c.ProductName,
+                ProductId = matchedProduct?.Id,
+                CategoryId = matchedProduct?.CategoryId,
+                CategoryName = matchedProduct?.Category?.Name,
+                RecipientName = c.RecipientName,
+                RecipientPersonName = recipientPersonName,
+                RecipientUserId = c.Type == CompassType.Exit ? c.ProductExitRequest?.RequestedByUserId : null,
+                DelivererPersonName = c.Type == CompassType.Exit
+                    ? c.ProductExitRequest?.RequestedByUser?.PersonName
+                    : c.ProductEntryRequest?.ReceivedByUser?.PersonName,
+                DelivererName = c.Type == CompassType.Exit 
+                    ? (c.ProductExitRequest?.RequestedByUser?.PersonName ?? c.ProductExitRequest?.RequestedByUser?.Username ?? c.ProductExitRequest?.InsertUserCode)
+                    : (c.ProductEntryRequest?.ReceivedByUser?.PersonName ?? c.ProductEntryRequest?.ReceivedByUser?.Username ?? c.ProductEntryRequest?.FromSource),
+                DelivererUserId = c.Type == CompassType.Exit
+                    ? c.ProductExitRequest?.RequestedByUserId
+                    : c.ProductEntryRequest?.ReceivedByUserId,
+                SupervisorPersonName = c.Type == CompassType.Exit
+                    ? c.ProductExitRequest?.Supervisor?.PersonName
+                    : c.ProductEntryRequest?.Supervisor?.PersonName,
+                SupervisorName = c.Type == CompassType.Exit
+                    ? (c.ProductExitRequest?.Supervisor?.PersonName ?? c.ProductExitRequest?.Supervisor?.Username)
+                    : (c.ProductEntryRequest?.Supervisor?.PersonName ?? c.ProductEntryRequest?.Supervisor?.Username),
+                SupervisorId = c.Type == CompassType.Exit
+                    ? c.ProductExitRequest?.SupervisorId
+                    : c.ProductEntryRequest?.SupervisorId,
+                ManagerPersonName = c.Type == CompassType.Exit
+                    ? c.ProductExitRequest?.Manager?.PersonName
+                    : c.ProductEntryRequest?.Manager?.PersonName,
+                ManagerName = c.Type == CompassType.Exit
+                    ? (c.ProductExitRequest?.Manager?.PersonName ?? c.ProductExitRequest?.Manager?.Username)
+                    : (c.ProductEntryRequest?.Manager?.PersonName ?? c.ProductEntryRequest?.Manager?.Username),
+                ManagerId = c.Type == CompassType.Exit
+                    ? c.ProductExitRequest?.ManagerId
+                    : c.ProductEntryRequest?.ManagerId,
+                ApprovalTrail = enrichedTrail,
+                RequesterConfirmedDate = c.Type == CompassType.Exit
+                    ? c.ProductExitRequest?.RequesterConfirmedDate
+                    : c.ProductEntryRequest?.RequesterConfirmedDate,
+                Purpose = c.Type == CompassType.Exit
+                    ? c.ProductExitRequest?.Purpose
+                    : (c.ProductEntryRequest?.FromSource != null ? $"توريد من: {c.ProductEntryRequest.FromSource}" : null),
+                Place = c.Place,
+                ExitDate = c.ExitDate,
+                Type = c.Type,
+                DepartmentId = c.DepartmentId,
+                DepartmentName = c.Department?.Name,
+                ProductStateId = c.ProductStateId,
+                ProductStateName = c.ProductState?.Name,
+                ProductExitRequestId = c.ProductExitRequestId,
+                ProductEntryRequestId = c.ProductEntryRequestId,
+                DocumentNumber = c.Type == CompassType.Exit
+                    ? $"DOC-OUT-{(c.ProductExitRequestId ?? c.Id)}"
+                    : (!string.IsNullOrWhiteSpace(c.ProductEntryRequest?.InvoiceNumber) ? c.ProductEntryRequest.InvoiceNumber : $"DOC-IN-{(c.ProductEntryRequestId ?? c.Id)}"),
+                OriginalExitDocumentNumber = c.ProductExitRequestId.HasValue
+                    ? $"DOC-OUT-{c.ProductExitRequestId.Value}"
+                    : (c.Notes != null && c.Notes.Contains("RET-REQ-") ? "DOC-OUT-" + c.Notes.Split("RET-REQ-")[1].Split("]")[0].Split(" ")[0] : null),
+                Source = c.Source ?? "Normal",
+                CreatedAt = c.InsertDate,
+                CreatedBy = c.InsertUserCode,
+                Notes = c.Notes
+            };
         }).ToList();
 
         return Ok(new SingleObjectResponseModel<List<CompassDto>>
@@ -95,6 +153,20 @@ public class CompassController : BaseController<Compass, CompassDto, CompassCrea
             ReturnMessage = "Search completed successfully.",
             SingleObject = dtos
         });
+    }
+
+    [HttpPost]
+    public override async Task<IActionResult> Create([FromBody] CompassCreateDto createDto)
+    {
+        var initialDto = new CompassInitialEntryCreateDto
+        {
+            ProductName = createDto.ProductName,
+            DepartmentId = createDto.DepartmentId ?? 0,
+            SerialNumber = createDto.SerialNumber,
+            RecipientName = createDto.RecipientName,
+            Notes = createDto.Notes
+        };
+        return await CreateInitialEntry(initialDto);
     }
 
     [HttpPost("initial-entry")]
@@ -143,7 +215,9 @@ public class CompassController : BaseController<Compass, CompassDto, CompassCrea
             ?? "Admin";
 
         var branchClaim = User.FindFirst("branch_id")?.Value ?? User.FindFirst("BranchId")?.Value;
-        int branchId = createDto.BranchId ?? (int.TryParse(branchClaim, out var bId) && bId > 0 ? bId : (dept.BranchId > 0 ? dept.BranchId : 1));
+        int branchId = (_context.CurrentBranchId.HasValue && _context.CurrentBranchId.Value > 0)
+            ? _context.CurrentBranchId.Value
+            : (createDto.BranchId ?? (int.TryParse(branchClaim, out var bId) && bId > 0 ? bId : (dept.BranchId > 0 ? dept.BranchId : 1)));
 
         // Lookup product if ProductId was provided or by name match for tracking
         Product? linkedProduct = null;
@@ -160,9 +234,59 @@ public class CompassController : BaseController<Compass, CompassDto, CompassCrea
                 .FirstOrDefaultAsync(p => p.Name.Trim().ToLower() == createDto.ProductName.Trim().ToLower() && !p.IsDeleted);
         }
 
-        string finalProductName = linkedProduct != null ? linkedProduct.Name : createDto.ProductName.Trim();
+        // If product doesn't exist in catalog yet, auto-create it so all items are 100% tracked in inventory
+        if (linkedProduct == null)
+        {
+            var defaultCat = await _context.Categories.FirstOrDefaultAsync(c => !c.IsDeleted);
+            if (defaultCat == null)
+            {
+                defaultCat = new Category
+                {
+                    Name = "أجهزة وعُهد عامة",
+                    Description = "تصنيف تلقائي لعهد البوصلة",
+                    InsertDate = DateTime.UtcNow,
+                    InsertUserCode = userCode
+                };
+                await _context.Categories.AddAsync(defaultCat);
+                await _context.SaveChangesAsync();
+            }
+
+            string autoSku = $"SKU-{Guid.NewGuid().ToString()[..6].ToUpper()}";
+            string autoBarcode = $"BC{DateTime.UtcNow:yyMMddHHmmss}{Random.Shared.Next(10, 99)}";
+
+            linkedProduct = new Product
+            {
+                Name = createDto.ProductName.Trim(),
+                SKU = autoSku,
+                Barcode = autoBarcode,
+                CategoryId = defaultCat.Id,
+                BranchId = branchId,
+                UnitPrice = 0,
+                PurchasePrice = 0,
+                InventoryType = InventoryType.Owned,
+                InsertDate = DateTime.UtcNow,
+                InsertUserCode = userCode
+            };
+            await _context.Products.AddAsync(linkedProduct);
+            await _context.SaveChangesAsync();
+
+            var inv = new Inventory
+            {
+                ProductId = linkedProduct.Id,
+                BranchId = branchId,
+                Quantity = 0,
+                MinStock = 5,
+                MaxStock = 100,
+                InsertDate = DateTime.UtcNow,
+                InsertUserCode = userCode
+            };
+            await _context.Inventories.AddAsync(inv);
+            await _context.SaveChangesAsync();
+        }
+
+        string finalProductName = linkedProduct.Name;
         string serialNum = string.IsNullOrWhiteSpace(createDto.SerialNumber) 
-            ? $"INIT-{DateTime.UtcNow:yyyyMMddHHmmss}-{Random.Shared.Next(100, 999)}" 
+            ? $"SN-{linkedProduct.SKU}-{DateTime.UtcNow:yyMMddHHmmss}-{Random.Shared.Next(100, 999)}" 
             : createDto.SerialNumber.Trim();
 
         var compass = new Compass
@@ -183,44 +307,46 @@ public class CompassController : BaseController<Compass, CompassDto, CompassCrea
 
         await _context.Compasses.AddAsync(compass);
 
-        // Step: Track physical device in ProductItems under the product (status Exited = custody, no warehouse deduction)
-        if (linkedProduct != null)
-        {
-            var existingProductItem = await _context.ProductItems.IgnoreQueryFilters()
-                .FirstOrDefaultAsync(pi => pi.SerialNumber == serialNum && pi.BranchId == branchId && !pi.IsDeleted);
+        // Step: Track physical device in ProductItems under the product (status Exited = custody)
+        var existingProductItem = await _context.ProductItems.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(pi => pi.SerialNumber == serialNum && pi.BranchId == branchId && !pi.IsDeleted);
 
-            if (existingProductItem == null)
+        if (existingProductItem == null)
+        {
+            var newProductItem = new ProductItem
             {
-                var newProductItem = new ProductItem
-                {
-                    ProductId = linkedProduct.Id,
-                    BranchId = branchId,
-                    SerialNumber = serialNum,
-                    QRCode = serialNum,
-                    Status = ProductItemStatus.Exited,
-                    RecipientName = compass.RecipientName,
-                    Place = dept.Name,
-                    ExitDate = compass.ExitDate,
-                    Notes = compass.Notes,
-                    InsertDate = DateTime.UtcNow,
-                    InsertUserCode = userCode
-                };
-                await _context.ProductItems.AddAsync(newProductItem);
-            }
-            else
-            {
-                existingProductItem.ProductId = linkedProduct.Id;
-                existingProductItem.Status = ProductItemStatus.Exited;
-                existingProductItem.RecipientName = compass.RecipientName;
-                existingProductItem.Place = dept.Name;
-                existingProductItem.ExitDate = compass.ExitDate;
-                existingProductItem.Notes = compass.Notes;
-                existingProductItem.LastUpdate = DateTime.UtcNow;
-                existingProductItem.UpdateUserCode = userCode;
-            }
+                ProductId = linkedProduct.Id,
+                BranchId = branchId,
+                SerialNumber = serialNum,
+                QRCode = serialNum,
+                Status = ProductItemStatus.Exited,
+                RecipientName = compass.RecipientName,
+                Place = dept.Name,
+                ExitDate = compass.ExitDate,
+                Notes = compass.Notes,
+                InsertDate = DateTime.UtcNow,
+                InsertUserCode = userCode
+            };
+            await _context.ProductItems.AddAsync(newProductItem);
+        }
+        else
+        {
+            existingProductItem.ProductId = linkedProduct.Id;
+            existingProductItem.Status = ProductItemStatus.Exited;
+            existingProductItem.RecipientName = compass.RecipientName;
+            existingProductItem.Place = dept.Name;
+            existingProductItem.ExitDate = compass.ExitDate;
+            existingProductItem.Notes = compass.Notes;
+            existingProductItem.LastUpdate = DateTime.UtcNow;
+            existingProductItem.UpdateUserCode = userCode;
         }
 
         await _context.SaveChangesAsync();
+
+        _repositoryWrapper.Products.InvalidateCache();
+        _repositoryWrapper.Inventories.InvalidateCache();
+        _repositoryWrapper.ProductItems.InvalidateCache();
+        _repositoryWrapper.Compasses.InvalidateCache();
 
         var resultDto = new CompassDto
         {
@@ -248,6 +374,24 @@ public class CompassController : BaseController<Compass, CompassDto, CompassCrea
             ReturnMessage = "تم تسجيل العهدة السابقة في البوصلة وتتبعها في المخزون بنجاح.",
             SingleObject = resultDto
         });
+    }
+
+    [HttpPut("{id}")]
+    public override async Task<IActionResult> Update([FromRoute] string id, [FromBody] CompassUpdateDto updateDto)
+    {
+        if (int.TryParse(id, out var intId))
+        {
+            var initialUpdateDto = new CompassInitialEntryUpdateDto
+            {
+                ProductName = updateDto.ProductName,
+                DepartmentId = updateDto.DepartmentId ?? 0,
+                SerialNumber = updateDto.SerialNumber,
+                RecipientName = updateDto.RecipientName,
+                Notes = updateDto.Notes
+            };
+            return await UpdateInitialEntry(intId, initialUpdateDto);
+        }
+        return BadRequest("معرف السجل غير صحيح.");
     }
 
     [HttpPut("initial-entry/{id:int}")]
@@ -414,15 +558,25 @@ public class CompassController : BaseController<Compass, CompassDto, CompassCrea
         });
     }
 
+    [HttpDelete("{id}")]
+    public override async Task<IActionResult> Delete([FromRoute] string id)
+    {
+        if (int.TryParse(id, out var intId))
+        {
+            return await DeleteInitialEntry(intId);
+        }
+        return BadRequest("معرف السجل غير صحيح.");
+    }
+
     [HttpDelete("initial-entry/{id:int}")]
     public async Task<IActionResult> DeleteInitialEntry([FromRoute] int id)
     {
-        if (!await CheckInitialEntryPermissionAsync())
+        if (!await CheckDeletePermissionAsync())
         {
             return StatusCode(StatusCodes.Status403Forbidden, new SingleObjectResponseModel
             {
                 IsDone = false,
-                ReturnMessage = "ليس لديك صلاحية لحذف سجلات العهدة السابقة (Compass.InitialEntry)."
+                ReturnMessage = "ليس لديك صلاحية لحذف سجلات العهدة من البوصلة (Compass.Delete)."
             });
         }
 
@@ -488,18 +642,16 @@ public class CompassController : BaseController<Compass, CompassDto, CompassCrea
         if (user == null)
             return false;
 
-        // SuperAdmin and Admin have full initial entry rights
-        if (user.Role == Entities.Models.Enums.UserRole.SuperAdmin || user.Role == Entities.Models.Enums.UserRole.Admin)
-            return true;
+        // Strictly check explicit permission for /compass/initial-entry (no role bypass so removing authority takes effect immediately)
+        var targetPages = await _context.Pages.IgnoreQueryFilters()
+            .Where(p => !p.IsDeleted && (p.Path == "/compass/initial-entry" || p.Path == "Compass.InitialEntry" || p.Path == "/ohda/compass/initial-entry"))
+            .Select(p => p.Id)
+            .ToListAsync();
 
-        // Check if there is an explicit initial-entry permission
-        var page = await _context.Pages.IgnoreQueryFilters()
-            .FirstOrDefaultAsync(p => !p.IsDeleted && (p.Path == "/compass/initial-entry" || p.Path == "Compass.InitialEntry" || p.Path == "/ohda/compass/initial-entry"));
-
-        if (page != null)
+        if (targetPages.Any())
         {
             var userPerm = await _context.UserPagePermissions.IgnoreQueryFilters()
-                .FirstOrDefaultAsync(up => up.UserId == userId && up.PageId == page.Id);
+                .FirstOrDefaultAsync(up => up.UserId == userId && targetPages.Contains(up.PageId));
 
             if (userPerm != null)
             {
@@ -509,20 +661,39 @@ public class CompassController : BaseController<Compass, CompassDto, CompassCrea
             if (user.UserGroupId.HasValue)
             {
                 var groupPerm = await _context.GroupPagePermissions.IgnoreQueryFilters()
-                    .FirstOrDefaultAsync(gp => gp.UserGroupId == user.UserGroupId.Value && gp.PageId == page.Id && !gp.IsDeleted);
+                    .FirstOrDefaultAsync(gp => gp.UserGroupId == user.UserGroupId.Value && targetPages.Contains(gp.PageId) && !gp.IsDeleted);
                 if (groupPerm != null)
                     return true;
             }
         }
 
-        // Check general Compass page permission
-        var compassPage = await _context.Pages.IgnoreQueryFilters()
-            .FirstOrDefaultAsync(p => !p.IsDeleted && (p.Path == "/compass" || p.Path == "/ohda/compass"));
+        return false;
+    }
 
-        if (compassPage != null)
+    private async Task<bool> CheckDeletePermissionAsync()
+    {
+        var claim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier) 
+            ?? User.FindFirst("sub") 
+            ?? User.FindFirst("id") 
+            ?? User.FindFirst("nameid");
+
+        if (claim == null || !long.TryParse(claim.Value, out var userId))
+            return false;
+
+        var user = await _context.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.MilitaryNumber == userId && !u.IsDeleted);
+        if (user == null)
+            return false;
+
+        // Check if user has /compass/delete or /compass/initial-entry permission (no role bypass)
+        var targetPages = await _context.Pages.IgnoreQueryFilters()
+            .Where(p => !p.IsDeleted && (p.Path == "/compass/delete" || p.Path == "/compass/initial-entry" || p.Path == "Compass.Delete" || p.Path == "Compass.InitialEntry" || p.Path == "/ohda/compass/delete" || p.Path == "/ohda/compass/initial-entry"))
+            .Select(p => p.Id)
+            .ToListAsync();
+
+        if (targetPages.Any())
         {
             var userPerm = await _context.UserPagePermissions.IgnoreQueryFilters()
-                .FirstOrDefaultAsync(up => up.UserId == userId && up.PageId == compassPage.Id);
+                .FirstOrDefaultAsync(up => up.UserId == userId && targetPages.Contains(up.PageId));
 
             if (userPerm != null)
             {
@@ -532,7 +703,7 @@ public class CompassController : BaseController<Compass, CompassDto, CompassCrea
             if (user.UserGroupId.HasValue)
             {
                 var groupPerm = await _context.GroupPagePermissions.IgnoreQueryFilters()
-                    .FirstOrDefaultAsync(gp => gp.UserGroupId == user.UserGroupId.Value && gp.PageId == compassPage.Id && !gp.IsDeleted);
+                    .FirstOrDefaultAsync(gp => gp.UserGroupId == user.UserGroupId.Value && targetPages.Contains(gp.PageId) && !gp.IsDeleted);
                 if (groupPerm != null)
                     return true;
             }

@@ -22,6 +22,7 @@ public class ProductItemDto : BaseDto
     public string? BinCode { get; set; }
 
     public string? RecipientName { get; set; }
+    public string? HolderName => RecipientName ?? Place;
     public string? Place { get; set; }
     public DateTime? ExitDate { get; set; }
     public int? ProductExitRequestId { get; set; }

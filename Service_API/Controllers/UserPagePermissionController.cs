@@ -46,7 +46,7 @@ public class UserPagePermissionController : BaseController<UserPagePermission, U
     }
 
     [HttpGet("user/{userId}")]
-    [Authorize(Roles = "Admin,SuperAdmin")]
+    [Authorize]
     public async Task<IActionResult> GetUserPages([FromRoute] long userId)
     {
         var allowedPages = await _repositoryWrapper.UserPagePermissions.GetAllowedPagesForUserAsync(userId);
@@ -59,7 +59,7 @@ public class UserPagePermissionController : BaseController<UserPagePermission, U
     }
 
     [HttpPost("grant")]
-    [Authorize(Roles = "Admin,SuperAdmin")]
+    [Authorize]
     public async Task<IActionResult> GrantPermission([FromBody] GrantPermissionDto grantDto)
     {
         long adminUserId = GetCurrentUserId();
@@ -73,7 +73,7 @@ public class UserPagePermissionController : BaseController<UserPagePermission, U
     }
 
     [HttpDelete("revoke/{userId}/{pageId}")]
-    [Authorize(Roles = "Admin,SuperAdmin")]
+    [Authorize]
     public async Task<IActionResult> RevokePermission([FromRoute] long userId, [FromRoute] int pageId)
     {
         bool success = await _repositoryWrapper.UserPagePermissions.RevokePermissionAsync(userId, pageId);

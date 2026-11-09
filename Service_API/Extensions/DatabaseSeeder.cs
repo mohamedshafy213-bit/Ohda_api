@@ -107,12 +107,14 @@ public static class DatabaseSeeder
                 new Page { Title = "طباعة الباركود والملصقات", Path = "/barcode-print", Icon = "Printer", SortOrder = 17 },
                 new Page { Title = "مركز التصديقات والاعتمادات", Path = "/acceptance", Icon = "CheckCheck", SortOrder = 18 },
                 new Page { Title = "الأصناف غير المتتبعة", Path = "/untracked-items", Icon = "MousePointerClick", SortOrder = 19 },
-                new Page { Title = "الحزم والتشكيلات", Path = "/packages", Icon = "PackageOpen", SortOrder = 20 }
+                new Page { Title = "الحزم والتشكيلات", Path = "/packages", Icon = "PackageOpen", SortOrder = 20 },
+                new Page { Title = "إدخال عهدة سابقة (Compass Initial Entry)", Path = "/compass/initial-entry", Icon = "PlusCircle", SortOrder = 21 },
+                new Page { Title = "صلاحية حذف من البوصلة (Compass Delete)", Path = "/compass/delete", Icon = "Trash2", SortOrder = 22 }
             };
 
-            // Clean up any erroneous / deprecated pages from Pages table
+            // Clean up deprecated / erroneous pages from Pages table
             var erroneousPages = await context.Pages.IgnoreQueryFilters()
-                .Where(p => !p.IsDeleted && (p.Path.Contains("untracked-products") || p.Path.Contains("compass/initial-entry")))
+                .Where(p => !p.IsDeleted && p.Path.Contains("untracked-products"))
                 .ToListAsync();
 
             if (erroneousPages.Any())
@@ -121,6 +123,20 @@ public static class DatabaseSeeder
                 {
                     ep.IsDeleted = true;
                     ep.DeleteDate = DateTime.UtcNow;
+                }
+                await context.SaveChangesAsync();
+            }
+
+            // Un-delete / revive compass permission pages if they were previously marked deleted
+            var revivedPages = await context.Pages.IgnoreQueryFilters()
+                .Where(p => p.IsDeleted && (p.Path == "/compass/initial-entry" || p.Path == "/compass/delete"))
+                .ToListAsync();
+            if (revivedPages.Any())
+            {
+                foreach (var rp in revivedPages)
+                {
+                    rp.IsDeleted = false;
+                    rp.DeleteDate = null;
                 }
                 await context.SaveChangesAsync();
             }

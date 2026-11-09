@@ -65,8 +65,13 @@ public class InventoryController : BaseController<Inventory, InventoryDto, Inven
         if (dto == null || dto.ProductId <= 0)
             return BadRequest(new SingleObjectResponseModel { IsDone = false, ReturnMessage = "بيانات التعديل غير صحيحة." });
 
+        int branchId = (_context.CurrentBranchId.HasValue && _context.CurrentBranchId.Value > 0)
+            ? _context.CurrentBranchId.Value
+            : (int.TryParse(User.FindFirst("branch_id")?.Value ?? User.FindFirst("BranchId")?.Value, out var bId) && bId > 0 ? bId : 1);
+        var userCode = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "StockAdjuster";
+
         var inventory = await _context.Inventories
-            .FirstOrDefaultAsync(i => i.ProductId == dto.ProductId && !i.IsDeleted);
+            .FirstOrDefaultAsync(i => i.ProductId == dto.ProductId && i.BranchId == branchId && !i.IsDeleted);
 
         int newQty = Math.Max(0, dto.NewQuantity);
 
@@ -75,9 +80,12 @@ public class InventoryController : BaseController<Inventory, InventoryDto, Inven
             inventory = new Inventory
             {
                 ProductId = dto.ProductId,
+                BranchId = branchId,
                 Quantity = newQty,
                 MinStock = 5,
-                MaxStock = 500
+                MaxStock = 500,
+                InsertDate = DateTime.UtcNow,
+                InsertUserCode = userCode
             };
             await _context.Inventories.AddAsync(inventory);
         }
@@ -85,19 +93,64 @@ public class InventoryController : BaseController<Inventory, InventoryDto, Inven
         {
             inventory.Quantity = newQty;
             inventory.LastUpdate = DateTime.UtcNow;
+            inventory.UpdateUserCode = userCode;
+        }
+
+        // Sync ProductItems so serialized items match warehouse quantity
+        int currentInStockCount = await _context.ProductItems
+            .CountAsync(pi => pi.ProductId == dto.ProductId && pi.BranchId == branchId && pi.Status == ProductItemStatus.InStock && !pi.IsDeleted);
+
+        if (newQty > currentInStockCount)
+        {
+            var product = await _context.Products.FirstOrDefaultAsync(p => p.Id == dto.ProductId && !p.IsDeleted);
+            string sku = product?.SKU ?? "ITEM";
+            int missing = newQty - currentInStockCount;
+            for (int m = 0; m < missing; m++)
+            {
+                string sn = $"SN-{sku}-{currentInStockCount + m + 1}-{Guid.NewGuid().ToString()[..6].ToUpper()}";
+                await _context.ProductItems.AddAsync(new ProductItem
+                {
+                    ProductId = dto.ProductId,
+                    BranchId = branchId,
+                    SerialNumber = sn,
+                    QRCode = sn,
+                    Status = ProductItemStatus.InStock,
+                    InsertDate = DateTime.UtcNow,
+                    InsertUserCode = userCode
+                });
+            }
+        }
+        else if (newQty < currentInStockCount)
+        {
+            int toRemove = currentInStockCount - newQty;
+            var excessItems = await _context.ProductItems
+                .Where(pi => pi.ProductId == dto.ProductId && pi.BranchId == branchId && pi.Status == ProductItemStatus.InStock && !pi.IsDeleted)
+                .OrderByDescending(pi => pi.Id)
+                .Take(toRemove)
+                .ToListAsync();
+
+            foreach (var item in excessItems)
+            {
+                item.IsDeleted = true;
+                item.DeleteDate = DateTime.UtcNow;
+                item.DeleteUserCode = userCode;
+            }
         }
 
         await _context.SaveChangesAsync();
 
+        _repositoryWrapper.Inventories.InvalidateCache();
+        _repositoryWrapper.ProductItems.InvalidateCache();
+
         return Ok(new SingleObjectResponseModel
         {
             IsDone = true,
-            ReturnMessage = $"تم تحديث رصيد المخزون إلى {newQty} بنجاح."
+            ReturnMessage = $"تم تحديث رصيد المخزون إلى {newQty} ومزامنة الأرقام المسلسلة بنجاح."
         });
     }
 
     [HttpPost("scan")]
-    [Authorize(Roles = "Admin, Employee")]
+    [Authorize]
     public async Task<IActionResult> ScanBarcode([FromBody] ScanRequestDto scanRequest)
     {
         if (!ModelState.IsValid)
@@ -183,7 +236,7 @@ public class InventoryController : BaseController<Inventory, InventoryDto, Inven
     }
 
     [HttpPost("import/pdf")]
-    [Authorize(Roles = "Admin, Manager")]
+    [Authorize]
     public async Task<IActionResult> ImportPdf(IFormFile file)
     {
         if (file == null || file.Length == 0)

@@ -37,7 +37,7 @@ public class GroupPagePermissionController : BaseController<GroupPagePermission,
     }
 
     [HttpPost("grant")]
-    [Authorize(Roles = "Admin,SuperAdmin")]
+    [Authorize]
     public async Task<IActionResult> GrantPermission([FromBody] GrantGroupPermissionDto grantDto)
     {
         long grantedByUserId = GetCurrentUserId();
@@ -65,7 +65,7 @@ public class GroupPagePermissionController : BaseController<GroupPagePermission,
     }
 
     [HttpDelete("revoke/{groupId}/{pageId}")]
-    [Authorize(Roles = "Admin,SuperAdmin")]
+    [Authorize]
     public async Task<IActionResult> RevokePermission([FromRoute] int groupId, [FromRoute] int pageId)
     {
         var success = await _repositoryWrapper.GroupPagePermissions.RevokePermissionAsync(groupId, pageId);
@@ -87,7 +87,7 @@ public class GroupPagePermissionController : BaseController<GroupPagePermission,
     }
 
     [HttpPost("grant-all/{groupId}")]
-    [Authorize(Roles = "Admin,SuperAdmin")]
+    [Authorize]
     public async Task<IActionResult> GrantAllPages([FromRoute] int groupId)
     {
         long grantedByUserId = GetCurrentUserId();
