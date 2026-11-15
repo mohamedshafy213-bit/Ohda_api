@@ -215,9 +215,14 @@ public class CompassController : BaseController<Compass, CompassDto, CompassCrea
             ?? "Admin";
 
         var branchClaim = User.FindFirst("branch_id")?.Value ?? User.FindFirst("BranchId")?.Value;
+        bool isSuperAdmin = User.IsInRole("SuperAdmin");
         int branchId = (_context.CurrentBranchId.HasValue && _context.CurrentBranchId.Value > 0)
             ? _context.CurrentBranchId.Value
-            : (createDto.BranchId ?? (int.TryParse(branchClaim, out var bId) && bId > 0 ? bId : (dept.BranchId > 0 ? dept.BranchId : 1)));
+            : (int.TryParse(branchClaim, out var bId) && bId > 0 
+                ? bId 
+                : (isSuperAdmin && createDto.BranchId.HasValue && createDto.BranchId.Value > 0 
+                    ? createDto.BranchId.Value 
+                    : (dept.BranchId > 0 ? dept.BranchId : 1)));
 
         // Lookup product if ProductId was provided or by name match for tracking
         Product? linkedProduct = null;

@@ -202,16 +202,13 @@ public class ExcelController : ControllerBase
         // Headers with * for required fields
         worksheet.Cell(1, 1).Value = "اسم الصنف / Product Name *";
         worksheet.Cell(1, 2).Value = "التصنيف / Category Name *";
-        worksheet.Cell(1, 3).Value = "الرقم المسلسل للجهاز / Device Serial (S/N) (يفصل بفاصلة عند تعدد الأجهزة)";
+        worksheet.Cell(1, 3).Value = "الرقم المسلسل للجهاز / Device Serial (S/N)";
         worksheet.Cell(1, 4).Value = "رمز الصنف / SKU";
         worksheet.Cell(1, 5).Value = "الباركود / Barcode";
         worksheet.Cell(1, 6).Value = "اسم المورد / Supplier Name";
         worksheet.Cell(1, 7).Value = "سعر الشراء / Purchase Price";
         worksheet.Cell(1, 8).Value = "سعر البيع / Unit Price";
-        worksheet.Cell(1, 9).Value = "نوع المخزون / Inventory Type (Purchased/Owned)";
-        worksheet.Cell(1, 10).Value = "الكمية / Quantity";
-        worksheet.Cell(1, 11).Value = "الحد الأدنى / Min Stock";
-        worksheet.Cell(1, 12).Value = "الحد الأقصى / Max Stock";
+        worksheet.Cell(1, 9).Value = "نوع المخزون / Inventory Type (1 = مشتريات / 2 = مملوك)";
 
         var headerRow = worksheet.Row(1);
         headerRow.Style.Font.Bold = true;
@@ -221,50 +218,52 @@ public class ExcelController : ControllerBase
         headerRow.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
         headerRow.Height = 32;
 
-        // Sample Row 1: Desktop PC with Device Serial Number
-        worksheet.Cell(2, 1).Value = "جهاز حاسب آلي مكتبي Dell OptiPlex 7090";
-        worksheet.Cell(2, 2).Value = "أجهزة حاسب آلي";
-        worksheet.Cell(2, 3).Value = "SN-DELL-884920";
-        worksheet.Cell(2, 4).Value = "DELL-OPT-7090";
-        worksheet.Cell(2, 5).Value = "6281001001";
-        worksheet.Cell(2, 6).Value = "شركة تقنية النظم";
-        worksheet.Cell(2, 7).Value = 3500;
-        worksheet.Cell(2, 8).Value = 4200;
-        worksheet.Cell(2, 9).Value = "Purchased";
-        worksheet.Cell(2, 10).Value = 1;
-        worksheet.Cell(2, 11).Value = 5;
-        worksheet.Cell(2, 12).Value = 50;
+        // Sample Row 1: Siemens Device (First unit)
+        worksheet.Cell(2, 1).Value = "Siemens S7-1200 PLC";
+        worksheet.Cell(2, 2).Value = "أجهزة ومعدات";
+        worksheet.Cell(2, 3).Value = "SN-SM-9001";
+        worksheet.Cell(2, 4).Value = "SIEMENS-S7-1200";
+        worksheet.Cell(2, 5).Value = "6281009001";
+        worksheet.Cell(2, 6).Value = "شركة سيمنز التقنية";
+        worksheet.Cell(2, 7).Value = 2500;
+        worksheet.Cell(2, 8).Value = 3000;
+        worksheet.Cell(2, 9).Value = 1;
 
-        // Sample Row 2: Monitor with Device Serial Number
-        worksheet.Cell(3, 1).Value = "شاشة عرض HP 24 بوصة FHD";
-        worksheet.Cell(3, 2).Value = "شاشات وعوارض";
-        worksheet.Cell(3, 3).Value = "SN-HP-24-9912";
-        worksheet.Cell(3, 4).Value = "HP-ED-24";
-        worksheet.Cell(3, 5).Value = "6281001002";
-        worksheet.Cell(3, 6).Value = "شركة تقنية النظم";
-        worksheet.Cell(3, 7).Value = 750;
-        worksheet.Cell(3, 8).Value = 900;
-        worksheet.Cell(3, 9).Value = "Purchased";
-        worksheet.Cell(3, 10).Value = 1;
-        worksheet.Cell(3, 11).Value = 5;
-        worksheet.Cell(3, 12).Value = 50;
+        // Sample Row 2: Same Siemens Device (Second unit with different serial)
+        worksheet.Cell(3, 1).Value = "Siemens S7-1200 PLC";
+        worksheet.Cell(3, 2).Value = "أجهزة ومعدات";
+        worksheet.Cell(3, 3).Value = "SN-SM-9002";
+        worksheet.Cell(3, 4).Value = "SIEMENS-S7-1200";
+        worksheet.Cell(3, 5).Value = "6281009001";
+        worksheet.Cell(3, 6).Value = "شركة سيمنز التقنية";
+        worksheet.Cell(3, 7).Value = 2500;
+        worksheet.Cell(3, 8).Value = 3000;
+        worksheet.Cell(3, 9).Value = 1;
 
-        // Sample Row 3: Laptops with 3 distinct comma-separated serial numbers
-        worksheet.Cell(4, 1).Value = "كمبيوتر محمول Lenovo ThinkPad L14";
-        worksheet.Cell(4, 2).Value = "أجهزة حاسب آلي";
-        worksheet.Cell(4, 3).Value = "SN-LEN-881, SN-LEN-882, SN-LEN-883";
-        worksheet.Cell(4, 4).Value = "LEN-TP-L14";
-        worksheet.Cell(4, 5).Value = "6281001003";
-        worksheet.Cell(4, 6).Value = "شركة تقنية النظم";
-        worksheet.Cell(4, 7).Value = 2800;
-        worksheet.Cell(4, 8).Value = 3300;
-        worksheet.Cell(4, 9).Value = "Purchased";
-        worksheet.Cell(4, 10).Value = 3;
-        worksheet.Cell(4, 11).Value = 5;
-        worksheet.Cell(4, 12).Value = 50;
+        // Sample Row 3: Same Siemens Device (Third unit with different serial)
+        worksheet.Cell(4, 1).Value = "Siemens S7-1200 PLC";
+        worksheet.Cell(4, 2).Value = "أجهزة ومعدات";
+        worksheet.Cell(4, 3).Value = "SN-SM-9003";
+        worksheet.Cell(4, 4).Value = "SIEMENS-S7-1200";
+        worksheet.Cell(4, 5).Value = "6281009001";
+        worksheet.Cell(4, 6).Value = "شركة سيمنز التقنية";
+        worksheet.Cell(4, 7).Value = 2500;
+        worksheet.Cell(4, 8).Value = 3000;
+        worksheet.Cell(4, 9).Value = 1;
+
+        // Sample Row 4: Another device (Fixed Asset / Owned = 2)
+        worksheet.Cell(5, 1).Value = "جهاز حاسب آلي مكتبي Dell OptiPlex 7090";
+        worksheet.Cell(5, 2).Value = "أجهزة حاسب آلي";
+        worksheet.Cell(5, 3).Value = "SN-DELL-884920";
+        worksheet.Cell(5, 4).Value = "DELL-OPT-7090";
+        worksheet.Cell(5, 5).Value = "6281001001";
+        worksheet.Cell(5, 6).Value = "شركة تقنية النظم";
+        worksheet.Cell(5, 7).Value = 3500;
+        worksheet.Cell(5, 8).Value = 4200;
+        worksheet.Cell(5, 9).Value = 2;
 
         // Light background for sample rows to distinguish them
-        var sampleRange = worksheet.Range(2, 1, 4, 12);
+        var sampleRange = worksheet.Range(2, 1, 5, 9);
         sampleRange.Style.Fill.BackgroundColor = XLColor.FromArgb(245, 247, 250);
         sampleRange.Style.Font.SetFontColor(XLColor.FromArgb(70, 80, 95));
 
@@ -324,22 +323,22 @@ public class ExcelController : ControllerBase
 
         var headerRow = rows[headerRowIndex];
         int nameCol = 1, catCol = 2, serialCol = 3, skuCol = 4, barcodeCol = 5;
-        int supplierCol = 6, purchaseCol = 7, unitCol = 8, typeCol = 9, qtyCol = 10;
-        int minCol = 11, maxCol = 12;
+        int supplierCol = 6, purchaseCol = 7, unitCol = 8, typeCol = 9;
+        int qtyCol = 0, minCol = 0, maxCol = 0;
 
-        int totalColumns = headerRow.LastCellUsed()?.Address.ColumnNumber ?? 12;
+        int totalColumns = headerRow.LastCellUsed()?.Address.ColumnNumber ?? 9;
         for (int c = 1; c <= totalColumns; c++)
         {
             string h = GetCellString(headerRow.Cell(c)).ToLower();
-            if (h.Contains("اسم الصنف") || h.Contains("product name") || h.Contains("اسم المنتج") || h.Contains("item name") || h.Contains("اسم الجهاز")) nameCol = c;
+            if (h.Contains("اسم الصنف") || h.Contains("product name") || h.Contains("اسم المنتج") || h.Contains("item name") || h.Contains("اسم الجهاز") || h == "اسم") nameCol = c;
             else if (h.Contains("تصنيف") || h.Contains("category") || h.Contains("فئة") || h.Contains("الفئة")) catCol = c;
             else if (h.Contains("مسلسل") || h.Contains("تسلسل") || h.Contains("سيريال") || h.Contains("serial") || h.Contains("s/n") || h.Trim() == "sn" || h.Contains("رقم الجهاز") || h.Contains("أرقام مسلسلة")) serialCol = c;
             else if (h.Contains("sku") || h.Contains("رمز") || h.Contains("كود")) skuCol = c;
             else if (h.Contains("باركود") || h.Contains("barcode") || h.Contains("upc")) barcodeCol = c;
             else if (h.Contains("مورد") || h.Contains("supplier")) supplierCol = c;
             else if (h.Contains("شراء") || h.Contains("purchase") || h.Contains("cost")) purchaseCol = c;
-            else if (h.Contains("بيع") || h.Contains("unit price") || h.Contains("سعر الوحدة")) unitCol = c;
-            else if (h.Contains("نوع") || h.Contains("inventory type")) typeCol = c;
+            else if (h.Contains("بيع") || h.Contains("unit price") || h.Contains("سعر الوحدة") || h.Contains("سعر")) unitCol = c;
+            else if (h.Contains("نوع") || h.Contains("inventory type") || h == "type") typeCol = c;
             else if (h.Contains("كمية") || h.Contains("كميه") || h.Contains("رصيد") || h.Contains("quantity") || h.Contains("qty")) qtyCol = c;
             else if (h.Contains("أدنى") || h.Contains("min")) minCol = c;
             else if (h.Contains("أقصى") || h.Contains("max")) maxCol = c;
@@ -358,48 +357,67 @@ public class ExcelController : ControllerBase
                 if (string.IsNullOrWhiteSpace(name) || name.Contains("Product Name") || name.Contains("اسم الصنف"))
                     continue;
 
-                string categoryName = GetCellString(row.Cell(catCol));
-                string deviceSerial = GetCellString(row.Cell(serialCol));
-                string sku = GetCellString(row.Cell(skuCol));
-                string barcode = GetCellString(row.Cell(barcodeCol));
-                string supplierName = GetCellString(row.Cell(supplierCol));
-
-                // Auto-generate SKU if not provided
-                if (string.IsNullOrWhiteSpace(sku))
-                {
-                    sku = $"SKU-{Guid.NewGuid().ToString()[..6].ToUpper()}";
-                }
-
-                // Auto-generate Barcode if not provided
-                if (string.IsNullOrWhiteSpace(barcode))
-                {
-                    barcode = $"BC{DateTime.UtcNow:yyMMddHHmmss}{Random.Shared.Next(10, 99)}";
-                }
+                string categoryName = catCol > 0 ? GetCellString(row.Cell(catCol)) : string.Empty;
+                string deviceSerial = serialCol > 0 ? GetCellString(row.Cell(serialCol)) : string.Empty;
+                string sku = skuCol > 0 ? GetCellString(row.Cell(skuCol)) : string.Empty;
+                string barcode = barcodeCol > 0 ? GetCellString(row.Cell(barcodeCol)) : string.Empty;
+                string supplierName = supplierCol > 0 ? GetCellString(row.Cell(supplierCol)) : string.Empty;
 
                 decimal purchasePrice = 0;
-                string pStr = GetCellString(row.Cell(purchaseCol));
-                if (decimal.TryParse(pStr, out var pp) && pp >= 0) purchasePrice = pp;
+                if (purchaseCol > 0)
+                {
+                    string pStr = GetCellString(row.Cell(purchaseCol));
+                    if (decimal.TryParse(pStr, out var pp) && pp >= 0) purchasePrice = pp;
+                }
 
                 decimal unitPrice = 0;
-                string uStr = GetCellString(row.Cell(unitCol));
-                if (decimal.TryParse(uStr, out var up) && up >= 0) unitPrice = up;
+                if (unitCol > 0)
+                {
+                    string uStr = GetCellString(row.Cell(unitCol));
+                    if (decimal.TryParse(uStr, out var up) && up >= 0) unitPrice = up;
+                }
 
-                string invTypeStr = GetCellString(row.Cell(typeCol));
-                var inventoryType = invTypeStr.Equals("Owned", StringComparison.OrdinalIgnoreCase)
-                    ? InventoryType.Owned
-                    : InventoryType.Purchased;
+                // Inventory Type: 1 = Purchased (مشتريات), 2 = Owned (أصل ثابت / عهدة)
+                var inventoryType = InventoryType.Purchased;
+                if (typeCol > 0)
+                {
+                    string invTypeStr = GetCellString(row.Cell(typeCol)).Trim().ToLower();
+                    if (invTypeStr == "2" || invTypeStr.Contains("owned") || invTypeStr.Contains("أصل") || invTypeStr.Contains("مملوك") || invTypeStr.Contains("ثابت"))
+                    {
+                        inventoryType = InventoryType.Owned;
+                    }
+                }
 
-                int initialQty = 1;
-                string qStr = GetCellString(row.Cell(qtyCol));
-                if (int.TryParse(qStr, out var iq) && iq > 0) initialQty = iq;
-
+                // Default min stock to 5 and max stock to 100 as requested
                 int minStock = 5;
-                string minStr = GetCellString(row.Cell(minCol));
-                if (int.TryParse(minStr, out var ms) && ms >= 0) minStock = ms;
+                if (minCol > 0)
+                {
+                    string minStr = GetCellString(row.Cell(minCol));
+                    if (int.TryParse(minStr, out var ms) && ms >= 0) minStock = ms;
+                }
 
                 int maxStock = 100;
-                string maxStr = GetCellString(row.Cell(maxCol));
-                if (int.TryParse(maxStr, out var xs) && xs > 0) maxStock = xs;
+                if (maxCol > 0)
+                {
+                    string maxStr = GetCellString(row.Cell(maxCol));
+                    if (int.TryParse(maxStr, out var xs) && xs > 0) maxStock = xs;
+                }
+
+                // Parse device serials from row (supports comma, semicolon, newline, pipe)
+                var rawSerials = deviceSerial
+                    .Split(new[] { ',', ';', '\n', '\r', '|' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(s => s.Trim())
+                    .Where(s => !string.IsNullOrWhiteSpace(s))
+                    .Distinct()
+                    .ToList();
+
+                // Quantity added by this row: determined by serial numbers or 1 per row
+                int rowQty = Math.Max(1, rawSerials.Count);
+                if (qtyCol > 0)
+                {
+                    string qStr = GetCellString(row.Cell(qtyCol));
+                    if (int.TryParse(qStr, out var iq) && iq > rowQty) rowQty = iq;
+                }
 
                 // 1. Resolve Category (find or auto-create directly in database)
                 int categoryId;
@@ -465,13 +483,26 @@ public class ExcelController : ControllerBase
                     supplierId = sup.Id;
                 }
 
-                // 3. Resolve Product: Check by Barcode or SKU
+                // 3. Resolve Product: Check by Barcode, SKU, or Name in the active branch
                 var existing = await _context.Products.IgnoreQueryFilters()
-                    .FirstOrDefaultAsync(p => (p.Barcode == barcode || (p.SKU == sku && p.BranchId == branchId)) && !p.IsDeleted);
+                    .FirstOrDefaultAsync(p => !p.IsDeleted && p.BranchId == branchId && (
+                        (!string.IsNullOrWhiteSpace(barcode) && p.Barcode == barcode) ||
+                        (!string.IsNullOrWhiteSpace(sku) && p.SKU == sku) ||
+                        p.Name.Trim().ToLower() == name.Trim().ToLower()
+                    ));
 
                 int productId;
                 if (existing == null)
                 {
+                    if (string.IsNullOrWhiteSpace(sku))
+                    {
+                        sku = $"SKU-{Guid.NewGuid().ToString()[..6].ToUpper()}";
+                    }
+                    if (string.IsNullOrWhiteSpace(barcode))
+                    {
+                        barcode = $"BC{DateTime.UtcNow:yyMMddHHmmss}{Random.Shared.Next(10, 99)}";
+                    }
+
                     var product = new Product
                     {
                         Name = name,
@@ -495,9 +526,9 @@ public class ExcelController : ControllerBase
                 else
                 {
                     productId = existing.Id;
-                    existing.Name = name;
-                    existing.CategoryId = categoryId;
-                    if (supplierId.HasValue) existing.SupplierId = supplierId;
+                    sku = existing.SKU;
+                    barcode = existing.Barcode;
+                    if (supplierId.HasValue && !existing.SupplierId.HasValue) existing.SupplierId = supplierId;
                     if (unitPrice > 0) existing.UnitPrice = unitPrice;
                     if (purchasePrice > 0) existing.PurchasePrice = purchasePrice;
                     existing.LastUpdate = DateTime.UtcNow;
@@ -517,7 +548,7 @@ public class ExcelController : ControllerBase
                     {
                         ProductId = productId,
                         BranchId = branchId,
-                        Quantity = initialQty,
+                        Quantity = rowQty,
                         MinStock = minStock,
                         MaxStock = maxStock,
                         InsertDate = DateTime.UtcNow,
@@ -527,32 +558,17 @@ public class ExcelController : ControllerBase
                 }
                 else
                 {
-                    inventory.Quantity += initialQty;
+                    inventory.Quantity += rowQty;
                     inventory.LastUpdate = DateTime.UtcNow;
                     inventory.UpdateUserCode = userCode;
                 }
                 await _context.SaveChangesAsync();
 
                 // 5. Track Serialized Device(s) in ProductItems
-                var rawSerials = deviceSerial
-                    .Split(new[] { ',', ';', '\n', '\r', '|' }, StringSplitOptions.RemoveEmptyEntries)
-                    .Select(s => s.Trim())
-                    .Where(s => !string.IsNullOrWhiteSpace(s))
-                    .Distinct()
-                    .ToList();
-
-                // If user provided more serial numbers than initialQty, expand quantity to match
-                if (rawSerials.Count > initialQty)
-                {
-                    inventory.Quantity += (rawSerials.Count - initialQty);
-                    initialQty = rawSerials.Count;
-                    await _context.SaveChangesAsync();
-                }
-
                 int existingItemsCount = await _context.ProductItems
                     .CountAsync(pi => pi.ProductId == productId && pi.BranchId == branchId && !pi.IsDeleted);
 
-                for (int k = 0; k < initialQty; k++)
+                for (int k = 0; k < rowQty; k++)
                 {
                     string sn = (k < rawSerials.Count)
                         ? rawSerials[k]
