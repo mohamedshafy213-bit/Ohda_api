@@ -46,6 +46,9 @@ namespace Contracts.DTOs.ProductExitRequest
         public List<ProductExitRequestItemDto> Items { get; set; } = new();
         public RequestStatus Status { get; set; }
 
+        public long? RecipientMilitaryNumber { get; set; }
+        public MilitaryRank? RecipientRank { get; set; }
+        public string? RecipientRankName { get; set; }
         public string RecipientName { get; set; } = string.Empty;
         public int? DepartmentId { get; set; }
         public string? DepartmentName { get; set; }
@@ -80,6 +83,8 @@ namespace Contracts.DTOs.ProductExitRequest
     public class ProductExitCreateDto : BaseCreateDto
     {
         public List<ProductExitRequestItemCreateDto> Items { get; set; } = new();
+        public long? RecipientMilitaryNumber { get; set; }
+        public MilitaryRank? RecipientRank { get; set; }
         public string RecipientName { get; set; } = string.Empty;
         public int? DepartmentId { get; set; }
         public string? Purpose { get; set; }
@@ -91,6 +96,8 @@ namespace Contracts.DTOs.ProductExitRequest
     {
         public List<ProductExitRequestItemUpdateDto> Items { get; set; } = new();
         public RequestStatus Status { get; set; }
+        public long? RecipientMilitaryNumber { get; set; }
+        public MilitaryRank? RecipientRank { get; set; }
         public string RecipientName { get; set; } = string.Empty;
         public int? DepartmentId { get; set; }
         public string? Purpose { get; set; }

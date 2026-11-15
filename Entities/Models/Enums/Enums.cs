@@ -67,3 +67,22 @@ public enum ProductItemStatus
     InMaintenance = 4
 }
 
+public enum MilitaryRank
+{
+    Soldier = 1,              // جندي (مجند)
+    Corporal = 2,             // عريف
+    Sergeant = 3,             // رقيب
+    FirstSergeant = 4,        // رقيب أول
+    WarrantOfficer = 5,       // مساعد
+    SeniorWarrantOfficer = 6, // مساعد أول
+    Cadet = 7,                // طالب
+    Lieutenant = 8,           // ملازم
+    FirstLieutenant = 9,      // ملازم أول
+    Captain = 10,             // نقيب
+    Major = 11,               // رائد
+    LieutenantColonel = 12,   // مقدم
+    Colonel = 13,             // عقيد
+    BrigadierGeneral = 14,    // عميد
+    MajorGeneral = 15         // لواء
+}
+

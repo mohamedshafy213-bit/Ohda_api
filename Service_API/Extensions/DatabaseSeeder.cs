@@ -17,13 +17,33 @@ public static class DatabaseSeeder
         try
         {
             // 1. PostgreSQL specific sequence alignment (skipped for SQL Server)
-            if (context.Database.IsNpgsql())
+            if (context.Database.IsSqlServer())
+            {
+                try
+                {
+                    await context.Database.ExecuteSqlRawAsync(@"
+                        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Users') AND name = 'Rank')
+                            ALTER TABLE Users ADD [Rank] INT NULL;
+                        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('ProductExitRequests') AND name = 'RecipientMilitaryNumber')
+                            ALTER TABLE ProductExitRequests ADD [RecipientMilitaryNumber] BIGINT NULL;
+                        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('ProductExitRequests') AND name = 'RecipientRank')
+                            ALTER TABLE ProductExitRequests ADD [RecipientRank] INT NULL;
+                    ");
+                }
+                catch { /* ignore */ }
+            }
+            else if (context.Database.IsNpgsql())
             {
                 try
                 {
                     await context.Database.ExecuteSqlRawAsync(
                         "SELECT setval(pg_get_serial_sequence('branches', 'id'), COALESCE((SELECT MAX(id) FROM branches), 1));"
                     );
+                    await context.Database.ExecuteSqlRawAsync(@"
+                        ALTER TABLE ""Users"" ADD COLUMN IF NOT EXISTS ""Rank"" integer NULL;
+                        ALTER TABLE ""ProductExitRequests"" ADD COLUMN IF NOT EXISTS ""RecipientMilitaryNumber"" bigint NULL;
+                        ALTER TABLE ""ProductExitRequests"" ADD COLUMN IF NOT EXISTS ""RecipientRank"" integer NULL;
+                    ");
                 }
                 catch { /* ignore */ }
             }

@@ -52,3 +52,14 @@ public class ProductItemUpdateDto : BaseUpdateDto
     public int? ProductExitRequestId { get; set; }
     public string? Notes { get; set; }
 }
+
+public class AddProductSerialsRequest
+{
+    public int ProductId { get; set; }
+    public List<string> SerialNumbers { get; set; } = new();
+}
+
+public class UpdateProductItemSerialRequest
+{
+    public string SerialNumber { get; set; } = string.Empty;
+}

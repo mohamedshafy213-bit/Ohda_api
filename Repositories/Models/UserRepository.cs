@@ -70,7 +70,7 @@ public class UserRepository
             query = query.Where(u => u.BranchId == branchId.Value);
         }
 
-        return await query
+        var users = await query
             .OrderBy(u => u.Role)
             .ThenBy(u => u.MilitaryNumber)
             .Select(u => new UserDto
@@ -79,6 +79,7 @@ public class UserRepository
                 Username = u.Username,
                 Email = u.Email,
                 Role = u.Role,
+                Rank = u.Rank,
                 PersonName = u.PersonName,
                 UserGroupId = u.UserGroupId,
                 UserGroupName = u.UserGroup != null ? u.UserGroup.Name : null,
@@ -87,12 +88,19 @@ public class UserRepository
                 MustChangePassword = u.MustChangePassword
             })
             .ToListAsync();
+
+        foreach (var u in users)
+        {
+            u.RankName = u.Rank?.ToString();
+        }
+
+        return users;
     }
 
     public async Task<UserLoginResult?> GetUserForLoginAsync(string username)
     {
         var cleanUsername = username.Trim();
-        return await RepositoryContext.Users
+        var result = await RepositoryContext.Users
             .IgnoreQueryFilters()
             .AsNoTracking()
             .Where(u => u.Username == cleanUsername && !u.IsDeleted)
@@ -103,6 +111,7 @@ public class UserRepository
                 Email = u.Email,
                 PasswordHash = u.PasswordHash,
                 Role = u.Role,
+                Rank = u.Rank,
                 PersonName = u.PersonName,
                 UserGroupId = u.UserGroupId,
                 UserGroupName = u.UserGroup != null ? u.UserGroup.Name : null,
@@ -113,6 +122,13 @@ public class UserRepository
                 MustChangePassword = u.MustChangePassword
             })
             .FirstOrDefaultAsync();
+
+        if (result != null)
+        {
+            result.RankName = result.Rank?.ToString();
+        }
+
+        return result;
     }
 
     public async Task<bool> ExistsAsync(long militaryNumber)
@@ -138,7 +154,7 @@ public class UserRepository
 
     public async Task<UserDto?> GetUserDtoByIdAsync(long militaryNumber)
     {
-        return await RepositoryContext.Users
+        var dto = await RepositoryContext.Users
             .IgnoreQueryFilters()
             .AsNoTracking()
             .Where(u => u.MilitaryNumber == militaryNumber && !u.IsDeleted)
@@ -148,6 +164,7 @@ public class UserRepository
                 Username = u.Username,
                 Email = u.Email,
                 Role = u.Role,
+                Rank = u.Rank,
                 PersonName = u.PersonName,
                 UserGroupId = u.UserGroupId,
                 UserGroupName = u.UserGroup != null ? u.UserGroup.Name : null,
@@ -156,5 +173,12 @@ public class UserRepository
                 MustChangePassword = u.MustChangePassword
             })
             .FirstOrDefaultAsync();
+
+        if (dto != null)
+        {
+            dto.RankName = dto.Rank?.ToString();
+        }
+
+        return dto;
     }
 }

@@ -8,6 +8,8 @@ public class ProductExitRequest : TenantBaseTable
     public ICollection<ProductExitRequestItem> Items { get; set; } = new List<ProductExitRequestItem>();
     public RequestStatus Status { get; set; } = RequestStatus.Pending;
 
+    public long? RecipientMilitaryNumber { get; set; }
+    public MilitaryRank? RecipientRank { get; set; }
     public string RecipientName { get; set; } = string.Empty;
     public int? DepartmentId { get; set; }
     public Department? Department { get; set; }

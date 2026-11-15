@@ -17,6 +17,7 @@ public class User : ISoftDelete
     public string? Email { get; set; }
     public string PasswordHash { get; set; } = string.Empty;
     public UserRole Role { get; set; } = UserRole.Employee;
+    public MilitaryRank? Rank { get; set; }
     public string? PersonName { get; set; }
 
     public int? UserGroupId { get; set; }

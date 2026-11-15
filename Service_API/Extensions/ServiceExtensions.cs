@@ -29,6 +29,7 @@ public static class ServiceExtensions
 
         TypeAdapterConfig<Entities.Models.Tables.User, Contracts.DTOs.User.UserDto>
             .NewConfig()
+            .Map(dest => dest.RankName, src => src.Rank != null ? src.Rank.ToString() : null)
             .Map(dest => dest.UserGroupName, src => src.UserGroup != null ? src.UserGroup.Name : null);
 
         TypeAdapterConfig<Entities.Models.Tables.ApprovalConfig, Contracts.DTOs.ApprovalConfig.ApprovalConfigDto>
@@ -37,6 +38,7 @@ public static class ServiceExtensions
 
         TypeAdapterConfig<Entities.Models.Tables.ProductExitRequest, Contracts.DTOs.ProductExitRequest.ProductExitRequestDto>
             .NewConfig()
+            .Map(dest => dest.RecipientRankName, src => src.RecipientRank != null ? src.RecipientRank.ToString() : null)
             .Map(dest => dest.DepartmentName, src => src.Department != null ? src.Department.Name : null)
             .Map(dest => dest.RequestedByUsername, src => src.RequestedByUser != null ? src.RequestedByUser.Username : null)
             .Map(dest => dest.RequestedByPersonName, src => src.RequestedByUser != null ? (src.RequestedByUser.PersonName ?? src.RequestedByUser.Username) : null)

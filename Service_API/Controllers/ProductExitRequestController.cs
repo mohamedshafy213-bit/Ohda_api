@@ -185,6 +185,8 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
                     var item = await _repositoryWrapper.ProductItems.GetByIdAsync(itemId);
                     if (item != null)
                     {
+                        var matchingReqItem = requestDto.Items.FirstOrDefault(i => i.ProductId == item.ProductId);
+                        var itemNotes = !string.IsNullOrWhiteSpace(matchingReqItem?.Notes) ? matchingReqItem.Notes : requestDto.Purpose;
                         var updateDto = new ProductItemUpdateDto
                         {
                             Id = item.Id,
@@ -195,7 +197,7 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
                             ProductExitRequestId = createdDto.Id,
                             RecipientName = requestDto.RecipientName,
                             Place = departmentName,
-                            Notes = requestDto.Purpose
+                            Notes = itemNotes
                         };
                         await _repositoryWrapper.ProductItems.Update(item.Id.ToString(), updateDto);
                     }
@@ -852,6 +854,9 @@ public class ProductExitRequestController : BaseController<ProductExitRequest, P
             Id = request.Id,
             BranchId = request.BranchId,
             Status = request.Status,
+            RecipientMilitaryNumber = request.RecipientMilitaryNumber,
+            RecipientRank = request.RecipientRank,
+            RecipientRankName = request.RecipientRank?.ToString(),
             RecipientName = request.RecipientName,
             DepartmentId = request.DepartmentId,
             DepartmentName = request.Department?.Name,

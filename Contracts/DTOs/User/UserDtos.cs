@@ -10,6 +10,8 @@ public class UserDto
     public string Username { get; set; } = string.Empty;
     public string? Email { get; set; }
     public UserRole Role { get; set; }
+    public MilitaryRank? Rank { get; set; }
+    public string? RankName { get; set; }
     public string? PersonName { get; set; }
     public int? UserGroupId { get; set; }
     public string? UserGroupName { get; set; }
@@ -25,6 +27,7 @@ public class UserCreateDto
     public string? Email { get; set; }
     public string Password { get; set; } = string.Empty;
     public UserRole Role { get; set; } = UserRole.Employee;
+    public MilitaryRank? Rank { get; set; }
     public string? PersonName { get; set; }
     public int? UserGroupId { get; set; }
     public int? BranchId { get; set; }
@@ -37,6 +40,7 @@ public class UserUpdateDto
     public string? Email { get; set; }
     public string? Password { get; set; }
     public UserRole Role { get; set; }
+    public MilitaryRank? Rank { get; set; }
     public string? PersonName { get; set; }
     public int? UserGroupId { get; set; }
     public int? BranchId { get; set; }
@@ -75,6 +79,8 @@ public class UserLoginResult
     public string? Email { get; set; }
     public string PasswordHash { get; set; } = string.Empty;
     public UserRole Role { get; set; }
+    public MilitaryRank? Rank { get; set; }
+    public string? RankName { get; set; }
     public string? PersonName { get; set; }
     public int? UserGroupId { get; set; }
     public string? UserGroupName { get; set; }

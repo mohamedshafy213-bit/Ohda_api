@@ -94,6 +94,8 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
                 Username = user.Username,
                 Email = user.Email,
                 Role = user.Role,
+                Rank = user.Rank,
+                RankName = user.Rank?.ToString(),
                 PersonName = user.PersonName,
                 UserGroupId = user.UserGroupId,
                 UserGroupName = user.UserGroupName,
@@ -348,6 +350,7 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
                 Email = email,
                 PasswordHash = hashedPassword,
                 Role = registerDto.Role != 0 ? registerDto.Role : UserRole.Employee,
+                Rank = registerDto.Rank,
                 PersonName = registerDto.PersonName?.Trim() ?? registerDto.Username.Trim(),
                 UserGroupId = validUserGroupId,
                 BranchId = targetBranchId,
@@ -363,6 +366,8 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
                 Username = user.Username,
                 Email = user.Email,
                 Role = user.Role,
+                Rank = user.Rank,
+                RankName = user.Rank?.ToString(),
                 PersonName = user.PersonName,
                 UserGroupId = user.UserGroupId,
                 UserGroupName = user.UserGroup?.Name,
@@ -437,6 +442,7 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
             existingUser.Username = updateDto.Username.Trim();
             existingUser.Email = !string.IsNullOrWhiteSpace(updateDto.Email) ? updateDto.Email.Trim() : null;
             existingUser.PersonName = updateDto.PersonName?.Trim();
+            existingUser.Rank = updateDto.Rank;
             existingUser.Role = (!isSuperAdmin && updateDto.Role == UserRole.SuperAdmin) ? existingUser.Role : (updateDto.Role != 0 ? updateDto.Role : existingUser.Role);
             existingUser.UserGroupId = (updateDto.UserGroupId.HasValue && updateDto.UserGroupId.Value > 0) ? updateDto.UserGroupId.Value : null;
 
@@ -463,6 +469,8 @@ public class AuthController : BaseController<User, UserDto, UserCreateDto, UserU
                 Username = existingUser.Username,
                 Email = existingUser.Email,
                 Role = existingUser.Role,
+                Rank = existingUser.Rank,
+                RankName = existingUser.Rank?.ToString(),
                 PersonName = existingUser.PersonName,
                 UserGroupId = existingUser.UserGroupId,
                 UserGroupName = existingUser.UserGroup?.Name,
